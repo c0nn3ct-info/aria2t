@@ -5,18 +5,23 @@ A modern terminal UI for the [aria2](https://aria2.github.io/) download manager,
 ## Quick start
 
 ```sh
-# start aria2 with RPC enabled
-aria2c --enable-rpc --rpc-secret=mysecret
-
-# build and run
 go build -o aria2t ./cmd/aria2t
-./aria2t --secret mysecret
+./aria2t
 ```
 
-Configuration persists to `~/.config/aria2t/config.json` (override with `--config`). `--url ws://host:6800/jsonrpc` connects to an arbitrary server without touching the config.
+That's it — aria2t finds `aria2c`, spawns a private daemon on a free port with a random secret, and shuts it down (saving the session for next launch) when you quit. Install aria2 once with `brew install aria2` if you don't have it.
+
+Connecting to an **external** server is the optional path:
+
+```sh
+./aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
+```
+
+or add servers in the switcher (`s` → `+`). Configuration persists to `~/.config/aria2t/config.json` (override with `--config`); the managed daemon keeps its session and log under `~/.config/aria2t/daemon/`.
 
 ## Features
 
+- **Zero-setup**: built-in managed aria2c daemon — spawned on demand, session resumed between runs, stopped cleanly on quit
 - Download list with **Active / Waiting / Stopped** tabs, live progress, speeds and ETAs
 - Add downloads: URL mirrors, `.torrent` and `.metalink` files, target dir, connection count, start-paused
 - Detail view: pieces map, BitTorrent peers, file selection, announce list
@@ -59,8 +64,11 @@ Configuration persists to `~/.config/aria2t/config.json` (override with `--confi
 
 ## Development
 
+The test suite holds **100% statement coverage** module-wide; keep it there:
+
 ```sh
 go test ./...           # unit tests
+go test ./... -coverprofile=cover.out -coverpkg=./... && go tool cover -func=cover.out | tail -1
 go vet ./... && gofmt -l .
 
 # integration test against a live daemon
