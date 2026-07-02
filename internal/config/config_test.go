@@ -13,6 +13,9 @@ func TestLoadMissingReturnsDefault(t *testing.T) {
 	if len(cfg.Servers) != 1 || cfg.Servers[0].Host != "localhost" || cfg.Theme != "dark" {
 		t.Fatalf("not default: %+v", cfg)
 	}
+	if !cfg.Servers[0].Managed {
+		t.Fatal("default server must be managed (built-in daemon)")
+	}
 }
 
 func TestSaveLoadRoundtrip(t *testing.T) {
@@ -55,7 +58,7 @@ func TestServerURL(t *testing.T) {
 func TestActiveServerClampsStaleIndex(t *testing.T) {
 	cfg := Default()
 	cfg.Active = 5
-	if got := cfg.ActiveServer(); got.Name != "local" {
+	if got := cfg.ActiveServer(); got.Name != "built-in" {
 		t.Fatalf("got %+v", got)
 	}
 }

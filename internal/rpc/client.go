@@ -158,6 +158,16 @@ func (c *Client) GetPeers(ctx context.Context, gid string) ([]Peer, error) {
 	return out, err
 }
 
+// SaveSession asks aria2 to persist current downloads to its session file.
+func (c *Client) SaveSession(ctx context.Context) error {
+	return c.call(ctx, "aria2.saveSession", nil)
+}
+
+// Shutdown asks aria2 to exit gracefully.
+func (c *Client) Shutdown(ctx context.Context) error {
+	return c.call(ctx, "aria2.shutdown", nil)
+}
+
 func (c *Client) GetVersion(ctx context.Context) (string, error) {
 	var out struct {
 		Version string `json:"version"`

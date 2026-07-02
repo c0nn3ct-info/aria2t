@@ -10,13 +10,16 @@ import (
 	"path/filepath"
 )
 
-// Server is one aria2 RPC endpoint.
+// Server is one aria2 RPC endpoint. A managed server is a private aria2c
+// child process that aria2t spawns on demand (host/port/secret are then
+// decided at launch); an unmanaged one is an external daemon the user runs.
 type Server struct {
 	Name     string `json:"name"`
 	Host     string `json:"host"`
-	Port     int    `json:"port"`
+	Port     int    `json:"port"` // 0 on managed servers: picked at spawn
 	Secret   string `json:"secret"`
 	Protocol string `json:"protocol"` // ws | http
+	Managed  bool   `json:"managed,omitempty"`
 }
 
 // URL returns the JSON-RPC endpoint for the chosen protocol.
@@ -51,10 +54,11 @@ type Config struct {
 	Split            int      `json:"split"` // connections per server for the add form
 }
 
-// Default returns the out-of-the-box configuration.
+// Default returns the out-of-the-box configuration: a managed built-in
+// daemon, so the app works without the user running aria2c themselves.
 func Default() Config {
 	return Config{
-		Servers: []Server{{Name: "local", Host: "localhost", Port: 6800, Protocol: "ws"}},
+		Servers: []Server{{Name: "built-in", Host: "localhost", Protocol: "ws", Managed: true}},
 		Theme:   "dark",
 		Dir:     "~/Downloads",
 		Split:   16,

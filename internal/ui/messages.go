@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"aria2t/internal/daemon"
 	"aria2t/internal/rpc"
 )
 
@@ -49,8 +50,10 @@ type pollMsg struct {
 }
 
 type connectedMsg struct {
-	client  api
-	version string
+	client   api
+	version  string
+	endpoint string         // host:port actually reached
+	daemon   *daemon.Daemon // non-nil when a managed daemon was spawned
 }
 
 type connectErrMsg struct{ err error }

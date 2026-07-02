@@ -202,31 +202,34 @@ func (m settingsModel) update(msg tea.KeyMsg) (settingsModel, tea.Cmd) {
 func (m settingsModel) save() (settingsModel, tea.Cmd) {
 	a := m.a
 
-	// Connection section → config.
-	conn := m.fields[0]
-	port, err := strconv.Atoi(strings.TrimSpace(conn[1].input.Value()))
-	if err != nil || port <= 0 {
-		return m, a.flash("bad port", true)
-	}
-	srv := a.cfg.ActiveServer()
-	proto := "http"
-	if conn[3].on {
-		proto = "ws"
-	}
-	changedConn := srv.Host != strings.TrimSpace(conn[0].input.Value()) ||
-		srv.Port != port || srv.Secret != conn[2].input.Value() || srv.Protocol != proto
-	srv.Host = strings.TrimSpace(conn[0].input.Value())
-	srv.Port = port
-	srv.Secret = conn[2].input.Value()
-	srv.Protocol = proto
-	if len(a.cfg.Servers) == 0 {
-		a.cfg.Servers = append(a.cfg.Servers, srv)
-		a.cfg.Active = 0
-	} else {
-		if a.cfg.Active < 0 || a.cfg.Active >= len(a.cfg.Servers) {
-			a.cfg.Active = 0
+	// Connection section → config. Skipped for the managed built-in daemon,
+	// whose endpoint is decided at spawn time.
+	changedConn := false
+	if srv := a.cfg.ActiveServer(); !srv.Managed {
+		conn := m.fields[0]
+		port, err := strconv.Atoi(strings.TrimSpace(conn[1].input.Value()))
+		if err != nil || port <= 0 {
+			return m, a.flash("bad port", true)
 		}
-		a.cfg.Servers[a.cfg.Active] = srv
+		proto := "http"
+		if conn[3].on {
+			proto = "ws"
+		}
+		changedConn = srv.Host != strings.TrimSpace(conn[0].input.Value()) ||
+			srv.Port != port || srv.Secret != conn[2].input.Value() || srv.Protocol != proto
+		srv.Host = strings.TrimSpace(conn[0].input.Value())
+		srv.Port = port
+		srv.Secret = conn[2].input.Value()
+		srv.Protocol = proto
+		if len(a.cfg.Servers) == 0 {
+			a.cfg.Servers = append(a.cfg.Servers, srv)
+			a.cfg.Active = 0
+		} else {
+			if a.cfg.Active < 0 || a.cfg.Active >= len(a.cfg.Servers) {
+				a.cfg.Active = 0
+			}
+			a.cfg.Servers[a.cfg.Active] = srv
+		}
 	}
 
 	// Interface section → config.
@@ -295,6 +298,20 @@ func (m settingsModel) view() string {
 
 	var rows []string
 	rows = append(rows, st.Dim.Render(strings.ToUpper(m.sections[m.section])))
+	if m.section == 0 && a.cfg.ActiveServer().Managed {
+		rows = append(rows,
+			st.Text.Render("Built-in daemon — aria2t spawns and manages aria2c itself."),
+			st.Dim.Render("Endpoint and secret are chosen at launch; nothing to configure."),
+			st.Dim.Render("Use the server switcher (s → +) to add an external server."))
+		form := st.Panel.Width(a.width - lipgloss.Width(sidebar) - 4).Render(strings.Join(rows, "\n"))
+		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, sidebar, " ", form) + "\n")
+		key := func(k, label string) string { return st.Key.Render(k) + " " + st.Dim.Render(label) }
+		b.WriteString(" " + strings.Join([]string{
+			key("↑↓", "section"), key("^s", "save"), key("esc", "back"),
+		}, "  "))
+		b.WriteString(a.statusLine())
+		return b.String()
+	}
 	for i, f := range m.fields[m.section] {
 		focused := !m.inSide && i == m.focus
 		if f.toggle {

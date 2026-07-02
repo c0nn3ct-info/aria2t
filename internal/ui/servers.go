@@ -42,12 +42,21 @@ func newServersModel(a *App) serversModel {
 	return m
 }
 
-// probeCmd measures reachability of every configured server.
+// probeCmd measures reachability of every configured server. A managed
+// server is probed at its daemon's live endpoint, or skipped when the
+// daemon isn't running yet (it starts on demand — that's not an error).
 func (m serversModel) probeCmd() tea.Cmd {
 	dial := m.a.dial
+	d := m.a.daemon
 	cmds := make([]tea.Cmd, 0, len(m.a.cfg.Servers))
 	for i, srv := range m.a.cfg.Servers {
 		i, srv := i, srv
+		if srv.Managed {
+			if d == nil {
+				continue
+			}
+			srv = config.Server{Host: "localhost", Port: d.Port, Secret: d.Secret, Protocol: "ws"}
+		}
 		cmds = append(cmds, func() tea.Msg {
 			start := time.Now()
 			c, _, err := dial(srv)
@@ -213,7 +222,9 @@ func (m serversModel) view() string {
 			nameStyle = st.Title
 		}
 		state := st.Dim.Render("probing…")
-		if m.dead[i] {
+		if srv.Managed && a.daemon == nil {
+			state = st.Dim.Render("● starts on demand")
+		} else if m.dead[i] {
 			state = st.Red.Render("● unreachable")
 		} else if d, ok := m.latency[i]; ok {
 			state = st.Green.Render(fmt.Sprintf("● %dms", d.Milliseconds()))
@@ -222,8 +233,15 @@ func (m serversModel) view() string {
 		if i == a.cfg.Active {
 			active = st.Green.Render(" · connected")
 		}
+		desc := fmt.Sprintf("%s:%d · %s", srv.Host, srv.Port, srv.Protocol)
+		if srv.Managed {
+			desc = "built-in · managed"
+			if a.daemon != nil {
+				desc = fmt.Sprintf("built-in · localhost:%d", a.daemon.Port)
+			}
+		}
 		line := marker + nameStyle.Render(srv.Name) + " " +
-			st.Dim.Render(fmt.Sprintf("%s:%d · %s", srv.Host, srv.Port, srv.Protocol)) + active +
+			st.Dim.Render(desc) + active +
 			"  " + state
 		if i == m.cursor {
 			line = st.RowSel.Render(line)

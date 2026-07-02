@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	"aria2t/internal/checksum"
 	"aria2t/internal/config"
+	"aria2t/internal/daemon"
 	"aria2t/internal/rpc"
 	"aria2t/internal/sched"
 )
@@ -58,6 +60,8 @@ type App struct {
 	version   string
 	connected bool
 	connErr   error
+	daemon    *daemon.Daemon
+	endpoint  string // "host:port" actually connected to (managed port is dynamic)
 
 	screen  screen
 	overlay overlay
@@ -87,8 +91,9 @@ type App struct {
 
 	width, height int
 
-	// dial and newClient are swappable for tests.
-	dial func(srv config.Server) (api, string, error)
+	// dial and spawn are swappable for tests.
+	dial  func(srv config.Server) (api, string, error)
+	spawn func(o daemon.Options) (*daemon.Daemon, error)
 }
 
 // NewApp builds the root model from configuration.
@@ -104,6 +109,7 @@ func NewApp(cfg config.Config, cfgPath string) *App {
 		width:    120,
 		height:   36,
 		dial:     dialServer,
+		spawn:    daemon.Start,
 	}
 	a.list = newListModel(a)
 	a.detail = newDetailModel(a)
@@ -149,13 +155,55 @@ func tickCmd() tea.Cmd {
 
 func (a *App) connectCmd() tea.Cmd {
 	srv := a.cfg.ActiveServer()
+	if srv.Managed {
+		return a.connectManagedCmd(srv)
+	}
 	dial := a.dial
 	return func() tea.Msg {
 		c, v, err := dial(srv)
 		if err != nil {
 			return connectErrMsg{err}
 		}
-		return connectedMsg{client: c, version: v}
+		return connectedMsg{client: c, version: v, endpoint: fmt.Sprintf("%s:%d", srv.Host, srv.Port)}
+	}
+}
+
+// connectManagedCmd spawns (or reuses) the built-in daemon, then dials it.
+func (a *App) connectManagedCmd(srv config.Server) tea.Cmd {
+	d := a.daemon // reuse a daemon spawned earlier this run
+	spawn := a.spawn
+	dial := a.dial
+	dir := expandHome(a.cfg.Dir)
+	dataDir := filepath.Join(filepath.Dir(a.cfgPath), "daemon")
+	return func() tea.Msg {
+		if d == nil {
+			var err error
+			d, err = spawn(daemon.Options{Dir: dir, DataDir: dataDir, Secret: srv.Secret, Port: srv.Port})
+			if err != nil {
+				return connectErrMsg{err}
+			}
+		}
+		proxy := config.Server{Host: "localhost", Port: d.Port, Secret: d.Secret, Protocol: "ws"}
+		c, v, err := dial(proxy)
+		if err != nil {
+			return connectErrMsg{fmt.Errorf("built-in daemon dial: %w", err)}
+		}
+		return connectedMsg{client: c, version: v, daemon: d, endpoint: fmt.Sprintf("localhost:%d", d.Port)}
+	}
+}
+
+// Shutdown releases the RPC client and stops the managed daemon, if any.
+// Called by main after the program loop exits.
+func (a *App) Shutdown() {
+	if a.client != nil {
+		a.client.Close()
+		a.client = nil
+	}
+	if a.daemon != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+		_ = a.daemon.Stop(ctx)
+		a.daemon = nil
 	}
 }
 
@@ -276,6 +324,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.version = msg.version
 		a.connected = true
 		a.connErr = nil
+		a.endpoint = msg.endpoint
+		if msg.daemon != nil {
+			a.daemon = msg.daemon
+		}
 		a.lastSchedKey = "" // re-apply schedule on the new server
 		return a, tea.Batch(a.pollCmd(), a.listenCmd())
 
@@ -521,9 +573,16 @@ func (a *App) header() string {
 	if !a.connected {
 		conn = st.Red.Render("● disconnected")
 	}
+	endpoint := a.endpoint
+	if endpoint == "" {
+		endpoint = fmt.Sprintf("%s:%d", srv.Host, srv.Port)
+	}
+	if srv.Managed {
+		endpoint += " (built-in)"
+	}
 	left := lipgloss.JoinHorizontal(lipgloss.Center,
 		st.Brand.Render("aria2t"), st.Faint.Render(" │ "),
-		st.Dim.Render(fmt.Sprintf("%s:%d ", srv.Host, srv.Port)), conn)
+		st.Dim.Render(endpoint+" "), conn)
 	right := st.Cyan.Render("▼ "+FmtSpeed(a.snap.Stat.DownSpeed())) + " " +
 		st.Magenta.Render("▲ "+FmtSpeed(a.snap.Stat.UpSpeed()))
 	gap := a.width - lipgloss.Width(left) - lipgloss.Width(right) - 2
