@@ -49,27 +49,27 @@ type BTInfo struct {
 
 // Status is aria2.tellStatus / tellActive / tellWaiting / tellStopped item.
 type Status struct {
-	GID             string  `json:"gid"`
-	Status          string  `json:"status"` // active|waiting|paused|error|complete|removed
-	TotalLength     string  `json:"totalLength"`
-	CompletedLength string  `json:"completedLength"`
-	UploadLength    string  `json:"uploadLength"`
-	Bitfield        string  `json:"bitfield"`
-	DownloadSpeed   string  `json:"downloadSpeed"`
-	UploadSpeed     string  `json:"uploadSpeed"`
-	InfoHash        string  `json:"infoHash"`
-	NumSeeders      string  `json:"numSeeders"`
-	Seeder          string  `json:"seeder"`
-	PieceLength     string  `json:"pieceLength"`
-	NumPieces       string  `json:"numPieces"`
-	Connections     string  `json:"connections"`
-	ErrorCode       string  `json:"errorCode"`
-	ErrorMessage    string  `json:"errorMessage"`
+	GID             string   `json:"gid"`
+	Status          string   `json:"status"` // active|waiting|paused|error|complete|removed
+	TotalLength     string   `json:"totalLength"`
+	CompletedLength string   `json:"completedLength"`
+	UploadLength    string   `json:"uploadLength"`
+	Bitfield        string   `json:"bitfield"`
+	DownloadSpeed   string   `json:"downloadSpeed"`
+	UploadSpeed     string   `json:"uploadSpeed"`
+	InfoHash        string   `json:"infoHash"`
+	NumSeeders      string   `json:"numSeeders"`
+	Seeder          string   `json:"seeder"`
+	PieceLength     string   `json:"pieceLength"`
+	NumPieces       string   `json:"numPieces"`
+	Connections     string   `json:"connections"`
+	ErrorCode       string   `json:"errorCode"`
+	ErrorMessage    string   `json:"errorMessage"`
 	FollowedBy      []string `json:"followedBy"`
-	Following       string  `json:"following"`
-	Dir             string  `json:"dir"`
-	Files           []File  `json:"files"`
-	BitTorrent      *BTInfo `json:"bittorrent"`
+	Following       string   `json:"following"`
+	Dir             string   `json:"dir"`
+	Files           []File   `json:"files"`
+	BitTorrent      *BTInfo  `json:"bittorrent"`
 }
 
 func (s Status) Total() int64     { return atoi64(s.TotalLength) }
@@ -152,7 +152,7 @@ func (g GlobalStat) Stopped() int     { return int(atoi64(g.NumStopped)) }
 
 // Notification is an aria2 push event received over websocket.
 type Notification struct {
-	Method string   // e.g. aria2.onDownloadComplete
+	Method string // e.g. aria2.onDownloadComplete
 	GIDs   []string
 }
 
