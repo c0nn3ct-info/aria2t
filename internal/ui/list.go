@@ -433,10 +433,7 @@ func (m listModel) view() string {
 			case "paused":
 				suffix = " " + st.Yellow.Render("⏸ paused")
 			}
-			nw := nameW - lipgloss.Width(suffix)
-			if nw < 8 {
-				nw = 8
-			}
+			nw := max(nameW-lipgloss.Width(suffix), 8)
 			row := marker + style.Render(pad(name, nw)) + suffix + "  " + progress +
 				st.Dim.Render(lpad(FmtBytes(s.Total()), 9)) +
 				st.Cyan.Render(lpad(FmtSpeed(s.DownSpeed()), 12)) +

@@ -60,9 +60,15 @@ func FindBinary() (string, error) {
 	return "", errors.New("aria2c not found — install it (brew install aria2) or connect to an external server with --url")
 }
 
+// netListen and randRead are indirections for tests.
+var (
+	netListen = net.Listen
+	randRead  = rand.Read
+)
+
 // FreePort asks the kernel for an unused TCP port on localhost.
 func FreePort() (int, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	l, err := netListen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0, err
 	}
@@ -73,7 +79,7 @@ func FreePort() (int, error) {
 // randomSecret returns 32 hex chars from crypto/rand.
 func randomSecret() (string, error) {
 	buf := make([]byte, 16)
-	if _, err := rand.Read(buf); err != nil {
+	if _, err := randRead(buf); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(buf), nil

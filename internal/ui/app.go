@@ -150,8 +150,11 @@ func (a *App) Init() tea.Cmd {
 }
 
 func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
+	return tea.Tick(time.Second, tickMsgAt)
 }
+
+// tickMsgAt wraps the tick time; named so tests can invoke it directly.
+func tickMsgAt(t time.Time) tea.Msg { return tickMsg(t) }
 
 func (a *App) connectCmd() tea.Cmd {
 	srv := a.cfg.ActiveServer()
@@ -267,8 +270,12 @@ func (a *App) rpcCmd(okText string, fn func(ctx context.Context, c api) error) t
 func (a *App) flash(text string, isErr bool) tea.Cmd {
 	a.status, a.statusErr = text, isErr
 	a.statusSeq++
-	seq := a.statusSeq
-	return tea.Tick(4*time.Second, func(time.Time) tea.Msg { return clearStatusMsg{seq} })
+	return tea.Tick(4*time.Second, clearStatusAt(a.statusSeq))
+}
+
+// clearStatusAt builds the tick payload that clears status message seq.
+func clearStatusAt(seq int) func(time.Time) tea.Msg {
+	return func(time.Time) tea.Msg { return clearStatusMsg{seq} }
 }
 
 func (a *App) saveConfig() {
@@ -548,15 +555,24 @@ func (a *App) redownload(s rpc.Status) tea.Cmd {
 	})
 }
 
+// openDirBin is the file-manager launcher; a var so tests can substitute a
+// harmless command.
+var openDirBin = openBinFor(runtime.GOOS)
+
+// openBinFor picks the platform's directory opener.
+func openBinFor(goos string) string {
+	if goos == "darwin" {
+		return "open"
+	}
+	return "xdg-open"
+}
+
 // openDir reveals the download directory in the OS file manager.
 func (a *App) openDir(dir string) tea.Cmd {
 	if dir == "" {
 		return a.flash("no directory", true)
 	}
-	bin := "xdg-open"
-	if runtime.GOOS == "darwin" {
-		bin = "open"
-	}
+	bin := openDirBin
 	return func() tea.Msg {
 		if err := exec.Command(bin, dir).Start(); err != nil {
 			return actionDoneMsg{err: fmt.Errorf("open %s: %w", dir, err)}

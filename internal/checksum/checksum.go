@@ -9,6 +9,10 @@ import (
 	"strings"
 )
 
+// statFile is indirected so tests can exercise the Stat error path,
+// which cannot be triggered on a freshly opened file otherwise.
+var statFile = (*os.File).Stat
+
 // Verify streams path through sha-256 and compares against expectedHex
 // (case-insensitive). progress, if non-nil, is called after every chunk
 // with bytes hashed so far and the file size.
@@ -18,7 +22,7 @@ func Verify(path, expectedHex string, progress func(done, total int64)) (ok bool
 		return false, "", err
 	}
 	defer f.Close()
-	info, err := f.Stat()
+	info, err := statFile(f)
 	if err != nil {
 		return false, "", err
 	}

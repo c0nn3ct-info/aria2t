@@ -106,9 +106,8 @@ func Save(path string, cfg Config) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	raw, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
+	// Config is a plain struct of strings, ints, bools, and slices of the
+	// same; MarshalIndent cannot fail on it.
+	raw, _ := json.MarshalIndent(cfg, "", "  ")
 	return os.WriteFile(path, append(raw, '\n'), 0o600)
 }

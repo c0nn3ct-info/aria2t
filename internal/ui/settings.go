@@ -10,6 +10,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"aria2t/internal/config"
 )
 
 // setField is one editable entry: a text input or a toggle.
@@ -198,6 +200,20 @@ func (m settingsModel) update(msg tea.KeyMsg) (settingsModel, tea.Cmd) {
 	return m, nil
 }
 
+// storeActiveServer writes srv back into the active config slot, recovering
+// from an empty server list or a stale active index.
+func (a *App) storeActiveServer(srv config.Server) {
+	if len(a.cfg.Servers) == 0 {
+		a.cfg.Servers = append(a.cfg.Servers, srv)
+		a.cfg.Active = 0
+		return
+	}
+	if a.cfg.Active < 0 || a.cfg.Active >= len(a.cfg.Servers) {
+		a.cfg.Active = 0
+	}
+	a.cfg.Servers[a.cfg.Active] = srv
+}
+
 // save persists connection changes to config and pushes global options.
 func (m settingsModel) save() (settingsModel, tea.Cmd) {
 	a := m.a
@@ -221,15 +237,7 @@ func (m settingsModel) save() (settingsModel, tea.Cmd) {
 		srv.Port = port
 		srv.Secret = conn[2].input.Value()
 		srv.Protocol = proto
-		if len(a.cfg.Servers) == 0 {
-			a.cfg.Servers = append(a.cfg.Servers, srv)
-			a.cfg.Active = 0
-		} else {
-			if a.cfg.Active < 0 || a.cfg.Active >= len(a.cfg.Servers) {
-				a.cfg.Active = 0
-			}
-			a.cfg.Servers[a.cfg.Active] = srv
-		}
+		a.storeActiveServer(srv)
 	}
 
 	// Interface section → config.
