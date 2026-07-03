@@ -107,16 +107,18 @@ func (m detailModel) update(msg tea.KeyMsg) (detailModel, tea.Cmd) {
 			return c.Pause(ctx, gid)
 		})
 	case "d":
-		gid := m.gid
+		gid, name := m.gid, m.s.Name()
 		// Stopped downloads live in the result list; aria2.remove only
 		// works on active/waiting ones.
 		stopped := m.s.Status == "complete" || m.s.Status == "error" || m.s.Status == "removed"
-		a.screen = screenList
-		return m, a.rpcCmd("removed", func(ctx context.Context, c api) error {
-			if stopped {
-				return c.RemoveDownloadResult(ctx, gid)
-			}
-			return c.Remove(ctx, gid)
+		return m, a.confirmRemove(name, func() tea.Cmd {
+			a.screen = screenList
+			return a.rpcCmd("removed "+name, func(ctx context.Context, c api) error {
+				if stopped {
+					return c.RemoveDownloadResult(ctx, gid)
+				}
+				return c.Remove(ctx, gid)
+			})
 		})
 	case "t":
 		if m.s.IsTorrent() {
@@ -149,6 +151,21 @@ func (m detailModel) toggleFileCmd() tea.Cmd {
 	return m.a.rpcCmd("file selection updated", func(ctx context.Context, c api) error {
 		return c.ChangeOption(ctx, gid, map[string]string{"select-file": value})
 	})
+}
+
+// mouse handles clicks on the detail screen: file rows toggle selection.
+func (m detailModel) mouse(id string) (detailModel, tea.Cmd) {
+	kind, arg := splitID(id)
+	if kind != "file" {
+		return m, nil
+	}
+	i := argInt(arg)
+	if i < 0 || i >= len(m.s.Files) {
+		return m, nil
+	}
+	m.filesFocused = true
+	m.fileCursor = i
+	return m.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})
 }
 
 func (m detailModel) view() string {
@@ -252,6 +269,14 @@ func (m detailModel) view() string {
 
 	peersPanel := st.Panel.Render(strings.Join(peerLines, "\n"))
 	filesPanel := st.Panel.Render(strings.Join(fileLines, "\n"))
+	// Clickable regions: full header line goes back, file rows toggle.
+	a.hits.line("back", 0, a.width)
+	panelsY := lipgloss.Height(b.String()) // lines rendered above these panels
+	fx := lipgloss.Width(peersPanel) + 2   // files panel content x
+	for i := range s.Files {
+		y := panelsY + 2 + i // top border + FILES header line
+		a.hits.add(fmt.Sprintf("file:%d", i), fx, y, fx+lipgloss.Width(filesPanel)-3, y)
+	}
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, peersPanel, filesPanel) + "\n")
 
 	key := func(k, label string) string { return st.Key.Render(k) + " " + st.Dim.Render(label) }

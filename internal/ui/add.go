@@ -210,6 +210,24 @@ func expandHome(p string) string {
 	return p
 }
 
+// mouse handles clicks inside the add overlay.
+func (m addModel) mouse(id string) (addModel, tea.Cmd) {
+	kind, arg := splitID(id)
+	switch kind {
+	case "atab":
+		if t := argInt(arg); t >= 0 && t <= 2 && t != m.tab {
+			m.tab = t
+			m.focus = 0
+			return m, m.applyFocus()
+		}
+	case "btn":
+		if arg == "submit" {
+			return m.submit()
+		}
+	}
+	return m, nil
+}
+
 func (m addModel) view() string {
 	st := m.a.styles
 	tabs := make([]string, 3)
@@ -255,5 +273,18 @@ func (m addModel) view() string {
 		"",
 		st.Dim.Render("tab next field · ")+st.Green.Render("↵/^d add"),
 	)
-	return st.Modal.Render(body)
+	modal := st.Modal.Render(body)
+
+	// Clickable regions: source tabs and the add hint.
+	offX, offY := m.a.overlayOffset(modal)
+	x := offX + 3 // border + horizontal padding
+	tabsY := offY + 4
+	for i, tab := range tabs {
+		w := lipgloss.Width(tab)
+		m.a.hits.add(fmt.Sprintf("atab:%d", i), x, tabsY, x+w-1, tabsY)
+		x += w + 1
+	}
+	lastY := offY + lipgloss.Height(modal) - 3
+	m.a.hits.add("btn:submit", offX+3, lastY, offX+lipgloss.Width(modal)-4, lastY)
+	return modal
 }

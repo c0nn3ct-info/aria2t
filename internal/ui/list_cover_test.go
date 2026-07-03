@@ -83,16 +83,29 @@ func TestListResumeAndRemove(t *testing.T) {
 	a, fake := testApp(t)
 	_, cmd := a.Update(key("r")) // resume a1
 	drain(t, a, cmd)
-	_, cmd = a.Update(key("d")) // remove a1 (active → Remove)
+	_, _ = a.Update(key("d")) // remove a1 → confirm modal
+	if a.overlay != overlayConfirm {
+		t.Fatalf("d must ask first, overlay = %d", a.overlay)
+	}
+	_, cmd = a.Update(key("y"))
 	drain(t, a, cmd)
 	if len(fake.removed) != 1 || fake.removed[0] != "a1" {
 		t.Fatalf("removed = %v", fake.removed)
 	}
 	_, _ = a.Update(key("3")) // stopped tab → RemoveDownloadResult path
-	_, cmd = a.Update(key("d"))
+	_, _ = a.Update(key("d"))
+	_, cmd = a.Update(key("y"))
 	drain(t, a, cmd)
 	if len(fake.removed) != 1 {
 		t.Fatalf("stopped remove must use RemoveDownloadResult, removed = %v", fake.removed)
+	}
+	// n declines: nothing removed.
+	_, _ = a.Update(key("1"))
+	_, _ = a.Update(key("d"))
+	_, cmd = a.Update(key("n"))
+	drain(t, a, cmd)
+	if len(fake.removed) != 1 || a.overlay != overlayNone {
+		t.Fatalf("decline must not remove: %v", fake.removed)
 	}
 }
 
@@ -371,25 +384,25 @@ func TestListViewReordering(t *testing.T) {
 
 func TestKeybarVariants(t *testing.T) {
 	a, _ := testApp(t)
-	if kb := a.list.keybar(); !strings.Contains(kb, "add") {
+	if kb := a.list.keybar(10); !strings.Contains(kb, "add") {
 		t.Fatalf("normal keybar = %q", kb)
 	}
 	a.list.tab = tabWaiting
-	if kb := a.list.keybar(); !strings.Contains(kb, "reorder") {
+	if kb := a.list.keybar(10); !strings.Contains(kb, "reorder") {
 		t.Fatal("waiting keybar must offer reorder")
 	}
 	a.list.tab = tabStopped
-	if kb := a.list.keybar(); !strings.Contains(kb, "re-download") {
+	if kb := a.list.keybar(10); !strings.Contains(kb, "re-download") {
 		t.Fatal("stopped keybar must offer re-download")
 	}
 	a.list.reordering = true
-	if kb := a.list.keybar(); !strings.Contains(kb, "drop") {
+	if kb := a.list.keybar(10); !strings.Contains(kb, "drop") {
 		t.Fatal("reorder keybar must offer drop")
 	}
 	a.list.reordering = false
 	a.snap = snapshot{} // no rows → no position indicator
 	a.list.tab = tabActive
-	if kb := a.list.keybar(); strings.Contains(kb, "1/") {
+	if kb := a.list.keybar(10); strings.Contains(kb, "1/") {
 		t.Fatal("empty list must not show position")
 	}
 }

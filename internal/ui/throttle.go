@@ -2,6 +2,8 @@ package ui
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -170,6 +172,29 @@ func (m throttleModel) apply() (throttleModel, tea.Cmd) {
 	})
 }
 
+// mouse handles clicks inside the throttle overlay.
+func (m throttleModel) mouse(id string) (throttleModel, tea.Cmd) {
+	kind, arg := splitID(id)
+	if kind != "chip" {
+		return m, nil
+	}
+	rowArg, selArg, ok := strings.Cut(arg, ":")
+	if !ok {
+		return m, nil
+	}
+	row, sel := argInt(rowArg), argInt(selArg)
+	if row < 0 || row > 1 || sel < 0 || sel > len(m.presets(row)) {
+		return m, nil
+	}
+	m.row = row
+	m.setSelection(row, sel)
+	if sel == len(m.presets(row)) {
+		m.editing = true
+		return m, m.custom[row].Focus()
+	}
+	return m.apply()
+}
+
 func (m throttleModel) chipRow(row int, label string) string {
 	st := m.a.styles
 	presets := m.presets(row)
@@ -216,5 +241,25 @@ func (m throttleModel) view() string {
 		"",
 		st.Dim.Render("h/l select · tab row · ")+st.Yellow.Render("↵ apply")+st.Dim.Render(" · esc cancel"),
 	)
-	return st.Modal.BorderForeground(m.a.styles.P.Yellow).Render(body)
+	modal := st.Modal.BorderForeground(m.a.styles.P.Yellow).Render(body)
+
+	// Chips lines sit at body rows 3 (download) and 6 (upload); content
+	// starts 2 rows/3 cols inside the modal frame.
+	offX, offY := m.a.overlayOffset(modal)
+	for row, bodyY := range []int{3, 6} {
+		x := offX + 3 + 2 // frame + "  " chip indent
+		y := offY + 2 + bodyY
+		presets := m.presets(row)
+		for i := 0; i <= len(presets); i++ {
+			var w int
+			if i < len(presets) {
+				w = lipgloss.Width(st.Dim.Render("[ " + FmtLimit(presets[i]) + " ]"))
+			} else {
+				w = 11 // "[ custom… ]"
+			}
+			m.a.hits.add(fmt.Sprintf("chip:%d:%d", row, i), x, y, x+w-1, y)
+			x += w
+		}
+	}
+	return modal
 }

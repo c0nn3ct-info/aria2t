@@ -22,6 +22,7 @@ type listModel struct {
 	a      *App
 	tab    int
 	cursor int
+	offset int // first visible row (scrolling)
 
 	reordering bool
 	reorderGID string
@@ -63,6 +64,25 @@ func (m *listModel) clampCursor() {
 	if m.cursor < 0 {
 		m.cursor = 0
 	}
+	vis := m.visibleRows()
+	if m.cursor < m.offset {
+		m.offset = m.cursor
+	}
+	if m.cursor >= m.offset+vis {
+		m.offset = m.cursor - vis + 1
+	}
+	if m.offset < 0 {
+		m.offset = 0
+	}
+}
+
+// visibleRows is how many download rows fit between the chrome lines.
+func (m listModel) visibleRows() int {
+	v := m.a.height - 8
+	if v < 3 {
+		v = 3
+	}
+	return v
 }
 
 // frozenWaiting keeps the local order visible while the user drags an item.
@@ -125,6 +145,19 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 				return c.Pause(ctx, gid)
 			})
 		}
+	case " ":
+		// Smart toggle: paused resumes, running pauses.
+		if s, ok := m.selected(); ok && m.tab != tabStopped {
+			gid, name := s.GID, s.Name()
+			if s.Status == "paused" {
+				return m, a.rpcCmd("resumed "+name, func(ctx context.Context, c api) error {
+					return c.Unpause(ctx, gid)
+				})
+			}
+			return m, a.rpcCmd("paused "+name, func(ctx context.Context, c api) error {
+				return c.Pause(ctx, gid)
+			})
+		}
 	case "r":
 		if s, ok := m.selected(); ok {
 			gid := s.GID
@@ -134,12 +167,14 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 		}
 	case "d":
 		if s, ok := m.selected(); ok {
-			gid, stopped := s.GID, m.tab == tabStopped
-			return m, a.rpcCmd("removed "+s.Name(), func(ctx context.Context, c api) error {
-				if stopped {
-					return c.RemoveDownloadResult(ctx, gid)
-				}
-				return c.Remove(ctx, gid)
+			gid, stopped, name := s.GID, m.tab == tabStopped, s.Name()
+			return m, a.confirmRemove(name, func() tea.Cmd {
+				return a.rpcCmd("removed "+name, func(ctx context.Context, c api) error {
+					if stopped {
+						return c.RemoveDownloadResult(ctx, gid)
+					}
+					return c.Remove(ctx, gid)
+				})
 			})
 		}
 	case "enter":
@@ -321,12 +356,16 @@ func (m listModel) tabsLine() string {
 		fmt.Sprintf("Stopped %d", len(m.a.snap.Stopped)),
 	}
 	parts := make([]string, 3)
+	x := 1 // leading space
 	for i, n := range names {
 		if i == m.tab {
 			parts[i] = st.Badge.Render(n)
 		} else {
 			parts[i] = st.Dim.Render("[ " + n + " ]")
 		}
+		w := lipgloss.Width(parts[i])
+		m.a.hits.add(fmt.Sprintf("tab:%d", i), x, 1, x+w-1, 1)
+		x += w + 1
 	}
 	return " " + strings.Join(parts, " ")
 }
@@ -391,13 +430,27 @@ func (m listModel) view() string {
 		nameW = 20
 	}
 	rows := m.rows()
+	start := m.offset
+	if start > len(rows) {
+		start = len(rows)
+	}
+	end := start + m.visibleRows()
+	if end > len(rows) {
+		end = len(rows)
+	}
+	win := rows[start:end]
+	rowRegion := func(wi int) {
+		a.hits.add(fmt.Sprintf("row:%d", start+wi), 1, 4+wi, a.width-2, 4+wi)
+	}
 	var lines []string
 
 	switch {
 	case m.tab == tabStopped:
 		head := st.Dim.Render(pad("NAME", nameW+2) + pad("STATUS", 14) + "INTEGRITY")
 		lines = append(lines, head)
-		for i, s := range rows {
+		for wi, s := range win {
+			i := start + wi
+			rowRegion(wi)
 			marker, style := "  ", st.Text
 			if i == m.cursor {
 				marker, style = st.Brand.Render("▸")+" ", st.Title
@@ -414,7 +467,9 @@ func (m listModel) view() string {
 	case m.tab == tabWaiting && m.reordering:
 		head := st.Dim.Render(pad("POS", 5) + pad("NAME", nameW+2) + lpad("SIZE", 10) + lpad("STATUS", 12))
 		lines = append(lines, head)
-		for i, s := range rows {
+		for wi, s := range win {
+			i := start + wi
+			rowRegion(wi)
 			posCell := st.Dim.Render(pad(fmt.Sprintf("%d", i+1), 5))
 			name := pad(s.Name(), nameW)
 			row := "  " + posCell + st.Text.Render(name) + "  " +
@@ -429,7 +484,9 @@ func (m listModel) view() string {
 	default:
 		head := st.Dim.Render(pad("NAME", nameW+2) + pad("PROGRESS", 28) + lpad("SIZE", 9) + lpad("SPEED", 12) + lpad("ETA", 9))
 		lines = append(lines, head)
-		for i, s := range rows {
+		for wi, s := range win {
+			i := start + wi
+			rowRegion(wi)
 			marker, style := "  ", st.Text
 			if i == m.cursor {
 				marker, style = st.Brand.Render("▸")+" ", st.Title
@@ -496,7 +553,8 @@ func (m listModel) view() string {
 		}
 	}
 
-	b.WriteString(m.keybar())
+	rendered := b.String()
+	b.WriteString(m.keybar(lipgloss.Height(rendered) - 1))
 	b.WriteString(a.statusLine())
 	return b.String()
 }
@@ -508,29 +566,50 @@ func shortHash(h string) string {
 	return h
 }
 
-func (m listModel) keybar() string {
+// keybar renders the hint line at row y; every hint is clickable.
+func (m listModel) keybar(y int) string {
 	st := m.a.styles
-	key := func(k, label string) string { return st.Key.Render(k) + " " + st.Dim.Render(label) }
 	var parts []string
+	var tokens []string // key token behind each part; "" = not clickable
+	add := func(token, k, label string) {
+		parts = append(parts, st.Key.Render(k)+" "+st.Dim.Render(label))
+		tokens = append(tokens, token)
+	}
 	if m.reordering {
-		parts = []string{
-			st.Magenta.Bold(true).Render("J/K") + " " + st.Dim.Render("move down/up"),
-			st.Magenta.Bold(true).Render("gg/G") + " " + st.Dim.Render("to top/bottom"),
-			st.Magenta.Bold(true).Render("↵") + " " + st.Dim.Render("drop"),
-			st.Magenta.Bold(true).Render("esc") + " " + st.Dim.Render("cancel"),
+		mk := func(k, label string) string {
+			return st.Magenta.Bold(true).Render(k) + " " + st.Dim.Render(label)
 		}
+		parts = []string{mk("J/K", "move down/up"), mk("gg/G", "to top/bottom"), mk("↵", "drop"), mk("esc", "cancel")}
+		tokens = []string{"", "", "enter", "esc"}
 	} else {
-		parts = []string{
-			key("a", "add"), key("p", "pause"), key("r", "resume"), key("d", "remove"),
-			key("↵", "details"), key("g", "stats"), key("l", "limit"), key("s", "servers"),
-			key("S", "sched"), key(",", "settings"), key("q", "quit"),
-		}
+		add("a", "a", "add")
+		add(" ", "space", "pause/resume")
+		add("d", "d", "remove")
+		add("enter", "↵", "details")
+		add("g", "g", "stats")
+		add("l", "l", "limit")
+		add("s", "s", "servers")
+		add("S", "S", "sched")
+		add(",", ",", "settings")
+		add("?", "?", "help")
+		add("q", "q", "quit")
 		if m.tab == tabWaiting {
-			parts = append(parts, key("J/K", "reorder"))
+			add("", "J/K", "reorder")
 		}
 		if m.tab == tabStopped {
-			parts = append(parts, key("v", "verify"), key("R", "re-download"), key("c", "checksum"), key("o", "open"))
+			add("v", "v", "verify")
+			add("R", "R", "re-download")
+			add("c", "c", "checksum")
+			add("o", "o", "open")
 		}
+	}
+	x := 1
+	for i, p := range parts {
+		w := lipgloss.Width(p)
+		if tokens[i] != "" {
+			m.a.hits.add("key:"+tokens[i], x, y, x+w-1, y)
+		}
+		x += w + 2
 	}
 	pos := ""
 	if n := len(m.rows()); n > 0 {
@@ -542,4 +621,44 @@ func (m listModel) keybar() string {
 		gap = 1
 	}
 	return line + strings.Repeat(" ", gap) + pos
+}
+
+// mouse handles clicks on the list screen.
+func (m listModel) mouse(id string, double bool) (listModel, tea.Cmd) {
+	kind, arg := splitID(id)
+	switch kind {
+	case "tab":
+		if t := argInt(arg); t >= 0 && t <= 2 && !m.reordering {
+			m.tab = t
+			m.cursor, m.offset = 0, 0
+		}
+	case "row":
+		i := argInt(arg)
+		if i < 0 || i >= len(m.rows()) {
+			return m, nil
+		}
+		if m.reordering {
+			return m, nil // dragging is keyboard-driven
+		}
+		if m.cursor == i && double {
+			return m.update(tea.KeyMsg{Type: tea.KeyEnter})
+		}
+		m.cursor = i
+		m.clampCursor()
+	case "key":
+		return m.update(keyFromToken(arg))
+	}
+	return m, nil
+}
+
+// keyFromToken converts a keybar token back into a key message.
+func keyFromToken(s string) tea.KeyMsg {
+	switch s {
+	case "enter":
+		return tea.KeyMsg{Type: tea.KeyEnter}
+	case "esc":
+		return tea.KeyMsg{Type: tea.KeyEsc}
+	default:
+		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
+	}
 }

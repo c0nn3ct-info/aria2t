@@ -22,7 +22,7 @@ import (
 // are testable.
 var (
 	osExit      = os.Exit
-	programOpts = []tea.ProgramOption{tea.WithAltScreen()}
+	programOpts = []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseCellMotion()}
 	runProgram  = func(m tea.Model) error {
 		_, err := tea.NewProgram(m, programOpts...).Run()
 		return err

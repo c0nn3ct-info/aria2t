@@ -289,6 +289,33 @@ func (m settingsModel) save() (settingsModel, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+// mouse handles clicks: sidebar sections and fields.
+func (m settingsModel) mouse(id string) (settingsModel, tea.Cmd) {
+	kind, arg := splitID(id)
+	switch kind {
+	case "side":
+		if i := argInt(arg); i >= 0 && i < len(m.sections) {
+			m.section = i
+			m.inSide = true
+			m.blurAll()
+		}
+	case "field":
+		i := argInt(arg)
+		if i < 0 || i >= len(m.fields[m.section]) {
+			return m, nil
+		}
+		m.inSide = false
+		m.focus = i
+		m.blurAll()
+		f := &m.fields[m.section][i]
+		if f.toggle {
+			return m.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})
+		}
+		return m, f.input.Focus()
+	}
+	return m, nil
+}
+
 func (m settingsModel) view() string {
 	a := m.a
 	st := a.styles
@@ -299,8 +326,10 @@ func (m settingsModel) view() string {
 	}
 	b.WriteString(" " + st.Dim.Render("← esc") + st.Faint.Render(" │ ") + st.Title.Render("Settings") + marker + "\n")
 
+	a.hits.line("back", 0, a.width)
 	var side []string
 	for i, name := range m.sections {
+		a.hits.add(fmt.Sprintf("side:%d", i), 1, 2+i, 18, 2+i)
 		if i == m.section {
 			line := st.Brand.Render("▸ ") + st.Title.Render(name)
 			if m.inSide {
@@ -314,6 +343,7 @@ func (m settingsModel) view() string {
 	sidebar := st.Panel.Render(strings.Join(side, "\n"))
 
 	var rows []string
+	fieldY := 3 // panel border + section caption
 	rows = append(rows, st.Dim.Render(strings.ToUpper(m.sections[m.section])))
 	if m.section == 0 && a.cfg.ActiveServer().Managed {
 		rows = append(rows,
@@ -329,8 +359,15 @@ func (m settingsModel) view() string {
 		b.WriteString(a.statusLine())
 		return b.String()
 	}
+	fx0, fx1 := 20, a.width-4 // form panel content x-range (after sidebar)
 	for i, f := range m.fields[m.section] {
 		focused := !m.inSide && i == m.focus
+		h := 1 // toggle rows are one line
+		if !f.toggle {
+			h = 4 // label + bordered input box
+		}
+		a.hits.add(fmt.Sprintf("field:%d", i), fx0, fieldY, fx1, fieldY+h-1)
+		fieldY += h
 		if f.toggle {
 			box := st.Dim.Render("[ ]")
 			if f.on {

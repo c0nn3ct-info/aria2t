@@ -58,6 +58,7 @@ func (m statsModel) view() string {
 	st := a.styles
 	var b strings.Builder
 
+	a.hits.line("back", 0, a.width)
 	b.WriteString(" " + st.Dim.Render("← esc") + st.Faint.Render(" │ ") + st.Title.Render("Global stats") +
 		"   " + st.Dim.Render("window: ") + st.Text.Render("60s") + "\n")
 

@@ -249,16 +249,16 @@ func TestParseLimitRejectsNegativeAndZeroSuffix(t *testing.T) {
 
 func TestDetailRemoveStoppedUsesRemoveResult(t *testing.T) {
 	a, fake := testApp(t)
-	m := newDetailModel(a)
-	m.gid = "s1"
-	m.s = rpc.Status{GID: "s1", Status: "complete"}
-	_, cmd := m.update(key("d"))
-	if cmd == nil {
-		t.Fatal("d must produce a command")
+	a.detail = newDetailModel(a)
+	a.detail.gid = "s1"
+	a.detail.s = rpc.Status{GID: "s1", Status: "complete"}
+	a.screen = screenDetail
+	_, _ = a.Update(key("d"))
+	if a.overlay != overlayConfirm {
+		t.Fatalf("overlay = %d", a.overlay)
 	}
-	if msg := cmd(); msg.(actionDoneMsg).err != nil {
-		t.Fatalf("msg = %#v", msg)
-	}
+	_, cmd := a.Update(key("enter")) // enter also confirms
+	drain(t, a, cmd)
 	if len(fake.removed) != 0 {
 		t.Fatal("stopped download must not go through aria2.remove")
 	}

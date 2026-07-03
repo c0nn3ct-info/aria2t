@@ -188,6 +188,18 @@ func fmtDays(d [7]bool) string {
 	return strings.Join(on, ",")
 }
 
+// mouse handles clicks: rule rows select.
+func (m schedulerModel) mouse(id string) (schedulerModel, tea.Cmd) {
+	kind, arg := splitID(id)
+	if kind != "rule" || m.editing {
+		return m, nil
+	}
+	if i := argInt(arg); i >= 0 && i < len(m.a.cfg.Rules) {
+		m.cursor = i
+	}
+	return m, nil
+}
+
 func (m schedulerModel) view() string {
 	a := m.a
 	st := a.styles
@@ -274,9 +286,13 @@ func (m schedulerModel) view() string {
 	}
 	b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(stripPanel, "\n")) + "\n")
 
-	// Rules table.
+	// Rules table. Rows sit below the header (1) + strip panel (5 lines)
+	// + rules panel border (1) + column header (1).
+	a.hits.line("back", 0, a.width)
 	rows := []string{st.Dim.Render(pad("WINDOW", 16) + pad("DAYS", 12) + pad("RULE", 34) + lpad("LIMIT ▼/▲", 14))}
 	for i, r := range a.cfg.Rules {
+		a.hits.add(fmt.Sprintf("rule:%d", i), 1, 8+i, a.width-2, 8+i)
+		_ = r
 		marker, style := "  ", st.Text
 		if i == m.cursor {
 			marker, style = st.Brand.Render("▸ "), st.Title

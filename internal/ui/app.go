@@ -38,6 +38,8 @@ const (
 	overlayThrottle
 	overlayServers
 	overlayPrompt
+	overlayConfirm
+	overlayHelp
 )
 
 // verifyState tracks checksum verification of one stopped download.
@@ -87,6 +89,11 @@ type App struct {
 	throttle  throttleModel
 	servers   serversModel
 	prompt    promptModel
+	confirm   confirmModel
+	help      helpModel
+
+	hits      hitmap
+	lastClick clickState
 
 	verify map[string]*verifyState
 
@@ -127,7 +134,104 @@ func NewApp(cfg config.Config, cfgPath string) *App {
 	a.add = newAddModel(a)
 	a.throttle = newThrottleModel(a)
 	a.servers = newServersModel(a)
+	a.help = newHelpModel(a)
 	return a
+}
+
+// clickState remembers the last click for double-click detection.
+type clickState struct {
+	id string
+	at time.Time
+}
+
+// overlayOffset computes where a centered modal lands on screen, so its
+// clickable regions can be registered in absolute coordinates.
+func (a *App) overlayOffset(modal string) (x, y int) {
+	x = (a.width - lipgloss.Width(modal)) / 2
+	y = (a.height - lipgloss.Height(modal)) / 2
+	if x < 0 {
+		x = 0
+	}
+	if y < 0 {
+		y = 0
+	}
+	return x, y
+}
+
+// handleMouse routes wheel and click events through the hitmap.
+func (a *App) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	// Wheel behaves like j/k wherever those keys navigate.
+	if msg.Action == tea.MouseActionPress {
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			return a.handleKey(key_("k"))
+		case tea.MouseButtonWheelDown:
+			return a.handleKey(key_("j"))
+		}
+	}
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+		return a, nil
+	}
+	id, ok := a.hits.hit(msg.X, msg.Y)
+	if !ok {
+		return a, nil
+	}
+	double := a.lastClick.id == id && time.Since(a.lastClick.at) < 400*time.Millisecond
+	a.lastClick = clickState{id: id, at: time.Now()}
+	if double {
+		a.lastClick.id = "" // a triple click is not two doubles
+	}
+
+	var cmd tea.Cmd
+	switch a.overlay {
+	case overlayAdd:
+		a.add, cmd = a.add.mouse(id)
+	case overlayThrottle:
+		a.throttle, cmd = a.throttle.mouse(id)
+	case overlayServers:
+		a.servers, cmd = a.servers.mouse(id, double)
+	case overlayConfirm:
+		a.confirm, cmd = a.confirm.mouse(id)
+	case overlayHelp:
+		a.overlay = overlayNone
+	case overlayPrompt:
+		// single input; only esc/enter matter, keyboard handles those
+	default:
+		return a.screenMouse(id, double)
+	}
+	return a, cmd
+}
+
+// screenMouse dispatches clicks on the current screen.
+func (a *App) screenMouse(id string, double bool) (tea.Model, tea.Cmd) {
+	if id == "back" && a.screen != screenList {
+		a.screen = screenList
+		return a, nil
+	}
+	var cmd tea.Cmd
+	switch a.screen {
+	case screenList:
+		a.list, cmd = a.list.mouse(id, double)
+	case screenDetail:
+		a.detail, cmd = a.detail.mouse(id)
+	case screenSettings:
+		a.settings, cmd = a.settings.mouse(id)
+	case screenSeeding:
+		a.seeding, cmd = a.seeding.mouse(id)
+	case screenScheduler:
+		a.scheduler, cmd = a.scheduler.mouse(id)
+	}
+	return a, cmd
+}
+
+// key_ builds a rune key message (helper for synthesized input).
+func key_(s string) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)} }
+
+// confirmRemove opens the shared confirmation modal for removals.
+func (a *App) confirmRemove(name string, onYes func() tea.Cmd) tea.Cmd {
+	a.confirm = newConfirmModel(a, "Remove download?", name, onYes)
+	a.overlay = overlayConfirm
+	return nil
 }
 
 func dialServer(srv config.Server) (api, string, error) {
@@ -484,6 +588,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.servers.absorbLatency(msg)
 		return a, nil
 
+	case tea.MouseMsg:
+		return a.handleMouse(msg)
+
 	case tea.KeyMsg:
 		return a.handleKey(msg)
 	}
@@ -506,8 +613,16 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.servers, cmd = a.servers.update(msg)
 		case overlayPrompt:
 			a.prompt, cmd = a.prompt.update(msg)
+		case overlayConfirm:
+			a.confirm, cmd = a.confirm.update(msg)
+		case overlayHelp:
+			a.help, cmd = a.help.update(msg)
 		}
 		return a, cmd
+	}
+	if msg.String() == "?" {
+		a.overlay = overlayHelp
+		return a, nil
 	}
 	switch a.screen {
 	case screenList:
@@ -661,6 +776,7 @@ func (a *App) statusLine() string {
 }
 
 func (a *App) View() string {
+	a.hits.reset()
 	var body string
 	switch a.screen {
 	case screenList:
@@ -677,6 +793,7 @@ func (a *App) View() string {
 		body = a.scheduler.view()
 	}
 	if a.overlay != overlayNone {
+		a.hits.reset() // only the modal is interactive while it is open
 		var modal string
 		switch a.overlay {
 		case overlayAdd:
@@ -687,6 +804,10 @@ func (a *App) View() string {
 			modal = a.servers.view()
 		case overlayPrompt:
 			modal = a.prompt.view()
+		case overlayConfirm:
+			modal = a.confirm.view()
+		case overlayHelp:
+			modal = a.help.view()
 		}
 		return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, modal)
 	}

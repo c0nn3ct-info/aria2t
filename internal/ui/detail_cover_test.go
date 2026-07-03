@@ -204,9 +204,13 @@ func TestDetailRemove(t *testing.T) {
 	a, fake := testApp(t)
 	a.screen = screenDetail
 	a.detail.gid = "a1"
-	_, cmd := a.Update(key("d"))
-	if a.screen != screenList {
-		t.Fatalf("screen = %d", a.screen)
+	_, _ = a.Update(key("d"))
+	if a.overlay != overlayConfirm {
+		t.Fatalf("d must ask first, overlay = %d", a.overlay)
+	}
+	_, cmd := a.Update(key("y"))
+	if a.screen != screenList || a.overlay != overlayNone {
+		t.Fatalf("screen = %d overlay = %d", a.screen, a.overlay)
 	}
 	drain(t, a, cmd)
 	if len(fake.removed) != 1 || fake.removed[0] != "a1" {

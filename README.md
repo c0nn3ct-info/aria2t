@@ -33,12 +33,15 @@ or add servers in the switcher (`s` → `+`). Configuration persists to `~/.conf
 - **Multi-server switcher** with latency probes (local box, seedbox, NAS…)
 - **Bandwidth scheduler** — time-of-day limit rules enforced via `changeGlobalOption`
 - Dark and light **Tokyo Night** themes (`T` to toggle)
+- **Mouse support**: click tabs/rows/buttons/chips, double-click opens details, wheel scrolls, click hints in the key bar
+- Long lists scroll with the cursor; `space` smart-toggles pause/resume; removals ask for confirmation; `?` shows a help overlay
 
 ## Key bindings
 
 | Context | Keys |
 |---|---|
-| List | `a` add · `p` pause · `r` resume · `d` remove · `↵` details · `g` stats · `l` limit · `s` servers · `S` scheduler · `t` seeding · `,` settings · `T` theme · `tab`/`1‑3` tabs · `q` quit |
+| List | `a` add · `space` pause/resume · `d` remove (confirms) · `↵` details · `g` stats · `l` limit · `s` servers · `S` scheduler · `t` seeding · `,` settings · `T` theme · `tab`/`1‑3` tabs · `?` help · `q` quit |
+| Mouse | click = select/focus · double-click = open/connect · wheel = move · click tabs, chips, buttons, key-bar hints |
 | Waiting tab | `J`/`K` grab + move · `gg`/`G` top/bottom · `↵` drop · `esc` cancel |
 | Stopped tab | `c` paste checksum · `v` verify · `R` re-download · `o` open dir |
 | Detail | `p` pause/resume · `d` remove · `f` file selection · `t` trackers · `o` open dir |

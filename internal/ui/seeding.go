@@ -216,6 +216,23 @@ func (m seedingModel) save() (seedingModel, tea.Cmd) {
 	})
 }
 
+// mouse handles clicks: extra tracker rows move focus + cursor there.
+func (m seedingModel) mouse(id string) (seedingModel, tea.Cmd) {
+	kind, arg := splitID(id)
+	if kind != "trk" {
+		return m, nil
+	}
+	i := argInt(arg)
+	if i < 0 || i >= len(m.trackers) {
+		return m, nil
+	}
+	m.ratio.Blur()
+	m.stime.Blur()
+	m.focus = m.trackersStart()
+	m.tCursor = i
+	return m, nil
+}
+
 func (m seedingModel) view() string {
 	a := m.a
 	st := a.styles
@@ -264,6 +281,8 @@ func (m seedingModel) view() string {
 	}
 	b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(top, "\n")) + "\n")
 
+	a.hits.line("back", 0, a.width)
+	topPanelH := 1 + 7 // header + top panel (2 borders + 5 lines)
 	var rows []string
 	if len(m.embedded) > 0 {
 		rows = append(rows, st.Dim.Render("EMBEDDED TRACKERS · from the .torrent, read-only"))
@@ -272,6 +291,16 @@ func (m seedingModel) view() string {
 		}
 	}
 	rows = append(rows, st.Dim.Render("EXTRA TRACKERS (bt-tracker)")+"  "+st.Dim.Render("e edit · + add · - remove"))
+	// Extras start after the panel border, optional embedded block, and
+	// their own header line.
+	extrasY := topPanelH + 1 + 1
+	if len(m.embedded) > 0 {
+		extrasY += 1 + len(m.embedded)
+	}
+	for i, tr := range m.trackers {
+		a.hits.add(fmt.Sprintf("trk:%d", i), 1, extrasY+i, a.width-2, extrasY+i)
+		_ = tr
+	}
 	for i, tr := range m.trackers {
 		marker := "  "
 		style := st.Text

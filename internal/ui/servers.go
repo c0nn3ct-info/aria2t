@@ -193,6 +193,23 @@ func (m serversModel) updateForm(msg tea.KeyMsg) (serversModel, tea.Cmd) {
 	return m, cmd
 }
 
+// mouse handles clicks inside the server switcher.
+func (m serversModel) mouse(id string, double bool) (serversModel, tea.Cmd) {
+	kind, arg := splitID(id)
+	if kind != "srv" || m.editing {
+		return m, nil
+	}
+	i := argInt(arg)
+	if i < 0 || i >= len(m.a.cfg.Servers) {
+		return m, nil
+	}
+	if m.cursor == i && double {
+		return m.update(tea.KeyMsg{Type: tea.KeyEnter})
+	}
+	m.cursor = i
+	return m, nil
+}
+
 func (m serversModel) view() string {
 	a := m.a
 	st := a.styles
@@ -266,5 +283,11 @@ func (m serversModel) view() string {
 			st.Key.Render("-")+" "+st.Dim.Render("remove")+"  "+
 			st.Key.Render("esc")+" "+st.Dim.Render("close"),
 	)
-	return st.Modal.Render(body)
+	modal := st.Modal.Render(body)
+	offX, offY := m.a.overlayOffset(modal)
+	for i := range m.a.cfg.Servers {
+		y := offY + 4 + i // frame(2) + title + blank
+		m.a.hits.add(fmt.Sprintf("srv:%d", i), offX+1, y, offX+lipgloss.Width(modal)-2, y)
+	}
+	return modal
 }
