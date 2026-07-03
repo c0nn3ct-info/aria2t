@@ -266,7 +266,7 @@ func TestIntegrityCellAll(t *testing.T) {
 		want string
 	}{
 		{nil, "—"},
-		{&verifyState{Running: true, Done: 5, Total: 10}, "verifying"},
+		{vsWithProgress(5, 10), "verifying"},
 		{&verifyState{Running: true}, "verifying"},
 		{&verifyState{Finished: true, Err: errors.New("boom")}, "boom"},
 		{&verifyState{Finished: true, OK: true}, "verified"},
@@ -345,7 +345,7 @@ func TestListViewStoppedChecksumStrip(t *testing.T) {
 	if v := a.list.view(); !strings.Contains(v, "CHECKSUM") || !strings.Contains(v, "expected") {
 		t.Fatal("expected strip missing")
 	}
-	a.verify["s1"] = &verifyState{Expected: "e", Running: true, Done: 1, Total: 2}
+	a.verify["s1"] = func() *verifyState { v := vsWithProgress(1, 2); v.Expected = "e"; return v }()
 	if v := a.list.view(); !strings.Contains(v, "hashing") {
 		t.Fatal("running strip missing")
 	}
@@ -392,4 +392,12 @@ func TestKeybarVariants(t *testing.T) {
 	if kb := a.list.keybar(); strings.Contains(kb, "1/") {
 		t.Fatal("empty list must not show position")
 	}
+}
+
+// vsWithProgress builds a running verifyState with atomic progress set.
+func vsWithProgress(done, total int64) *verifyState {
+	v := &verifyState{Running: true}
+	v.Done.Store(done)
+	v.Total.Store(total)
+	return v
 }

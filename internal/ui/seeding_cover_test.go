@@ -145,14 +145,18 @@ func TestSeedingUpdateSpace(t *testing.T) {
 	a, _ := testApp(t)
 	m := newSeedingModel(a)
 	m.focus = 2
-	m, _ = m.update(key(" "))
-	if !m.toggles[0].on {
-		t.Fatal("space must toggle DHT on")
+	m, cmd := m.update(key(" "))
+	if m.toggles[0].on {
+		t.Fatal("startup options are read-only; space must not toggle")
+	}
+	if cmd == nil || a.status == "" {
+		t.Fatal("space on a startup option must flash an explanation")
 	}
 	// Guard: focus in trackers → not a toggle, falls through.
+	a.status = ""
 	m.focus = m.trackersStart()
-	m, cmd := m.update(key(" "))
-	if m.toggles[0].on != true || cmd != nil {
+	m, cmd = m.update(key(" "))
+	if m.toggles[0].on || cmd != nil {
 		t.Fatal("space outside toggles must be inert")
 	}
 	// Space over an input routes to the input update path.
@@ -204,9 +208,8 @@ func TestSeedingSaveFull(t *testing.T) {
 	if per["seed-ratio"] != "2.0" || per["seed-time"] != "30" || per["bt-tracker"] != "x,y" {
 		t.Fatalf("perGID = %v", per)
 	}
-	if rec.global["enable-dht"] != "true" || rec.global["enable-peer-exchange"] != "false" ||
-		rec.global["bt-enable-lpd"] != "false" || rec.global["bt-require-crypto"] != "false" {
-		t.Fatalf("global = %v", rec.global)
+	if rec.global != nil {
+		t.Fatalf("startup toggles must never reach changeGlobalOption, got %v", rec.global)
 	}
 }
 
@@ -245,16 +248,16 @@ func TestSeedingSaveEmptyPerGID(t *testing.T) {
 	m, cmd := m.update(ctrl(tea.KeyCtrlS))
 	_ = m
 	if cmd == nil {
-		t.Fatal("ctrl+s must save")
+		t.Fatal("ctrl+s must report something")
 	}
-	if msg := cmd(); msg.(actionDoneMsg).err != nil {
-		t.Fatalf("msg = %#v", msg)
+	if a.status != "nothing to save" {
+		t.Fatalf("status = %q", a.status)
 	}
 	if _, ok := fake.changedOptions["a1"]; ok {
 		t.Fatal("blank fields must skip ChangeOption")
 	}
-	if rec.global == nil {
-		t.Fatal("global toggles must always be pushed")
+	if rec.global != nil {
+		t.Fatalf("no RPC expected, got global %v", rec.global)
 	}
 }
 

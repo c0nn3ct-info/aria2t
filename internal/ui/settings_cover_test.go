@@ -172,9 +172,17 @@ func TestSettingsSpaceToggleAndInput(t *testing.T) {
 	m.section = 3
 	m.inSide = false
 	m.focus = 0
+	m, cmd := m.update(key(" "))
+	if m.fields[3][0].on || m.dirty || cmd == nil {
+		t.Fatal("readonly startup toggle must flash instead of toggling")
+	}
+	// A writable toggle (Connection → websocket) still toggles.
+	m.section = 0
+	m.focus = 3
+	m.fields[0][3].on = false
 	m, _ = m.update(key(" "))
-	if !m.fields[3][0].on || !m.dirty {
-		t.Fatal("space must toggle and mark dirty")
+	if !m.fields[0][3].on || !m.dirty {
+		t.Fatal("space must toggle writable toggles and mark dirty")
 	}
 
 	// Space over an input goes to the input update path.
@@ -351,12 +359,19 @@ func TestSettingsViewUnmanagedSections(t *testing.T) {
 	if out := m.view(); out == "" {
 		t.Fatal("focused input view empty")
 	}
-	// Focused and unfocused toggles, one switched on.
+	// Focused readonly toggle renders its read-only hint; a focused
+	// writable toggle still advertises space.
 	m.section = 3
 	m.focus = 0
 	m.fields[3][1].on = true
 	out := m.view()
-	if !strings.Contains(out, "space toggles") || !strings.Contains(out, "[x]") {
+	if !strings.Contains(out, "read-only") || !strings.Contains(out, "[x]") {
+		t.Fatalf("out = %q", out)
+	}
+	m.section = 0
+	m.focus = 3
+	out = m.view()
+	if !strings.Contains(out, "space toggles") {
 		t.Fatalf("out = %q", out)
 	}
 }

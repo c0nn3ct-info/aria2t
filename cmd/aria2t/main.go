@@ -57,6 +57,9 @@ func run(args []string, stderr io.Writer) int {
 		cfg.Servers = append([]config.Server{srv}, cfg.Servers...)
 		cfg.Active = 0
 	} else if *secret != "" && len(cfg.Servers) > 0 {
+		if cfg.Active < 0 || cfg.Active >= len(cfg.Servers) {
+			cfg.Active = 0 // stale index in a hand-edited config must not panic
+		}
 		cfg.Servers[cfg.Active].Secret = *secret
 	}
 
@@ -90,5 +93,5 @@ func serverFromURL(raw, secret string) (config.Server, error) {
 	if host == "" {
 		host = strings.TrimSuffix(raw, "/")
 	}
-	return config.Server{Name: "cli", Host: host, Port: port, Secret: secret, Protocol: proto}, nil
+	return config.Server{Name: "cli", Host: host, Port: port, Secret: secret, Protocol: proto, Transient: true}, nil
 }

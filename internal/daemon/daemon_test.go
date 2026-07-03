@@ -41,13 +41,16 @@ func TestRandomSecret(t *testing.T) {
 func TestBuildArgs(t *testing.T) {
 	dir := t.TempDir()
 	session := filepath.Join(dir, "session.txt")
-	args := buildArgs("/dl", session, "/tmp/l.log", "sec", 1234)
+	args := buildArgs("/dl", session, "/tmp/l.log", "/tmp/a.conf", 1234)
 	joined := strings.Join(args, " ")
-	for _, want := range []string{"--enable-rpc", "--rpc-listen-port=1234", "--rpc-secret=sec",
+	for _, want := range []string{"--enable-rpc", "--rpc-listen-port=1234", "--conf-path=/tmp/a.conf",
 		"--save-session=" + session, "--dir=/dl", "--rpc-listen-all=false"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("missing %q in %q", want, joined)
 		}
+	}
+	if strings.Contains(joined, "rpc-secret") {
+		t.Error("secret must not appear on argv")
 	}
 	if strings.Contains(joined, "--input-file") {
 		t.Error("input-file must be absent when session file does not exist")
@@ -56,7 +59,7 @@ func TestBuildArgs(t *testing.T) {
 	if err := os.WriteFile(session, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	joined = strings.Join(buildArgs("", session, "/tmp/l.log", "sec", 1234), " ")
+	joined = strings.Join(buildArgs("", session, "/tmp/l.log", "/tmp/a.conf", 1234), " ")
 	if !strings.Contains(joined, "--input-file="+session) {
 		t.Error("input-file must be passed for an existing session")
 	}

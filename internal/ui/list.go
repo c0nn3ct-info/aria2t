@@ -151,6 +151,9 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 		}
 	case "l":
 		if s, ok := m.selected(); ok {
+			if m.tab == tabStopped {
+				return m, a.flash("stopped downloads cannot be throttled", true)
+			}
 			a.throttle = newThrottleModel(a)
 			a.throttle.gid = s.GID
 			a.throttle.name = s.Name()
@@ -160,6 +163,9 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 		}
 	case "t":
 		if s, ok := m.selected(); ok {
+			if m.tab == tabStopped {
+				return m, a.flash("download already stopped — nothing to seed", true)
+			}
 			if !s.IsTorrent() {
 				return m, a.flash("not a torrent", true)
 			}
@@ -332,8 +338,8 @@ func (m listModel) integrityCell(s rpc.Status) string {
 		return st.Dim.Render("—")
 	case v.Running:
 		frac := 0.0
-		if v.Total > 0 {
-			frac = float64(v.Done) / float64(v.Total)
+		if total := v.Total.Load(); total > 0 {
+			frac = float64(v.Done.Load()) / float64(total)
 		}
 		f, e := Bar(frac, 11)
 		return st.Cyan.Render("verifying ") + st.Brand.Render(f) + st.Faint.Render(e) + fmt.Sprintf(" %d%%", int(frac*100))
@@ -460,7 +466,7 @@ func (m listModel) view() string {
 				switch {
 				case v.Running:
 					det = append(det, st.Dim.Render("computed ")+st.Cyan.Render(
-						fmt.Sprintf("hashing %s / %s…", FmtBytes(v.Done), FmtBytes(v.Total))))
+						fmt.Sprintf("hashing %s / %s…", FmtBytes(v.Done.Load()), FmtBytes(v.Total.Load()))))
 				case v.Finished && v.Computed != "":
 					det = append(det, st.Dim.Render("computed ")+st.Text.Render("sha-256:"+shortHash(v.Computed)))
 				}

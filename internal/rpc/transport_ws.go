@@ -85,6 +85,9 @@ func (t *wsTransport) failAll(err error) {
 		delete(t.pending, id)
 		close(ch)
 	}
+	// The read loop is the only sender; closing here tells consumers the
+	// connection is gone instead of leaving them parked forever.
+	close(t.notify)
 }
 
 func (t *wsTransport) Call(ctx context.Context, method string, params []any, result any) error {

@@ -190,22 +190,22 @@ func TestServerFromURL(t *testing.T) {
 		{
 			name: "full url",
 			raw:  "ws://example.com:7000/jsonrpc", secret: "s",
-			want: config.Server{Name: "cli", Host: "example.com", Port: 7000, Secret: "s", Protocol: "ws"},
+			want: config.Server{Name: "cli", Host: "example.com", Port: 7000, Secret: "s", Protocol: "ws", Transient: true},
 		},
 		{
 			name: "default port",
 			raw:  "http://example.com",
-			want: config.Server{Name: "cli", Host: "example.com", Port: 6800, Protocol: "http"},
+			want: config.Server{Name: "cli", Host: "example.com", Port: 6800, Protocol: "http", Transient: true},
 		},
 		{
 			name: "bare host defaults scheme",
 			raw:  "localhost",
-			want: config.Server{Name: "cli", Host: "localhost", Port: 6800, Protocol: "ws"},
+			want: config.Server{Name: "cli", Host: "localhost", Port: 6800, Protocol: "ws", Transient: true},
 		},
 		{
 			name: "trailing slash trimmed",
 			raw:  "localhost/",
-			want: config.Server{Name: "cli", Host: "localhost", Port: 6800, Protocol: "ws"},
+			want: config.Server{Name: "cli", Host: "localhost", Port: 6800, Protocol: "ws", Transient: true},
 		},
 		{name: "unparseable", raw: "://bad", wantErr: "bad --url"},
 		{name: "overflowing port", raw: "ws://h:99999999999999999999", wantErr: "bad --url port"},
@@ -226,5 +226,20 @@ func TestServerFromURL(t *testing.T) {
 				t.Fatalf("serverFromURL(%q) = %+v, want %+v", tt.raw, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestRunSecretWithStaleActiveIndex(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(cfgPath, []byte(`{"servers":[{"name":"a","host":"h","port":1,"protocol":"ws"}],"active":7}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	restore := runProgram
+	runProgram = func(m tea.Model) error { return nil }
+	t.Cleanup(func() { runProgram = restore })
+	var buf bytes.Buffer
+	if code := run([]string{"--config", cfgPath, "--secret", "s3"}, &buf); code != 0 {
+		t.Fatalf("code = %d, stderr = %s", code, buf.String())
 	}
 }

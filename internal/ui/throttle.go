@@ -63,6 +63,7 @@ func (m *throttleModel) absorbOptions(msg gidOptionsMsg) {
 		if value == "" {
 			value = "0"
 		}
+		value = NormalizeLimit(value) // aria2 reports limits as plain bytes
 		for i, p := range presets {
 			if p == value {
 				return i

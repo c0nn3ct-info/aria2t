@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -40,10 +41,12 @@ const (
 )
 
 // verifyState tracks checksum verification of one stopped download.
+// Done and Total are atomic because the hashing goroutine updates them
+// while the render loop reads them.
 type verifyState struct {
 	Expected    string
 	Running     bool
-	Done, Total int64
+	Done, Total atomic.Int64
 	Finished    bool
 	OK          bool
 	Computed    string
@@ -165,7 +168,7 @@ func (a *App) connectCmd() tea.Cmd {
 	return func() tea.Msg {
 		c, v, err := dial(srv)
 		if err != nil {
-			return connectErrMsg{err}
+			return connectErrMsg{err: err}
 		}
 		return connectedMsg{client: c, version: v, endpoint: fmt.Sprintf("%s:%d", srv.Host, srv.Port)}
 	}
@@ -179,17 +182,22 @@ func (a *App) connectManagedCmd(srv config.Server) tea.Cmd {
 	dir := expandHome(a.cfg.Dir)
 	dataDir := filepath.Join(filepath.Dir(a.cfgPath), "daemon")
 	return func() tea.Msg {
+		if d != nil && !d.Alive() {
+			d = nil // the previous child died; spawn a fresh one
+		}
 		if d == nil {
 			var err error
 			d, err = spawn(daemon.Options{Dir: dir, DataDir: dataDir, Secret: srv.Secret, Port: srv.Port})
 			if err != nil {
-				return connectErrMsg{err}
+				return connectErrMsg{err: err}
 			}
 		}
 		proxy := config.Server{Host: "localhost", Port: d.Port, Secret: d.Secret, Protocol: "ws"}
 		c, v, err := dial(proxy)
 		if err != nil {
-			return connectErrMsg{fmt.Errorf("built-in daemon dial: %w", err)}
+			// Keep the daemon handle: the retry reuses it instead of
+			// spawning a duplicate, and Shutdown can still stop it.
+			return connectErrMsg{err: fmt.Errorf("built-in daemon dial: %w", err), daemon: d}
 		}
 		return connectedMsg{client: c, version: v, daemon: d, endpoint: fmt.Sprintf("localhost:%d", d.Port)}
 	}
@@ -278,10 +286,14 @@ func clearStatusAt(seq int) func(time.Time) tea.Msg {
 	return func(time.Time) tea.Msg { return clearStatusMsg{seq} }
 }
 
-func (a *App) saveConfig() {
-	if err := config.Save(a.cfgPath, a.cfg); err != nil {
+// saveConfig persists the config, surfacing a failure on the status line
+// and returning it so callers can avoid masking it with a success flash.
+func (a *App) saveConfig() error {
+	err := config.Save(a.cfgPath, a.cfg)
+	if err != nil {
 		a.status, a.statusErr = "config save failed: "+err.Error(), true
 	}
+	return err
 }
 
 // reconnect tears down the current client and dials the active server.
@@ -294,10 +306,10 @@ func (a *App) reconnect() tea.Cmd {
 	return a.connectCmd()
 }
 
-func (a *App) setTheme(name string) {
+func (a *App) setTheme(name string) error {
 	a.cfg.Theme = name
 	a.styles = NewStyles(PaletteByName(name))
-	a.saveConfig()
+	return a.saveConfig()
 }
 
 // applySchedule pushes the active rule's limits once per minute-key change.
@@ -327,12 +339,23 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case connectedMsg:
+		if a.client != nil && a.client != msg.client {
+			a.client.Close() // overlapping connects must not leak the old client
+		}
 		a.client = msg.client
 		a.version = msg.version
 		a.connected = true
 		a.connErr = nil
 		a.endpoint = msg.endpoint
 		if msg.daemon != nil {
+			if a.daemon != nil && a.daemon != msg.daemon {
+				stale := a.daemon
+				go func() { // Stop blocks for seconds; keep the loop responsive
+					ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+					defer cancel()
+					_ = stale.Stop(ctx)
+				}()
+			}
 			a.daemon = msg.daemon
 		}
 		a.lastSchedKey = "" // re-apply schedule on the new server
@@ -341,6 +364,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case connectErrMsg:
 		a.connected = false
 		a.connErr = msg.err
+		if msg.daemon != nil {
+			a.daemon = msg.daemon // keep the spawned child for reuse and Shutdown
+		}
 		return a, nil
 
 	case tickMsg:
@@ -357,7 +383,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case pollMsg:
 		if msg.err != nil {
+			// Treat a failed poll as a lost connection: drop the client so
+			// the tick loop redials (and respawns the daemon if it died).
 			a.connected = false
+			a.connErr = msg.err
+			if a.client != nil {
+				a.client.Close()
+				a.client = nil
+			}
 			return a, nil
 		}
 		a.connected = true
@@ -383,6 +416,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case actionDoneMsg:
 		if msg.err != nil {
+			// A failed scheduler push must retry next tick, not wait for
+			// the next rule change.
+			a.lastSchedKey = ""
 			return a, a.flash(msg.err.Error(), true)
 		}
 		cmds := []tea.Cmd{a.pollCmd()}
@@ -394,12 +430,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case clearStatusMsg:
 		if msg.seq == a.statusSeq {
 			a.status = ""
-		}
-		return a, nil
-
-	case verifyProgressMsg:
-		if v, ok := a.verify[msg.gid]; ok {
-			v.Done, v.Total = msg.done, msg.total
 		}
 		return a, nil
 
@@ -518,11 +548,12 @@ func (a *App) startVerify(s rpc.Status) tea.Cmd {
 	path := s.Files[0].Path
 	v.Running, v.Finished = true, false
 	gid, expected := s.GID, v.Expected
-	// Progress is polled via shared state, not streamed per-chunk, to keep
-	// the update loop quiet; a final message carries the outcome.
+	// Progress lands in atomics polled by the 1s render tick, keeping the
+	// update loop quiet; a final message carries the outcome.
 	return func() tea.Msg {
 		ok, computed, err := checksum.Verify(path, expected, func(done, total int64) {
-			v.Done, v.Total = done, total // written from one goroutine, read for display only
+			v.Done.Store(done)
+			v.Total.Store(total)
 		})
 		return verifyDoneMsg{gid: gid, ok: ok, computed: computed, err: err}
 	}

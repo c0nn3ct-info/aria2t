@@ -125,13 +125,20 @@ func (m serversModel) update(msg tea.KeyMsg) (serversModel, tea.Cmd) {
 	case "-", "d":
 		if len(a.cfg.Servers) > 1 && m.cursor < len(a.cfg.Servers) {
 			a.cfg.Servers = append(a.cfg.Servers[:m.cursor], a.cfg.Servers[m.cursor+1:]...)
-			if a.cfg.Active >= len(a.cfg.Servers) {
+			switch {
+			case a.cfg.Active == m.cursor:
 				a.cfg.Active = 0
+			case a.cfg.Active > m.cursor:
+				a.cfg.Active-- // keep pointing at the same server
 			}
 			if m.cursor >= len(a.cfg.Servers) {
 				m.cursor = len(a.cfg.Servers) - 1
 			}
+			// Probe results are keyed by index; indexes just shifted.
+			m.latency = map[int]time.Duration{}
+			m.dead = map[int]bool{}
 			a.saveConfig()
+			return m, m.probeCmd()
 		}
 	}
 	return m, nil

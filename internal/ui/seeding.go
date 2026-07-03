@@ -129,8 +129,9 @@ func (m seedingModel) update(msg tea.KeyMsg) (seedingModel, tea.Cmd) {
 		return m, nil
 	case " ":
 		if i := m.focus - 2; i >= 0 && i < len(m.toggles) {
-			m.toggles[i].on = !m.toggles[i].on
-			return m, nil
+			// aria2 fixes these at startup; changeGlobalOption silently
+			// ignores them, so pretending to toggle would lie to the user.
+			return m, a.flash(m.toggles[i].label+" is set at aria2 startup — not changeable at runtime", true)
 		}
 	case "ctrl+s":
 		return m.save()
@@ -205,17 +206,11 @@ func (m seedingModel) save() (seedingModel, tea.Cmd) {
 	if m.trackersDirty {
 		perGID["bt-tracker"] = strings.Join(m.trackers, ",")
 	}
-	global := map[string]string{}
-	for _, t := range m.toggles {
-		global[t.optKey] = fmt.Sprintf("%v", t.on)
+	if len(perGID) == 0 {
+		return m, a.flash("nothing to save", false)
 	}
 	return m, a.rpcCmd("seeding settings saved", func(ctx context.Context, c api) error {
-		if len(perGID) > 0 {
-			if err := c.ChangeOption(ctx, gid, perGID); err != nil {
-				return err
-			}
-		}
-		return c.ChangeGlobalOption(ctx, global)
+		return c.ChangeOption(ctx, gid, perGID)
 	})
 }
 
@@ -263,7 +258,7 @@ func (m seedingModel) view() string {
 		st.Dim.Render("ratio now  ") + st.Green.Render(f) + st.Faint.Render(e) + " " +
 			st.Title.Render(ratioText+" / "+orDefault(target, "∞")),
 		"",
-		strings.Join(togglesLine, "   "),
+		strings.Join(togglesLine, "   ") + st.Dim.Render("  · startup options, read-only"),
 	}
 	b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(top, "\n")) + "\n")
 

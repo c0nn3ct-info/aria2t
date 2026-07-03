@@ -182,22 +182,52 @@ func Spark(samples []int64, max int64, width int) string {
 	return b.String()
 }
 
-// ParseLimit normalizes a user-entered rate limit to an aria2 option value.
-// Accepts "∞", "", "0" (unlimited), plain bytes, or K/M/G suffixes.
+// ParseLimit normalizes a user-entered rate limit to a value aria2
+// accepts: an integer, optionally suffixed K or M (nothing else). "∞", ""
+// and "0" mean unlimited; G and fractional inputs are converted, since
+// aria2 itself rejects them.
 func ParseLimit(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	if s == "" || s == "∞" || s == "0" {
 		return "0", nil
 	}
 	up := strings.ToUpper(s)
-	num, suffix := up, ""
-	if last := up[len(up)-1]; last == 'K' || last == 'M' || last == 'G' {
-		num, suffix = up[:len(up)-1], string(last)
+	num, mult := up, int64(1)
+	switch up[len(up)-1] {
+	case 'K':
+		num, mult = up[:len(up)-1], 1<<10
+	case 'M':
+		num, mult = up[:len(up)-1], 1<<20
+	case 'G':
+		num, mult = up[:len(up)-1], 1<<30
 	}
-	if _, err := strconv.ParseFloat(num, 64); err != nil || num == "" {
+	f, err := strconv.ParseFloat(num, 64)
+	if err != nil || num == "" || f < 0 {
 		return "", fmt.Errorf("bad limit %q (use 0, 5M, 256K…)", s)
 	}
-	return num + suffix, nil
+	bytes := int64(f * float64(mult))
+	switch {
+	case bytes == 0:
+		return "0", nil
+	case bytes%(1<<20) == 0:
+		return strconv.FormatInt(bytes>>20, 10) + "M", nil
+	case bytes%(1<<10) == 0:
+		return strconv.FormatInt(bytes>>10, 10) + "K", nil
+	default:
+		return strconv.FormatInt(bytes, 10), nil
+	}
+}
+
+// NormalizeLimit renders an aria2-reported limit (plain bytes, e.g.
+// "5242880") back to the compact form the UI uses ("5M"); values it cannot
+// parse pass through unchanged.
+func NormalizeLimit(s string) string {
+	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	if err != nil {
+		return s
+	}
+	v, _ := ParseLimit(strconv.FormatInt(n, 10))
+	return v
 }
 
 // FmtLimit renders an aria2 limit value for display ("0" → "∞").

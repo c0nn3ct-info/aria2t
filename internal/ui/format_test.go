@@ -101,7 +101,12 @@ func TestSpark(t *testing.T) {
 }
 
 func TestParseLimit(t *testing.T) {
-	for in, want := range map[string]string{"∞": "0", "": "0", "0": "0", "5M": "5M", "256k": "256K", "1.5m": "1.5M", "1024": "1024"} {
+	// aria2 accepts only integers with optional K/M — fractions and G are
+	// converted to an equivalent accepted form.
+	for in, want := range map[string]string{
+		"∞": "0", "": "0", "0": "0", "5M": "5M", "256k": "256K",
+		"1.5m": "1536K", "1024": "1K", "2G": "2048M", "1000": "1000",
+	} {
 		got, err := ParseLimit(in)
 		if err != nil || got != want {
 			t.Errorf("ParseLimit(%q) = %q, %v; want %q", in, got, err, want)

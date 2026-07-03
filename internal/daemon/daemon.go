@@ -36,7 +36,17 @@ type Daemon struct {
 	Secret string
 
 	cmd  *exec.Cmd
-	done chan error // closed after Wait returns
+	done chan struct{} // closed once Wait returns
+}
+
+// Alive reports whether the child process is still running.
+func (d *Daemon) Alive() bool {
+	select {
+	case <-d.done:
+		return false
+	default:
+		return true
+	}
 }
 
 // commonPaths are checked when aria2c is not on PATH (Homebrew, MacPorts…).
@@ -86,12 +96,14 @@ func randomSecret() (string, error) {
 }
 
 // buildArgs assembles the aria2c command line for the given settings.
-// The session file is passed as --input-file only when it already exists.
-func buildArgs(dir, sessionFile, logFile, secret string, port int) []string {
+// The RPC secret travels via the conf file, not argv, so it never shows in
+// the process list. The session file is passed as --input-file only when
+// it already exists.
+func buildArgs(dir, sessionFile, logFile, confFile string, port int) []string {
 	args := []string{
 		"--enable-rpc",
 		fmt.Sprintf("--rpc-listen-port=%d", port),
-		"--rpc-secret=" + secret,
+		"--conf-path=" + confFile,
 		"--rpc-listen-all=false",
 		"--save-session=" + sessionFile,
 		"--save-session-interval=30",
@@ -149,15 +161,22 @@ func Start(opts Options) (*Daemon, error) {
 	}
 	sessionFile := filepath.Join(dataDir, "session.txt")
 	logFile := filepath.Join(dataDir, "aria2.log")
+	confFile := filepath.Join(dataDir, "aria2t.conf")
+	if err := os.WriteFile(confFile, []byte("rpc-secret="+secret+"\n"), 0o600); err != nil {
+		return nil, err
+	}
 
-	cmd := exec.Command(bin, buildArgs(opts.Dir, sessionFile, logFile, secret, port)...)
+	cmd := exec.Command(bin, buildArgs(opts.Dir, sessionFile, logFile, confFile, port)...)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s: %w", bin, err)
 	}
-	d := &Daemon{Port: port, Secret: secret, cmd: cmd, done: make(chan error, 1)}
-	go func() { d.done <- cmd.Wait() }()
+	d := &Daemon{Port: port, Secret: secret, cmd: cmd, done: make(chan struct{})}
+	go func() {
+		_ = cmd.Wait()
+		close(d.done)
+	}()
 
 	probe := opts.ReadyProbe
 	if probe == nil {

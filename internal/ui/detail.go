@@ -86,7 +86,16 @@ func (m detailModel) update(msg tea.KeyMsg) (detailModel, tea.Cmd) {
 		return m, nil
 	case " ":
 		if m.filesFocused && len(m.s.Files) > 0 {
-			return m, m.toggleFileCmd()
+			cmd := m.toggleFileCmd()
+			// Flip locally too, so a second toggle before the next refresh
+			// builds its select-file list from what the user sees.
+			f := &m.s.Files[m.fileCursor]
+			if f.IsSelected() {
+				f.Selected = "false"
+			} else {
+				f.Selected = "true"
+			}
+			return m, cmd
 		}
 		return m, nil
 	case "p":
@@ -99,8 +108,14 @@ func (m detailModel) update(msg tea.KeyMsg) (detailModel, tea.Cmd) {
 		})
 	case "d":
 		gid := m.gid
+		// Stopped downloads live in the result list; aria2.remove only
+		// works on active/waiting ones.
+		stopped := m.s.Status == "complete" || m.s.Status == "error" || m.s.Status == "removed"
 		a.screen = screenList
 		return m, a.rpcCmd("removed", func(ctx context.Context, c api) error {
+			if stopped {
+				return c.RemoveDownloadResult(ctx, gid)
+			}
 			return c.Remove(ctx, gid)
 		})
 	case "t":

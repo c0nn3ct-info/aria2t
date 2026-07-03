@@ -162,7 +162,7 @@ func TestParseLimitEdges(t *testing.T) {
 		{"0", "0"},
 		{"5m", "5M"},
 		{"256K", "256K"},
-		{"1.5G", "1.5G"},
+		{"1.5G", "1536M"},
 		{"1234", "1234"},
 	}
 	for _, c := range ok {

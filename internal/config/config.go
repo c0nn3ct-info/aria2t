@@ -20,6 +20,9 @@ type Server struct {
 	Secret   string `json:"secret"`
 	Protocol string `json:"protocol"` // ws | http
 	Managed  bool   `json:"managed,omitempty"`
+	// Transient marks a session-only entry (e.g. --url): usable like any
+	// server but never written back to the config file.
+	Transient bool `json:"-"`
 }
 
 // URL returns the JSON-RPC endpoint for the chosen protocol.
@@ -101,11 +104,26 @@ func Load(path string) (Config, error) {
 	return cfg, nil
 }
 
-// Save writes cfg to path, creating parent directories.
+// Save writes cfg to path, creating parent directories. Transient servers
+// (CLI overrides) are stripped so saving never rewrites the user's server
+// list with session-only entries or their secrets.
 func Save(path string, cfg Config) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
+	kept := make([]Server, 0, len(cfg.Servers))
+	newActive := 0
+	for i, s := range cfg.Servers {
+		if s.Transient {
+			continue
+		}
+		if i == cfg.Active {
+			newActive = len(kept)
+		}
+		kept = append(kept, s)
+	}
+	cfg.Servers = kept
+	cfg.Active = newActive
 	// Config is a plain struct of strings, ints, bools, and slices of the
 	// same; MarshalIndent cannot fail on it.
 	raw, _ := json.MarshalIndent(cfg, "", "  ")

@@ -14,13 +14,15 @@ import (
 	"aria2t/internal/config"
 )
 
-// setField is one editable entry: a text input or a toggle.
+// setField is one editable entry: a text input or a toggle. A readonly
+// field only displays daemon state (options aria2 fixes at startup).
 type setField struct {
-	label  string
-	optKey string // global option key; "" = config-backed field
-	toggle bool
-	on     bool
-	input  textinput.Model
+	label    string
+	optKey   string // global option key; "" = config-backed field
+	toggle   bool
+	on       bool
+	readonly bool
+	input    textinput.Model
 }
 
 // settingsModel is the sidebar-driven settings screen.
@@ -45,6 +47,9 @@ func newSettingsModel(a *App) settingsModel {
 	tg := func(label, optKey string) setField {
 		return setField{label: label, optKey: optKey, toggle: true}
 	}
+	tgRO := func(label, optKey string) setField {
+		return setField{label: label, optKey: optKey, toggle: true, readonly: true}
+	}
 	srv := a.cfg.ActiveServer()
 	secret := mk("RPC secret", "", srv.Secret, 20)
 	secret.input.EchoMode = textinput.EchoPassword
@@ -67,11 +72,13 @@ func newSettingsModel(a *App) settingsModel {
 			{ // Directories
 				mk("Default directory", "dir", "", 32),
 			},
-			{ // BitTorrent
-				tg("DHT", "enable-dht"),
-				tg("Peer exchange", "enable-peer-exchange"),
-				tg("Local peer discovery", "bt-enable-lpd"),
-				tg("Require encryption", "bt-require-crypto"),
+			{ // BitTorrent — the four switches are fixed at daemon startup;
+				// changeGlobalOption silently ignores them, so they are
+				// shown read-only.
+				tgRO("DHT", "enable-dht"),
+				tgRO("Peer exchange", "enable-peer-exchange"),
+				tgRO("Local peer discovery", "bt-enable-lpd"),
+				tgRO("Require encryption", "bt-require-crypto"),
 				mk("Default seed ratio", "seed-ratio", "", 8),
 				mk("Default seed time (min)", "seed-time", "", 8),
 			},
@@ -182,6 +189,9 @@ func (m settingsModel) update(msg tea.KeyMsg) (settingsModel, tea.Cmd) {
 	case " ":
 		f := &m.fields[m.section][m.focus]
 		if f.toggle {
+			if f.readonly {
+				return m, a.flash(f.label+" is set at aria2 startup — not changeable at runtime", true)
+			}
 			f.on = !f.on
 			m.dirty = true
 			return m, nil
@@ -245,21 +255,20 @@ func (m settingsModel) save() (settingsModel, tea.Cmd) {
 	if m.fields[4][0].on {
 		theme = "light"
 	}
-	a.setTheme(theme) // also saves config
+	if err := a.setTheme(theme); err != nil { // also saves config
+		return m, a.flash("config save failed: "+err.Error(), true)
+	}
 
 	// Option-backed sections → changeGlobalOption (only changed keys).
 	opts := map[string]string{}
 	for si := 1; si <= 3; si++ {
 		for _, f := range m.fields[si] {
-			if f.optKey == "" {
+			// Every option-backed toggle today is a startup option
+			// (readonly); only text inputs reach changeGlobalOption.
+			if f.optKey == "" || f.toggle {
 				continue
 			}
-			var v string
-			if f.toggle {
-				v = fmt.Sprintf("%v", f.on)
-			} else {
-				v = strings.TrimSpace(f.input.Value())
-			}
+			v := strings.TrimSpace(f.input.Value())
 			if v != "" && v != m.loaded[f.optKey] {
 				opts[f.optKey] = v
 			}
@@ -328,7 +337,12 @@ func (m settingsModel) view() string {
 				box = st.Green.Render("[x]")
 			}
 			label := " " + f.label
-			if focused {
+			switch {
+			case f.readonly && focused:
+				label = st.Title.Render(" "+f.label) + st.Dim.Render(" · startup option, read-only")
+			case f.readonly:
+				label = st.Dim.Render(" " + f.label + " · startup")
+			case focused:
 				label = st.Title.Render(" " + f.label + " ◂ space toggles")
 			}
 			rows = append(rows, box+label)

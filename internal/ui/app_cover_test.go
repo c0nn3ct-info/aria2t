@@ -459,14 +459,17 @@ func TestUpdateActionDone(t *testing.T) {
 	}
 }
 
-func TestUpdateVerifyProgress(t *testing.T) {
+func TestVerifyProgressAtomicsVisibleToRender(t *testing.T) {
 	a, _ := testApp(t)
-	a.verify["g"] = &verifyState{}
-	_, _ = a.Update(verifyProgressMsg{gid: "g", done: 3, total: 9})
-	if a.verify["g"].Done != 3 || a.verify["g"].Total != 9 {
-		t.Fatalf("state = %+v", a.verify["g"])
+	v := &verifyState{Running: true}
+	v.Done.Store(3)
+	v.Total.Store(9)
+	a.verify["s1"] = v
+	a.list.tab = tabStopped
+	cell := a.list.integrityCell(a.snap.Stopped[0])
+	if !strings.Contains(cell, "verifying") {
+		t.Fatalf("cell = %q", cell)
 	}
-	_, _ = a.Update(verifyProgressMsg{gid: "unknown", done: 1, total: 1})
 }
 
 func TestUpdateVerifyDone(t *testing.T) {
@@ -589,7 +592,7 @@ func TestStartVerifySuccess(t *testing.T) {
 	if !ok || !done.ok || done.gid != "s1" || done.err != nil {
 		t.Fatalf("msg = %#v", msg)
 	}
-	if a.verify["s1"].Done != int64(len(content)) {
+	if a.verify["s1"].Done.Load() != int64(len(content)) {
 		t.Fatalf("progress = %+v", a.verify["s1"])
 	}
 }

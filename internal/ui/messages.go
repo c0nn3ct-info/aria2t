@@ -56,7 +56,10 @@ type connectedMsg struct {
 	daemon   *daemon.Daemon // non-nil when a managed daemon was spawned
 }
 
-type connectErrMsg struct{ err error }
+type connectErrMsg struct {
+	err    error
+	daemon *daemon.Daemon // daemon spawned before the failure, so it can be reused/stopped
+}
 
 type notifMsg rpc.Notification
 
@@ -89,11 +92,6 @@ type gidOptionsMsg struct {
 type globalOptionsMsg struct {
 	opts map[string]string
 	err  error
-}
-
-type verifyProgressMsg struct {
-	gid         string
-	done, total int64
 }
 
 type verifyDoneMsg struct {
