@@ -30,7 +30,8 @@ type seedingModel struct {
 
 	toggles []seedToggle
 
-	trackers      []string
+	embedded      []string // announce URIs baked into the .torrent (read-only)
+	trackers      []string // extra trackers from the bt-tracker option (editable)
 	trackersDirty bool
 
 	focus   int // 0 ratio, 1 time, 2..2+len(toggles)-1 toggles, then trackers
@@ -88,16 +89,17 @@ func (m *seedingModel) absorbOptions(msg gidOptionsMsg) {
 		m.stime.SetValue(v)
 	}
 	if !m.trackersDirty {
+		// bt-tracker holds ADDITIONAL trackers only; announce URIs baked
+		// into the .torrent cannot be edited over RPC and are shown apart.
 		m.trackers = nil
 		if v := msg.opts["bt-tracker"]; v != "" {
 			m.trackers = strings.Split(v, ",")
 		}
-		if len(m.trackers) == 0 {
-			if s, ok := m.a.statusByGID(m.gid); ok && s.BitTorrent != nil {
-				for _, tier := range s.BitTorrent.AnnounceList {
-					m.trackers = append(m.trackers, tier...)
-				}
-			}
+	}
+	m.embedded = nil
+	if s, ok := m.a.statusByGID(m.gid); ok && s.BitTorrent != nil {
+		for _, tier := range s.BitTorrent.AnnounceList {
+			m.embedded = append(m.embedded, tier...)
 		}
 	}
 }
@@ -262,7 +264,14 @@ func (m seedingModel) view() string {
 	}
 	b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(top, "\n")) + "\n")
 
-	rows := []string{st.Dim.Render("TRACKERS") + "  " + st.Dim.Render("e edit · + add · - remove")}
+	var rows []string
+	if len(m.embedded) > 0 {
+		rows = append(rows, st.Dim.Render("EMBEDDED TRACKERS · from the .torrent, read-only"))
+		for _, tr := range m.embedded {
+			rows = append(rows, st.Dim.Render("  "+tr))
+		}
+	}
+	rows = append(rows, st.Dim.Render("EXTRA TRACKERS (bt-tracker)")+"  "+st.Dim.Render("e edit · + add · - remove"))
 	for i, tr := range m.trackers {
 		marker := "  "
 		style := st.Text
@@ -273,7 +282,7 @@ func (m seedingModel) view() string {
 		rows = append(rows, marker+style.Render(tr))
 	}
 	if len(m.trackers) == 0 {
-		rows = append(rows, st.Dim.Render("  no trackers"))
+		rows = append(rows, st.Dim.Render("  none — + adds one"))
 	}
 	b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(rows, "\n")) + "\n")
 

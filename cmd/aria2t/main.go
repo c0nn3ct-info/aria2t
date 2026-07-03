@@ -79,19 +79,28 @@ func serverFromURL(raw, secret string) (config.Server, error) {
 	if err != nil {
 		return config.Server{}, fmt.Errorf("bad --url: %w", err)
 	}
-	port := 6800
-	if p := u.Port(); p != "" {
-		if port, err = strconv.Atoi(p); err != nil {
-			return config.Server{}, fmt.Errorf("bad --url port: %w", err)
-		}
-	}
 	proto := u.Scheme
 	if proto == "" {
 		proto = "ws"
 	}
-	host := u.Hostname()
-	if host == "" {
-		host = strings.TrimSuffix(raw, "/")
+	port := 6800 // aria2 default for bare host names
+	switch {
+	case u.Port() != "":
+		if port, err = strconv.Atoi(u.Port()); err != nil {
+			return config.Server{}, fmt.Errorf("bad --url port: %w", err)
+		}
+	case u.Scheme == "http" || u.Scheme == "ws":
+		port = 80
+	case u.Scheme == "https" || u.Scheme == "wss":
+		port = 443
 	}
-	return config.Server{Name: "cli", Host: host, Port: port, Secret: secret, Protocol: proto, Transient: true}, nil
+	host := u.Hostname()
+	path := ""
+	if host == "" {
+		// Bare "localhost" parses entirely into the path; treat it as a host.
+		host = strings.TrimSuffix(raw, "/")
+	} else if p := u.EscapedPath(); p != "" && p != "/" {
+		path = p
+	}
+	return config.Server{Name: "cli", Host: host, Port: port, Secret: secret, Protocol: proto, Path: path, Transient: true}, nil
 }

@@ -20,13 +20,14 @@ type fakeAPI struct {
 	changedOptions map[string]map[string]string // gid → opts
 	paused         []string
 	removed        []string
+	waiting        []rpc.Status // returned by TellWaiting
 }
 
 func newFakeAPI() *fakeAPI { return &fakeAPI{changedOptions: map[string]map[string]string{}} }
 
 func (f *fakeAPI) TellActive(context.Context) ([]rpc.Status, error) { return nil, nil }
 func (f *fakeAPI) TellWaiting(context.Context, int, int) ([]rpc.Status, error) {
-	return nil, nil
+	return f.waiting, nil
 }
 func (f *fakeAPI) TellStopped(context.Context, int, int) ([]rpc.Status, error) {
 	return nil, nil
@@ -86,6 +87,11 @@ func testApp(t *testing.T) (*App, *fakeAPI) {
 	a := NewApp(config.Default(), t.TempDir()+"/config.json")
 	a.client = fake
 	a.connected = true
+	fake.waiting = []rpc.Status{
+		{GID: "w1", Status: "waiting"},
+		{GID: "w2", Status: "waiting"},
+		{GID: "w3", Status: "waiting"},
+	}
 	a.snap = snapshot{
 		Active: []rpc.Status{
 			{GID: "a1", Status: "active", TotalLength: "100", CompletedLength: "50"},

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -140,7 +141,12 @@ func (m addModel) options() map[string]string {
 	}
 	if v := strings.TrimSpace(m.split.Value()); v != "" {
 		opts["split"] = v
-		opts["max-connection-per-server"] = v
+		// aria2 rejects max-connection-per-server above 16.
+		if n, err := strconv.Atoi(v); err == nil && n > 16 {
+			opts["max-connection-per-server"] = "16"
+		} else {
+			opts["max-connection-per-server"] = v
+		}
 	}
 	if m.rename {
 		if v := strings.TrimSpace(m.out.Value()); v != "" {

@@ -45,3 +45,14 @@ func TestSaveActiveOnTransientFallsBackToZero(t *testing.T) {
 		t.Fatalf("got %+v active=%d", got.Servers, got.Active)
 	}
 }
+
+func TestServerURLPathOverride(t *testing.T) {
+	s := Server{Host: "h", Port: 1, Protocol: "ws", Path: "/rpc/aria2"}
+	if got := s.URL(); got != "ws://h:1/rpc/aria2" {
+		t.Fatalf("got %q", got)
+	}
+	s.Path = "noslash"
+	if got := s.URL(); got != "ws://h:1/noslash" {
+		t.Fatalf("got %q", got)
+	}
+}

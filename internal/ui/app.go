@@ -64,7 +64,11 @@ type App struct {
 	connected bool
 	connErr   error
 	daemon    *daemon.Daemon
-	endpoint  string // "host:port" actually connected to (managed port is dynamic)
+	// spawned tracks the most recent child from the connect goroutine so
+	// Shutdown can stop it even when the user quits before the connect
+	// message is delivered.
+	spawned  atomic.Pointer[daemon.Daemon]
+	endpoint string // "host:port" actually connected to (managed port is dynamic)
 
 	screen  screen
 	overlay overlay
@@ -192,6 +196,7 @@ func (a *App) connectManagedCmd(srv config.Server) tea.Cmd {
 				return connectErrMsg{err: err}
 			}
 		}
+		a.spawned.Store(d) // visible to Shutdown even if this msg is never delivered
 		proxy := config.Server{Host: "localhost", Port: d.Port, Secret: d.Secret, Protocol: "ws"}
 		c, v, err := dial(proxy)
 		if err != nil {
@@ -210,12 +215,17 @@ func (a *App) Shutdown() {
 		a.client.Close()
 		a.client = nil
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
 	if a.daemon != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-		defer cancel()
 		_ = a.daemon.Stop(ctx)
-		a.daemon = nil
 	}
+	// A connect could still be in flight when the user quit; its daemon
+	// never reached a.daemon but is recorded in the spawned slot.
+	if sp := a.spawned.Load(); sp != nil && sp != a.daemon {
+		_ = sp.Stop(ctx)
+	}
+	a.daemon = nil
 }
 
 // pollCmd gathers the full snapshot in one background round.

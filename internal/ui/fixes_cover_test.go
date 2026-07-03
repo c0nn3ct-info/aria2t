@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -260,5 +261,87 @@ func TestDetailRemoveStoppedUsesRemoveResult(t *testing.T) {
 	}
 	if len(fake.removed) != 0 {
 		t.Fatal("stopped download must not go through aria2.remove")
+	}
+}
+
+func TestAddOptionsClampsConnections(t *testing.T) {
+	a, _ := testApp(t)
+	m := newAddModel(a)
+	m.split.SetValue("32")
+	opts := m.options()
+	if opts["split"] != "32" || opts["max-connection-per-server"] != "16" {
+		t.Fatalf("opts = %v", opts)
+	}
+	m.split.SetValue("8")
+	opts = m.options()
+	if opts["max-connection-per-server"] != "8" {
+		t.Fatalf("opts = %v", opts)
+	}
+}
+
+func TestShutdownStopsInFlightSpawn(t *testing.T) {
+	a, _ := testApp(t)
+	d := uiFakeDaemon(t)
+	// Simulate quitting after the connect goroutine spawned but before the
+	// connect message was delivered: a.daemon is nil, spawned slot is set.
+	a.spawned.Store(d)
+	a.client = nil
+	a.Shutdown()
+	if d.Alive() {
+		t.Fatal("in-flight spawn must be stopped on shutdown")
+	}
+}
+
+func TestReorderCommitAgainstLiveQueue(t *testing.T) {
+	a, fake := testApp(t)
+	_, _ = a.Update(key("2"))
+	_, _ = a.Update(key("J")) // grab w1 → index 1
+	// w2 (ahead of the drop position) left the queue mid-drag.
+	fake.waiting = []rpc.Status{{GID: "w1"}, {GID: "w3"}}
+	_, cmd := a.Update(key("enter"))
+	drain(t, a, cmd)
+	if len(fake.changePosition) != 1 || fake.changePosition[0].Pos != 0 {
+		t.Fatalf("pos must be recomputed against the live queue: %+v", fake.changePosition)
+	}
+	// Grabbed item itself vanished → error, no changePosition call.
+	a2, fake2 := testApp(t)
+	_, _ = a2.Update(key("2"))
+	_, _ = a2.Update(key("J"))
+	fake2.waiting = []rpc.Status{{GID: "w2"}, {GID: "w3"}}
+	_, cmd = a2.Update(key("enter"))
+	drain(t, a2, cmd)
+	if len(fake2.changePosition) != 0 || !a2.statusErr {
+		t.Fatalf("vanished item must error: calls=%v status=%q", fake2.changePosition, a2.status)
+	}
+}
+
+func TestSeedingViewShowsEmbeddedTrackers(t *testing.T) {
+	a, _ := testApp(t)
+	a.snap.Active[0].BitTorrent = &rpc.BTInfo{AnnounceList: [][]string{{"https://tr.example/announce"}}}
+	m := newSeedingModel(a)
+	m.gid = "a1"
+	m.absorbOptions(gidOptionsMsg{gid: "a1", opts: map[string]string{}})
+	out := m.view()
+	if !strings.Contains(out, "EMBEDDED TRACKERS") || !strings.Contains(out, "tr.example") {
+		t.Fatalf("out = %q", out)
+	}
+}
+
+// waitErrAPI fails TellWaiting to exercise the reorder-commit error branch.
+type waitErrAPI struct{ *fakeAPI }
+
+func (waitErrAPI) TellWaiting(context.Context, int, int) ([]rpc.Status, error) {
+	return nil, errors.New("queue unavailable")
+}
+
+func TestReorderCommitTellWaitingError(t *testing.T) {
+	a, fake := testApp(t)
+	a.client = waitErrAPI{fake}
+	_, _ = a.Update(key("2"))
+	_, _ = a.Update(key("J"))
+	_, cmd := a.Update(key("enter"))
+	drain(t, a, cmd)
+	if len(fake.changePosition) != 0 || !a.statusErr {
+		t.Fatalf("TellWaiting failure must abort the commit: %v %q", fake.changePosition, a.status)
 	}
 }

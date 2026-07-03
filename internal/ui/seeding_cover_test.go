@@ -83,11 +83,15 @@ func TestSeedingAbsorbOptions(t *testing.T) {
 		t.Fatalf("trackers = %v", m.trackers)
 	}
 
-	// No bt-tracker → fall back to the snapshot's announce list.
+	// Embedded announce URIs land in the read-only list, never in the
+	// editable bt-tracker list.
 	a.snap.Active[0].BitTorrent = &rpc.BTInfo{AnnounceList: [][]string{{"u1", "u2"}, {"u3"}}}
 	m.absorbOptions(gidOptionsMsg{gid: "a1", opts: map[string]string{}})
-	if len(m.trackers) != 3 || m.trackers[2] != "u3" {
+	if len(m.trackers) != 0 {
 		t.Fatalf("trackers = %v", m.trackers)
+	}
+	if len(m.embedded) != 3 || m.embedded[2] != "u3" {
+		t.Fatalf("embedded = %v", m.embedded)
 	}
 
 	// Dirty trackers are preserved.
@@ -398,7 +402,7 @@ func TestSeedingViewVariants(t *testing.T) {
 	m2 := newSeedingModel(a)
 	m2.gid = "zz"
 	m2.focus = 1
-	if out := m2.view(); !strings.Contains(out, "0.00 / ∞") || !strings.Contains(out, "no trackers") {
+	if out := m2.view(); !strings.Contains(out, "0.00 / ∞") || !strings.Contains(out, "none — + adds one") {
 		t.Fatalf("out = %q", out)
 	}
 }

@@ -254,11 +254,31 @@ func (m listModel) updateReorder(key string) (listModel, tea.Cmd) {
 			m.pendingG = true
 		}
 	case "enter":
-		gid, pos := m.reorderGID, m.cursor
+		gid, order, cursor := m.reorderGID, m.localOrder, m.cursor
 		m.reordering = false
 		a.snap.Waiting = m.localOrder
-		return m, a.rpcCmd(fmt.Sprintf("moved to #%d", pos+1), func(ctx context.Context, c api) error {
-			_, err := c.ChangePosition(ctx, gid, pos, "POS_SET")
+		return m, a.rpcCmd(fmt.Sprintf("moved to #%d", cursor+1), func(ctx context.Context, c api) error {
+			// The local order was frozen during the drag; items may have
+			// activated or completed meanwhile. Recompute the target rank
+			// against the live queue so the drop lands where it looks.
+			fresh, err := c.TellWaiting(ctx, 0, 1000)
+			if err != nil {
+				return err
+			}
+			still := make(map[string]bool, len(fresh))
+			for _, s := range fresh {
+				still[s.GID] = true
+			}
+			if !still[gid] {
+				return fmt.Errorf("%s left the waiting queue during reorder", gid)
+			}
+			pos := 0
+			for _, s := range order[:cursor] {
+				if still[s.GID] {
+					pos++
+				}
+			}
+			_, err = c.ChangePosition(ctx, gid, pos, "POS_SET")
 			return err
 		})
 	case "esc":

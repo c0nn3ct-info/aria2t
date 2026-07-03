@@ -190,12 +190,12 @@ func TestServerFromURL(t *testing.T) {
 		{
 			name: "full url",
 			raw:  "ws://example.com:7000/jsonrpc", secret: "s",
-			want: config.Server{Name: "cli", Host: "example.com", Port: 7000, Secret: "s", Protocol: "ws", Transient: true},
+			want: config.Server{Name: "cli", Host: "example.com", Port: 7000, Secret: "s", Protocol: "ws", Path: "/jsonrpc", Transient: true},
 		},
 		{
 			name: "default port",
 			raw:  "http://example.com",
-			want: config.Server{Name: "cli", Host: "example.com", Port: 6800, Protocol: "http", Transient: true},
+			want: config.Server{Name: "cli", Host: "example.com", Port: 80, Protocol: "http", Transient: true},
 		},
 		{
 			name: "bare host defaults scheme",
@@ -241,5 +241,16 @@ func TestRunSecretWithStaleActiveIndex(t *testing.T) {
 	var buf bytes.Buffer
 	if code := run([]string{"--config", cfgPath, "--secret", "s3"}, &buf); code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, buf.String())
+	}
+}
+
+func TestServerFromURLSchemePortsAndPath(t *testing.T) {
+	s, err := serverFromURL("wss://proxy.example/rpc/aria2", "")
+	if err != nil || s.Port != 443 || s.Path != "/rpc/aria2" || s.Protocol != "wss" {
+		t.Fatalf("s = %+v err = %v", s, err)
+	}
+	s, err = serverFromURL("ws://plain.example", "")
+	if err != nil || s.Port != 80 || s.Path != "" {
+		t.Fatalf("s = %+v err = %v", s, err)
 	}
 }

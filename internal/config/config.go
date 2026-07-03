@@ -19,7 +19,10 @@ type Server struct {
 	Port     int    `json:"port"` // 0 on managed servers: picked at spawn
 	Secret   string `json:"secret"`
 	Protocol string `json:"protocol"` // ws | http
-	Managed  bool   `json:"managed,omitempty"`
+	// Path overrides the RPC endpoint path (default /jsonrpc), for
+	// reverse-proxied daemons.
+	Path    string `json:"path,omitempty"`
+	Managed bool   `json:"managed,omitempty"`
 	// Transient marks a session-only entry (e.g. --url): usable like any
 	// server but never written back to the config file.
 	Transient bool `json:"-"`
@@ -31,7 +34,13 @@ func (s Server) URL() string {
 	if scheme != "http" && scheme != "https" && scheme != "wss" {
 		scheme = "ws"
 	}
-	return fmt.Sprintf("%s://%s:%d/jsonrpc", scheme, s.Host, s.Port)
+	path := s.Path
+	if path == "" {
+		path = "/jsonrpc"
+	} else if path[0] != '/' {
+		path = "/" + path
+	}
+	return fmt.Sprintf("%s://%s:%d%s", scheme, s.Host, s.Port, path)
 }
 
 // Rule is one scheduler window. Start/End are "HH:MM"; End may be earlier
