@@ -287,9 +287,17 @@ func (m schedulerModel) view() string {
 	b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(stripPanel, "\n")) + "\n")
 
 	// Rules table. Rows sit below the header (1) + strip panel (5 lines)
-	// + rules panel border (1) + column header (1).
+	// + rules panel border (1) + column header (1). The label column
+	// shrinks on narrow terminals so rows never wrap inside the panel.
 	a.hits.line("back", 0, a.width)
-	rows := []string{st.Dim.Render(pad("WINDOW", 16) + pad("DAYS", 12) + pad("RULE", 34) + lpad("LIMIT ▼/▲", 14))}
+	labelW := a.width - 48
+	if labelW < 10 {
+		labelW = 10
+	}
+	if labelW > 34 {
+		labelW = 34
+	}
+	rows := []string{st.Dim.Render(pad("WINDOW", 16) + pad("DAYS", 12) + pad("RULE", labelW) + lpad("LIMIT ▼/▲", 14))}
 	for i, r := range a.cfg.Rules {
 		a.hits.add(fmt.Sprintf("rule:%d", i), 1, 8+i, a.width-2, 8+i)
 		_ = r
@@ -300,7 +308,7 @@ func (m schedulerModel) view() string {
 		limit := FmtLimit(r.Down) + " / " + FmtLimit(r.Up)
 		line := marker + style.Render(pad(r.Start+" – "+r.End, 14)) +
 			st.Text.Render(pad(fmtDays(r.Days), 12)) +
-			st.Text.Render(pad(r.Label, 34)) +
+			st.Text.Render(pad(r.Label, labelW)) +
 			st.Yellow.Render(lpad(limit, 14))
 		if i == m.cursor {
 			line = st.RowSel.Render(line)

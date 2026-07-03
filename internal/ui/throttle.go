@@ -195,7 +195,9 @@ func (m throttleModel) mouse(id string) (throttleModel, tea.Cmd) {
 	return m.apply()
 }
 
-func (m throttleModel) chipRow(row int, label string) string {
+// buildChips renders the chip strings for one row; the same strings feed
+// both the view and the click-region math, so they can never drift.
+func (m throttleModel) buildChips(row int) []string {
 	st := m.a.styles
 	presets := m.presets(row)
 	sel := m.selection(row)
@@ -221,11 +223,16 @@ func (m throttleModel) chipRow(row int, label string) string {
 	} else {
 		chips = append(chips, st.Dim.Render("[ "+customText+" ]"))
 	}
+	return chips
+}
+
+func (m throttleModel) chipRow(row int, label string) string {
+	st := m.a.styles
 	cursor := "  "
 	if m.row == row {
 		cursor = st.Yellow.Render("▸ ")
 	}
-	return cursor + st.Dim.Render(label) + "\n  " + lipgloss.JoinHorizontal(lipgloss.Center, chips...)
+	return cursor + st.Dim.Render(label) + "\n  " + lipgloss.JoinHorizontal(lipgloss.Center, m.buildChips(row)...)
 }
 
 func (m throttleModel) view() string {
@@ -244,19 +251,14 @@ func (m throttleModel) view() string {
 	modal := st.Modal.BorderForeground(m.a.styles.P.Yellow).Render(body)
 
 	// Chips lines sit at body rows 3 (download) and 6 (upload); content
-	// starts 2 rows/3 cols inside the modal frame.
+	// starts 2 rows/3 cols inside the modal frame. Regions measure the
+	// exact strings the view rendered.
 	offX, offY := m.a.overlayOffset(modal)
 	for row, bodyY := range []int{3, 6} {
 		x := offX + 3 + 2 // frame + "  " chip indent
 		y := offY + 2 + bodyY
-		presets := m.presets(row)
-		for i := 0; i <= len(presets); i++ {
-			var w int
-			if i < len(presets) {
-				w = lipgloss.Width(st.Dim.Render("[ " + FmtLimit(presets[i]) + " ]"))
-			} else {
-				w = 11 // "[ custom… ]"
-			}
+		for i, chip := range m.buildChips(row) {
+			w := lipgloss.Width(chip)
 			m.a.hits.add(fmt.Sprintf("chip:%d:%d", row, i), x, y, x+w-1, y)
 			x += w
 		}

@@ -15,10 +15,7 @@ type helpModel struct {
 func newHelpModel(a *App) helpModel { return helpModel{a: a} }
 
 func (m helpModel) update(msg tea.KeyMsg) (helpModel, tea.Cmd) {
-	switch msg.String() {
-	case "esc", "q", "?", "enter", " ":
-		m.a.overlay = overlayNone
-	}
+	m.a.overlay = overlayNone // the footer promises: any key closes
 	return m, nil
 }
 
@@ -81,7 +78,7 @@ func (m helpModel) view() string {
 		st.Dim.Render("any key or click closes"),
 	)
 	modal := st.Modal.Render(body)
-	offX, offY := m.a.overlayOffset(modal)
-	m.a.hits.add("help:close", offX, offY, offX+lipgloss.Width(modal)-1, offY+lipgloss.Height(modal)-1)
+	// Whole screen closes on click, matching the footer text.
+	m.a.hits.add("help:close", 0, 0, m.a.width-1, m.a.height-1)
 	return modal
 }

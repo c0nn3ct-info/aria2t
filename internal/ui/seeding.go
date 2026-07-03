@@ -282,7 +282,6 @@ func (m seedingModel) view() string {
 	b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(top, "\n")) + "\n")
 
 	a.hits.line("back", 0, a.width)
-	topPanelH := 1 + 7 // header + top panel (2 borders + 5 lines)
 	var rows []string
 	if len(m.embedded) > 0 {
 		rows = append(rows, st.Dim.Render("EMBEDDED TRACKERS · from the .torrent, read-only"))
@@ -291,15 +290,12 @@ func (m seedingModel) view() string {
 		}
 	}
 	rows = append(rows, st.Dim.Render("EXTRA TRACKERS (bt-tracker)")+"  "+st.Dim.Render("e edit · + add · - remove"))
-	// Extras start after the panel border, optional embedded block, and
-	// their own header line.
-	extrasY := topPanelH + 1 + 1
-	if len(m.embedded) > 0 {
-		extrasY += 1 + len(m.embedded)
-	}
-	for i, tr := range m.trackers {
+	// Extras start after everything already rendered (measured, not
+	// guessed), plus the trackers panel border, the optional embedded
+	// block, and the extras header line.
+	extrasY := strings.Count(b.String(), "\n") + 1 + len(rows)
+	for i := range m.trackers {
 		a.hits.add(fmt.Sprintf("trk:%d", i), 1, extrasY+i, a.width-2, extrasY+i)
-		_ = tr
 	}
 	for i, tr := range m.trackers {
 		marker := "  "

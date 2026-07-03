@@ -78,11 +78,31 @@ func (m *listModel) clampCursor() {
 
 // visibleRows is how many download rows fit between the chrome lines.
 func (m listModel) visibleRows() int {
-	v := m.a.height - 8
+	v := m.a.height - 8 - m.stripHeight()
 	if v < 3 {
 		v = 3
 	}
 	return v
+}
+
+// stripHeight is the height of the checksum detail strip when it renders.
+func (m listModel) stripHeight() int {
+	if m.tab != tabStopped {
+		return 0
+	}
+	s, ok := m.selected()
+	if !ok {
+		return 0
+	}
+	v := m.a.verify[s.GID]
+	if v == nil || (v.Expected == "" && !v.Running && !v.Finished) {
+		return 0
+	}
+	h := 4 // borders + 2 lines
+	if v.Running || (v.Finished && v.Computed != "") {
+		h++
+	}
+	return h
 }
 
 // frozenWaiting keeps the local order visible while the user drags an item.
@@ -104,10 +124,12 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 		return m, tea.Quit
 	case "tab":
 		m.tab = (m.tab + 1) % 3
-		m.cursor = 0
+		m.cursor, m.offset = 0, 0
+		a.lastClick = clickState{}
 	case "1", "2", "3":
 		m.tab = int(key[0] - '1')
-		m.cursor = 0
+		m.cursor, m.offset = 0, 0
+		a.lastClick = clickState{}
 	case "j", "down":
 		m.cursor++
 		m.clampCursor()
@@ -425,8 +447,16 @@ func (m listModel) view() string {
 	}
 	b.WriteString("\n" + m.tabsLine() + "\n")
 
-	nameW := a.width - 60
+	// Panel content wraps at a.width-4 (Width minus padding); rows are
+	// nameW+barW+39 cells, so on narrow terminals the deficit comes out
+	// of the progress bar to keep every row on a single line.
+	nameW := a.width - 65
+	barW := 20
 	if nameW < 20 {
+		barW -= 20 - nameW
+		if barW < 8 {
+			barW = 8
+		}
 		nameW = 20
 	}
 	rows := m.rows()
@@ -482,7 +512,7 @@ func (m listModel) view() string {
 			lines = append(lines, row)
 		}
 	default:
-		head := st.Dim.Render(pad("NAME", nameW+2) + pad("PROGRESS", 28) + lpad("SIZE", 9) + lpad("SPEED", 12) + lpad("ETA", 9))
+		head := st.Dim.Render(pad("NAME", nameW+2) + pad("PROGRESS", barW+8) + lpad("SIZE", 9) + lpad("SPEED", 12) + lpad("ETA", 9))
 		lines = append(lines, head)
 		for wi, s := range win {
 			i := start + wi
@@ -495,14 +525,14 @@ func (m listModel) view() string {
 			var progress string
 			switch s.Status {
 			case "complete":
-				progress = st.Green.Render(strings.Repeat("━", 20)) + "     "
+				progress = st.Green.Render(strings.Repeat("━", barW)) + "     "
 			case "error":
-				f, e := Bar(s.Progress(), 20)
+				f, e := Bar(s.Progress(), barW)
 				progress = st.Red.Render(f) + st.Faint.Render(e) + "     "
 			case "waiting", "paused":
-				progress = st.Faint.Render(strings.Repeat("─", 20)) + "     "
+				progress = st.Faint.Render(strings.Repeat("─", barW)) + "     "
 			default:
-				f, e := Bar(s.Progress(), 20)
+				f, e := Bar(s.Progress(), barW)
 				progress = st.Brand.Render(f) + st.Faint.Render(e) + fmt.Sprintf(" %3d%%", int(s.Progress()*100))
 			}
 			suffix := ""
@@ -583,30 +613,36 @@ func (m listModel) keybar(y int) string {
 		tokens = []string{"", "", "enter", "esc"}
 	} else {
 		add("a", "a", "add")
-		add(" ", "space", "pause/resume")
-		add("d", "d", "remove")
-		add("enter", "↵", "details")
-		add("g", "g", "stats")
-		add("l", "l", "limit")
-		add("s", "s", "servers")
-		add("S", "S", "sched")
-		add(",", ",", "settings")
-		add("?", "?", "help")
-		add("q", "q", "quit")
-		if m.tab == tabWaiting {
-			add("", "J/K", "reorder")
-		}
 		if m.tab == tabStopped {
+			// Stopped tab swaps the transfer hints for integrity actions
+			// to keep the bar inside the terminal width.
+			add("d", "d", "remove")
+			add("enter", "↵", "details")
 			add("v", "v", "verify")
 			add("R", "R", "re-download")
 			add("c", "c", "checksum")
 			add("o", "o", "open")
+		} else {
+			add(" ", "space", "pause/resume")
+			add("d", "d", "remove")
+			add("enter", "↵", "details")
+			add("g", "g", "stats")
+			add("l", "l", "limit")
+			add("s", "s", "servers")
+			add("S", "S", "sched")
+		}
+		add(",", ",", "settings")
+		add("?", "?", "help")
+		// q stays keyboard-only: a stray click must not quit the app.
+		add("", "q", "quit")
+		if m.tab == tabWaiting {
+			add("", "J/K", "reorder")
 		}
 	}
 	x := 1
 	for i, p := range parts {
 		w := lipgloss.Width(p)
-		if tokens[i] != "" {
+		if tokens[i] != "" && x+w-1 < m.a.width {
 			m.a.hits.add("key:"+tokens[i], x, y, x+w-1, y)
 		}
 		x += w + 2
@@ -631,6 +667,7 @@ func (m listModel) mouse(id string, double bool) (listModel, tea.Cmd) {
 		if t := argInt(arg); t >= 0 && t <= 2 && !m.reordering {
 			m.tab = t
 			m.cursor, m.offset = 0, 0
+			m.a.lastClick = clickState{}
 		}
 	case "row":
 		i := argInt(arg)

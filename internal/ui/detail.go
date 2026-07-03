@@ -271,8 +271,10 @@ func (m detailModel) view() string {
 	filesPanel := st.Panel.Render(strings.Join(fileLines, "\n"))
 	// Clickable regions: full header line goes back, file rows toggle.
 	a.hits.line("back", 0, a.width)
-	panelsY := lipgloss.Height(b.String()) // lines rendered above these panels
-	fx := lipgloss.Width(peersPanel) + 2   // files panel content x
+	// b ends with a newline, so the count of newlines IS the next row index
+	// (lipgloss.Height would be one higher).
+	panelsY := strings.Count(b.String(), "\n")
+	fx := lipgloss.Width(peersPanel) + 2 // files panel content x
 	for i := range s.Files {
 		y := panelsY + 2 + i // top border + FILES header line
 		a.hits.add(fmt.Sprintf("file:%d", i), fx, y, fx+lipgloss.Width(filesPanel)-3, y)

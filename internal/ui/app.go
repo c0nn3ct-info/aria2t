@@ -160,14 +160,17 @@ func (a *App) overlayOffset(modal string) (x, y int) {
 
 // handleMouse routes wheel and click events through the hitmap.
 func (a *App) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	// Wheel behaves like j/k wherever those keys navigate.
-	if msg.Action == tea.MouseActionPress {
-		switch msg.Button {
-		case tea.MouseButtonWheelUp:
-			return a.handleKey(key_("k"))
-		case tea.MouseButtonWheelDown:
-			return a.handleKey(key_("j"))
+	// Wheel behaves like j/k, but only in contexts where those keys
+	// navigate — never where they would type into a text input.
+	if msg.Action == tea.MouseActionPress &&
+		(msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown) {
+		if !a.wheelNavigates() {
+			return a, nil
 		}
+		if msg.Button == tea.MouseButtonWheelUp {
+			return a.handleKey(key_("k"))
+		}
+		return a.handleKey(key_("j"))
 	}
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 		return a, nil
@@ -222,6 +225,30 @@ func (a *App) screenMouse(id string, double bool) (tea.Model, tea.Cmd) {
 		a.scheduler, cmd = a.scheduler.mouse(id)
 	}
 	return a, cmd
+}
+
+// wheelNavigates reports whether j/k currently move a selection instead
+// of typing into a focused text input.
+func (a *App) wheelNavigates() bool {
+	switch a.overlay {
+	case overlayNone:
+	case overlayServers:
+		return !a.servers.editing
+	default:
+		return false
+	}
+	switch a.screen {
+	case screenList:
+		return true
+	case screenDetail:
+		return true // j/k only move the file cursor; no inputs
+	case screenScheduler:
+		return !a.scheduler.editing
+	case screenSeeding:
+		return a.seeding.focus >= a.seeding.trackersStart()
+	default:
+		return false // settings and stats have inputs / nothing to scroll
+	}
 }
 
 // key_ builds a rune key message (helper for synthesized input).
