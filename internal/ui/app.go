@@ -791,15 +791,18 @@ func (a *App) header() string {
 	return " " + left + lipgloss.NewStyle().Width(gap).Render("") + right
 }
 
-// statusLine renders the transient message, if any.
+// statusLine renders the transient message, if any, on its own line.
+// Callers append it after their keybar; without the leading newline the
+// message would extend a full-width keybar past the terminal edge and be
+// clipped invisibly.
 func (a *App) statusLine() string {
 	if a.status == "" {
 		return ""
 	}
 	if a.statusErr {
-		return " " + a.styles.Red.Render(a.status)
+		return "\n " + a.styles.Red.Render(a.status)
 	}
-	return " " + a.styles.Green.Render(a.status)
+	return "\n " + a.styles.Green.Render(a.status)
 }
 
 func (a *App) View() string {

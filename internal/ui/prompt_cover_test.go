@@ -30,7 +30,6 @@ func TestPromptEnterSubmits(t *testing.T) {
 	if cmd := m.focusCmd(); cmd == nil {
 		t.Fatal("focusCmd must not be nil")
 	}
-	m.input.Focus() // focusCmd works on a copy; focus this instance for typing
 	m, _ = m.update(key("x"))
 	m, cmd := m.update(key("enter"))
 	if a.overlay != overlayNone {

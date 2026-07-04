@@ -16,13 +16,15 @@ type promptModel struct {
 
 func newPromptModel(a *App, title, initial string, onSubmit func(string) tea.Cmd) promptModel {
 	in := textinput.New()
-	in.SetValue(initial)
 	in.CharLimit = 256
-	in.Width = 68
+	in.Width = 68 // Width must precede SetValue: overflow windows on set
+	in.SetValue(initial)
 	return promptModel{a: a, title: title, input: in, onSubmit: onSubmit}
 }
 
-func (m promptModel) focusCmd() tea.Cmd { return m.input.Focus() }
+// focusCmd needs a pointer receiver: Focus mutates the model, and focusing
+// a copy leaves the stored overlay deaf to typing.
+func (m *promptModel) focusCmd() tea.Cmd { return m.input.Focus() }
 
 func (m promptModel) update(msg tea.KeyMsg) (promptModel, tea.Cmd) {
 	switch msg.String() {

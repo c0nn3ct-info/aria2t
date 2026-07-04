@@ -40,8 +40,8 @@ type settingsModel struct {
 func newSettingsModel(a *App) settingsModel {
 	mk := func(label, optKey, value string, width int) setField {
 		in := textinput.New()
+		in.Width = width // Width must precede SetValue: overflow windows on set
 		in.SetValue(value)
-		in.Width = width
 		return setField{label: label, optKey: optKey, input: in}
 	}
 	tg := func(label, optKey string) setField {

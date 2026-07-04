@@ -56,8 +56,9 @@ func newSeedingModel(a *App) seedingModel {
 
 func (m seedingModel) trackersStart() int { return 2 + len(m.toggles) }
 
-// loadCmd fetches per-download and global options.
-func (m seedingModel) loadCmd() tea.Cmd {
+// loadCmd fetches per-download and global options. Pointer receiver: it
+// focuses the ratio input, which must happen on the stored model, not a copy.
+func (m *seedingModel) loadCmd() tea.Cmd {
 	c := m.a.client
 	gid := m.gid
 	if c == nil {

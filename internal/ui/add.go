@@ -47,18 +47,20 @@ func newAddModel(a *App) addModel {
 	file.Placeholder = "/path/to/file.torrent"
 	file.Width = 52
 	dir := textinput.New()
+	dir.Width = 22 // Width must precede SetValue: overflow windows on set
 	dir.SetValue(a.cfg.Dir)
-	dir.Width = 22
 	split := textinput.New()
-	split.SetValue(fmt.Sprintf("%d", a.cfg.Split))
 	split.Width = 6
+	split.SetValue(fmt.Sprintf("%d", a.cfg.Split))
 	out := textinput.New()
 	out.Placeholder = "new-name.iso"
 	out.Width = 22
 	return addModel{a: a, uris: uris, file: file, dir: dir, split: split, out: out, startNow: true}
 }
 
-func (m addModel) focusCmd() tea.Cmd { return m.uris.Focus() }
+// focusCmd needs a pointer receiver: textinput/textarea Focus mutates the
+// model, and focusing a copy leaves the stored overlay deaf to typing.
+func (m *addModel) focusCmd() tea.Cmd { return m.uris.Focus() }
 
 // fields returns the focusable inputs for the current tab.
 func (m *addModel) applyFocus() tea.Cmd {
