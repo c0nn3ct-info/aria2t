@@ -102,3 +102,30 @@ func TestStripHeightEmptyStoppedTab(t *testing.T) {
 		t.Fatalf("no selection → no strip, got %d", h)
 	}
 }
+
+func TestOverlayDimsBackdrop(t *testing.T) {
+	a := filterApp(t)
+	_, _ = a.Update(key("a"))
+	v := a.View()
+	if !strings.Contains(v, "Add download") {
+		t.Fatal("modal missing from the view")
+	}
+	if !strings.Contains(v, "ubuntu.iso") {
+		t.Fatal("the screen beneath the modal must stay visible (dimmed), not a black void")
+	}
+	for i, line := range strings.Split(v, "\n") {
+		if w := lipgloss.Width(line); w > a.width {
+			t.Fatalf("line %d is %d cells, terminal is %d", i, w, a.width)
+		}
+	}
+}
+
+func TestCompositeTinyTerminal(t *testing.T) {
+	a, _ := testApp(t)
+	a.width, a.height = 30, 5 // narrower than the list rows, shorter than the modal
+	_, _ = a.Update(key("a"))
+	lines := strings.Split(a.View(), "\n")
+	if len(lines) != 5 {
+		t.Fatalf("composite must emit exactly the terminal height, got %d lines", len(lines))
+	}
+}

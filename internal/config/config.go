@@ -97,7 +97,11 @@ func DefaultPath() string {
 	return filepath.Join(home, ".config", "aria2t", "config.json")
 }
 
-// Load reads path; a missing file yields Default without error.
+// Load reads path; a missing file yields Default without error. The file is
+// decoded into a zero Config — never into a Default-prefilled one, because
+// encoding/json merges struct fields inside arrays, and a user's first
+// server would silently inherit Managed=true from the default entry.
+// Defaults are applied explicitly for fields the file leaves out.
 func Load(path string) (Config, error) {
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -106,9 +110,22 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Default(), err
 	}
-	cfg := Default()
+	var cfg Config
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return Default(), fmt.Errorf("config: parse %s: %w", path, err)
+	}
+	def := Default()
+	if len(cfg.Servers) == 0 {
+		cfg.Servers = def.Servers
+	}
+	if cfg.Theme == "" {
+		cfg.Theme = def.Theme
+	}
+	if cfg.Dir == "" {
+		cfg.Dir = def.Dir
+	}
+	if cfg.Split == 0 {
+		cfg.Split = def.Split
 	}
 	return cfg, nil
 }

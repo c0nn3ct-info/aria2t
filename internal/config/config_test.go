@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -60,5 +61,23 @@ func TestActiveServerClampsStaleIndex(t *testing.T) {
 	cfg.Active = 5
 	if got := cfg.ActiveServer(); got.Name != "built-in" {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestLoadDoesNotInheritDefaultsIntoParsedServers(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	body := `{"servers":[{"name":"seedbox","host":"sb.example.net","port":6800,"secret":"s","protocol":"ws"}]}`
+	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Servers[0].Managed {
+		t.Fatal("a parsed server must not inherit Managed=true from the default entry")
+	}
+	if cfg.Theme != "dark" || cfg.Dir != "~/Downloads" || cfg.Split != 16 {
+		t.Fatalf("absent fields must keep defaults: %+v", cfg)
 	}
 }

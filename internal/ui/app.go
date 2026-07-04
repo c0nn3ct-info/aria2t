@@ -6,11 +6,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"aria2t/internal/checksum"
 	"aria2t/internal/config"
@@ -919,7 +921,52 @@ func (a *App) View() string {
 		case overlayHelp:
 			modal = a.help.view()
 		}
-		return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, modal)
+		return a.composite(body, modal)
 	}
 	return body
+}
+
+// composite centers the modal over the current screen, dimmed — the design's
+// "modal over dimmed backdrop". Placement mirrors overlayOffset exactly, so
+// the modal's registered click regions match what is drawn.
+func (a *App) composite(body, modal string) string {
+	offX, offY := a.overlayOffset(modal)
+	faint := a.styles.Faint
+	rows := make([]string, a.height)
+	bodyLines := strings.Split(body, "\n")
+	for y := 0; y < a.height; y++ {
+		line := ""
+		if y < len(bodyLines) {
+			line = ansi.Strip(bodyLines[y])
+		}
+		if r := []rune(line); len(r) > a.width {
+			line = string(r[:a.width])
+		}
+		rows[y] = line
+	}
+	modalLines := strings.Split(modal, "\n")
+	for i, ml := range modalLines {
+		y := offY + i
+		if y < 0 || y >= a.height {
+			continue
+		}
+		plain := []rune(rows[y])
+		left, right := "", ""
+		if offX <= len(plain) {
+			left = string(plain[:offX])
+		} else {
+			left = string(plain) + strings.Repeat(" ", offX-len(plain))
+		}
+		if end := offX + lipgloss.Width(ml); end < len(plain) {
+			right = string(plain[end:])
+		}
+		rows[y] = faint.Render(left) + ml + faint.Render(right)
+	}
+	for y := range rows {
+		if offY <= y && y < offY+len(modalLines) {
+			continue
+		}
+		rows[y] = faint.Render(rows[y])
+	}
+	return strings.Join(rows, "\n")
 }
