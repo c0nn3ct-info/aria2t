@@ -158,6 +158,21 @@ func (c *Client) GetPeers(ctx context.Context, gid string) ([]Peer, error) {
 	return out, err
 }
 
+// PauseAll pauses every active and waiting download.
+func (c *Client) PauseAll(ctx context.Context) error {
+	return c.call(ctx, "aria2.pauseAll", nil)
+}
+
+// UnpauseAll resumes every paused download.
+func (c *Client) UnpauseAll(ctx context.Context) error {
+	return c.call(ctx, "aria2.unpauseAll", nil)
+}
+
+// PurgeDownloadResult clears the whole completed/error/removed result list.
+func (c *Client) PurgeDownloadResult(ctx context.Context) error {
+	return c.call(ctx, "aria2.purgeDownloadResult", nil)
+}
+
 // SaveSession asks aria2 to persist current downloads to its session file.
 func (c *Client) SaveSession(ctx context.Context) error {
 	return c.call(ctx, "aria2.saveSession", nil)

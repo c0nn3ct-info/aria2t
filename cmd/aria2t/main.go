@@ -18,6 +18,11 @@ import (
 	"aria2t/internal/ui"
 )
 
+// appVersion is stamped at build time:
+//
+//	go build -ldflags "-X main.appVersion=v1.2.3" ./cmd/aria2t
+var appVersion = "dev"
+
 // osExit, programOpts and runProgram are indirections so run() and main()
 // are testable.
 var (
@@ -37,11 +42,16 @@ func run(args []string, stderr io.Writer) int {
 	cfgPath := fs.String("config", config.DefaultPath(), "path to config file")
 	rpcURL := fs.String("url", "", "external aria2 RPC endpoint, e.g. ws://localhost:6800/jsonrpc (skips the built-in daemon)")
 	secret := fs.String("secret", "", "aria2 RPC secret (overrides config)")
+	showVersion := fs.Bool("version", false, "print version and exit")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return 0
 		}
 		return 2
+	}
+	if *showVersion {
+		fmt.Fprintln(stderr, "aria2t", appVersion)
+		return 0
 	}
 
 	cfg, err := config.Load(*cfgPath)

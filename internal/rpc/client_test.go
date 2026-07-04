@@ -128,3 +128,23 @@ func TestChangePosition(t *testing.T) {
 		t.Fatalf("params = %v", last.Params)
 	}
 }
+
+func TestBulkAndPurgeMethods(t *testing.T) {
+	srv, last := rpcServer(t, `"OK"`)
+	c := New(srv.URL, "")
+	for _, tc := range []struct {
+		call   func() error
+		method string
+	}{
+		{func() error { return c.PauseAll(context.Background()) }, "aria2.pauseAll"},
+		{func() error { return c.UnpauseAll(context.Background()) }, "aria2.unpauseAll"},
+		{func() error { return c.PurgeDownloadResult(context.Background()) }, "aria2.purgeDownloadResult"},
+	} {
+		if err := tc.call(); err != nil {
+			t.Fatalf("%s: %v", tc.method, err)
+		}
+		if last.Method != tc.method {
+			t.Fatalf("method = %q, want %q", last.Method, tc.method)
+		}
+	}
+}

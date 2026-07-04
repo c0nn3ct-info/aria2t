@@ -97,6 +97,11 @@ type App struct {
 
 	verify map[string]*verifyState
 
+	// knownStopped tracks which stopped GIDs have been seen, so a poll can
+	// tell a fresh completion/failure from history; seeded on first poll.
+	knownStopped  map[string]bool
+	stoppedSeeded bool
+
 	status    string
 	statusErr bool
 	statusSeq int
@@ -239,7 +244,7 @@ func (a *App) wheelNavigates() bool {
 	}
 	switch a.screen {
 	case screenList:
-		return true
+		return !a.list.filtering // wheel must not type j/k into the filter
 	case screenDetail:
 		return true // j/k only move the file cursor; no inputs
 	case screenScheduler:
@@ -499,7 +504,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			a.daemon = msg.daemon
 		}
-		a.lastSchedKey = "" // re-apply schedule on the new server
+		a.lastSchedKey = ""     // re-apply schedule on the new server
+		a.stoppedSeeded = false // reseed: the new server's history is not news
+		a.knownStopped = nil
 		return a, tea.Batch(a.pollCmd(), a.listenCmd())
 
 	case connectErrMsg:
@@ -538,6 +545,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.list.reordering {
 			msg.snap.Waiting = a.list.frozenWaiting(msg.snap.Waiting)
 		}
+		notice := a.noticeStopped(msg.snap.Stopped)
 		a.snap = msg.snap
 		a.downHist.Push(msg.snap.Stat.DownSpeed())
 		a.upHist.Push(msg.snap.Stat.UpSpeed())
@@ -546,7 +554,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.screen == screenDetail {
 			cmd = a.detail.refreshCmd()
 		}
-		return a, cmd
+		return a, tea.Batch(cmd, notice)
 
 	case notifMsg:
 		cmds := []tea.Cmd{a.listenCmd()}
@@ -647,7 +655,9 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return a, cmd
 	}
-	if msg.String() == "?" {
+	// "?" opens help everywhere except while it would be typed into the
+	// list filter.
+	if msg.String() == "?" && !(a.screen == screenList && a.list.filtering) {
 		a.overlay = overlayHelp
 		return a, nil
 	}
@@ -736,6 +746,76 @@ func (a *App) redownload(s rpc.Status) tea.Cmd {
 		_, err := c.AddURI(ctx, uris, opts)
 		return err
 	})
+}
+
+// yank copies the selected download's source — its first recorded URI, or a
+// magnet link built from the info hash — to the system clipboard.
+func (a *App) yank(s rpc.Status) tea.Cmd {
+	src := ""
+	for _, f := range s.Files {
+		if len(f.URIs) > 0 {
+			src = f.URIs[0].URI
+			break
+		}
+	}
+	if src == "" && s.InfoHash != "" {
+		src = "magnet:?xt=urn:btih:" + s.InfoHash
+	}
+	if src == "" {
+		return a.flash("no source URI recorded", true)
+	}
+	return func() tea.Msg {
+		if err := clipboardWrite(src); err != nil {
+			return actionDoneMsg{err: fmt.Errorf("clipboard: %w", err)}
+		}
+		return actionDoneMsg{text: "source copied"}
+	}
+}
+
+// noticeStopped diffs the stopped list against the previous poll and turns
+// newly finished or failed downloads into a flash + terminal bell. The first
+// poll after a (re)connect seeds the set silently, so history is not
+// replayed. Works over both transports — ws push events merely make the next
+// poll happen sooner.
+func (a *App) noticeStopped(stopped []rpc.Status) tea.Cmd {
+	if !a.stoppedSeeded {
+		a.stoppedSeeded = true
+		a.knownStopped = make(map[string]bool, len(stopped))
+		for _, s := range stopped {
+			a.knownStopped[s.GID] = true
+		}
+		return nil
+	}
+	var done, failed []rpc.Status
+	for _, s := range stopped {
+		if a.knownStopped[s.GID] {
+			continue
+		}
+		a.knownStopped[s.GID] = true
+		switch s.Status {
+		case "complete":
+			done = append(done, s)
+		case "error":
+			failed = append(failed, s)
+		}
+	}
+	if len(done)+len(failed) == 0 {
+		return nil
+	}
+	bell()
+	extra := len(done) + len(failed) - 1
+	more := ""
+	if extra > 0 {
+		more = fmt.Sprintf(" (+%d more)", extra)
+	}
+	if len(failed) > 0 {
+		text := "✗ " + failed[0].Name() + " failed"
+		if m := failed[0].ErrorMessage; m != "" {
+			text += ": " + m
+		}
+		return a.flash(text+more, true)
+	}
+	return a.flash("✓ "+done[0].Name()+" finished"+more, false)
 }
 
 // openDirBin is the file-manager launcher; a var so tests can substitute a

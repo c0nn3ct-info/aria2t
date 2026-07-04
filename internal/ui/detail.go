@@ -180,6 +180,9 @@ func (m detailModel) view() string {
 		b.WriteString(st.Red.Render(" " + m.err.Error()))
 		return b.String()
 	}
+	if s.Status == "error" && s.ErrorMessage != "" {
+		b.WriteString(" " + st.Red.Render("✗ "+s.ErrorMessage) + "\n")
+	}
 
 	// Summary panel.
 	f, e := Bar(s.Progress(), 20)

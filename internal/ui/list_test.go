@@ -21,6 +21,9 @@ type fakeAPI struct {
 	paused         []string
 	removed        []string
 	waiting        []rpc.Status // returned by TellWaiting
+	pausedAll      bool
+	unpausedAll    bool
+	purged         bool
 }
 
 func newFakeAPI() *fakeAPI { return &fakeAPI{changedOptions: map[string]map[string]string{}} }
@@ -48,7 +51,19 @@ func (f *fakeAPI) Pause(_ context.Context, gid string) error {
 	f.paused = append(f.paused, gid)
 	return nil
 }
+func (f *fakeAPI) PauseAll(context.Context) error {
+	f.pausedAll = true
+	return nil
+}
 func (f *fakeAPI) Unpause(context.Context, string) error { return nil }
+func (f *fakeAPI) UnpauseAll(context.Context) error {
+	f.unpausedAll = true
+	return nil
+}
+func (f *fakeAPI) PurgeDownloadResult(context.Context) error {
+	f.purged = true
+	return nil
+}
 func (f *fakeAPI) Remove(_ context.Context, gid string) error {
 	f.removed = append(f.removed, gid)
 	return nil

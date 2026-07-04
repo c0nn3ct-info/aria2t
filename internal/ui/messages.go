@@ -18,9 +18,12 @@ type api interface {
 	AddTorrent(ctx context.Context, b64 string, opts map[string]string) (string, error)
 	AddMetalink(ctx context.Context, b64 string, opts map[string]string) ([]string, error)
 	Pause(ctx context.Context, gid string) error
+	PauseAll(ctx context.Context) error
 	Unpause(ctx context.Context, gid string) error
+	UnpauseAll(ctx context.Context) error
 	Remove(ctx context.Context, gid string) error
 	RemoveDownloadResult(ctx context.Context, gid string) error
+	PurgeDownloadResult(ctx context.Context) error
 	ChangePosition(ctx context.Context, gid string, pos int, how string) (int, error)
 	ChangeOption(ctx context.Context, gid string, opts map[string]string) error
 	GetOption(ctx context.Context, gid string) (map[string]string, error)

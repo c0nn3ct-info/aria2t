@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -30,23 +31,49 @@ type listModel struct {
 	localOrder []rpc.Status // waiting list as manipulated locally
 	savedOrder []rpc.Status // waiting list as it was when grabbing
 	pendingG   bool
+
+	// filtering is true while the user types into the filter; a non-empty
+	// filterInput value keeps the filter applied after enter commits it.
+	filtering   bool
+	filterInput textinput.Model
 }
 
-func newListModel(a *App) listModel { return listModel{a: a} }
+func newListModel(a *App) listModel {
+	in := textinput.New()
+	in.Placeholder = "type to filter"
+	in.CharLimit = 64
+	in.Width = 28
+	return listModel{a: a, filterInput: in}
+}
 
-// rows returns the downloads of the current tab.
+// filterQuery is the active filter text, "" when none.
+func (m listModel) filterQuery() string { return strings.TrimSpace(m.filterInput.Value()) }
+
+// rows returns the downloads of the current tab, narrowed by the filter.
 func (m listModel) rows() []rpc.Status {
+	var base []rpc.Status
 	switch m.tab {
 	case tabWaiting:
 		if m.reordering {
-			return m.localOrder
+			return m.localOrder // reorder and filter are mutually exclusive
 		}
-		return m.a.snap.Waiting
+		base = m.a.snap.Waiting
 	case tabStopped:
-		return m.a.snap.Stopped
+		base = m.a.snap.Stopped
 	default:
-		return m.a.snap.Active
+		base = m.a.snap.Active
 	}
+	q := strings.ToLower(m.filterQuery())
+	if q == "" {
+		return base
+	}
+	out := make([]rpc.Status, 0, len(base))
+	for _, s := range base {
+		if strings.Contains(strings.ToLower(s.Name()), q) {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func (m listModel) selected() (rpc.Status, bool) {
@@ -117,18 +144,46 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 	if m.reordering {
 		return m.updateReorder(key)
 	}
+	if m.filtering {
+		switch key {
+		case "esc":
+			m.filtering = false
+			m.filterInput.SetValue("")
+			m.filterInput.Blur()
+		case "enter":
+			m.filtering = false
+			m.filterInput.Blur()
+		default:
+			var cmd tea.Cmd
+			m.filterInput, cmd = m.filterInput.Update(msg)
+			m.clampCursor()
+			return m, cmd
+		}
+		m.clampCursor()
+		return m, nil
+	}
 	m.pendingG = false
 
 	switch key {
 	case "q":
 		return m, tea.Quit
+	case "/":
+		m.filtering = true
+		return m, m.filterInput.Focus()
+	case "esc":
+		if m.filterQuery() != "" {
+			m.filterInput.SetValue("")
+			m.clampCursor()
+		}
 	case "tab":
 		m.tab = (m.tab + 1) % 3
 		m.cursor, m.offset = 0, 0
+		m.filterInput.SetValue("")
 		a.lastClick = clickState{}
 	case "1", "2", "3":
 		m.tab = int(key[0] - '1')
 		m.cursor, m.offset = 0, 0
+		m.filterInput.SetValue("")
 		a.lastClick = clickState{}
 	case "j", "down":
 		m.cursor++
@@ -166,6 +221,29 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 			return m, a.rpcCmd("paused "+s.Name(), func(ctx context.Context, c api) error {
 				return c.Pause(ctx, gid)
 			})
+		}
+	case "P":
+		return m, a.rpcCmd("paused all", func(ctx context.Context, c api) error {
+			return c.PauseAll(ctx)
+		})
+	case "U":
+		return m, a.rpcCmd("resumed all", func(ctx context.Context, c api) error {
+			return c.UnpauseAll(ctx)
+		})
+	case "y":
+		if s, ok := m.selected(); ok {
+			return m, a.yank(s)
+		}
+	case "D":
+		if m.tab == tabStopped {
+			a.confirm = newConfirmModel(a, "Clear stopped list?",
+				fmt.Sprintf("%d download results will be forgotten", len(a.snap.Stopped)),
+				func() tea.Cmd {
+					return a.rpcCmd("stopped list cleared", func(ctx context.Context, c api) error {
+						return c.PurgeDownloadResult(ctx)
+					})
+				})
+			a.overlay = overlayConfirm
 		}
 	case " ":
 		// Smart toggle: paused resumes, running pauses.
@@ -234,6 +312,9 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 		}
 	case "J", "K":
 		if m.tab == tabWaiting {
+			if m.filterQuery() != "" {
+				return m, a.flash("clear the filter (esc) before reordering", true)
+			}
 			if s, ok := m.selected(); ok {
 				m.reordering = true
 				m.reorderGID = s.GID
@@ -389,7 +470,11 @@ func (m listModel) tabsLine() string {
 		m.a.hits.add(fmt.Sprintf("tab:%d", i), x, 1, x+w-1, 1)
 		x += w + 1
 	}
-	return " " + strings.Join(parts, " ")
+	line := " " + strings.Join(parts, " ")
+	if q := m.filterQuery(); q != "" {
+		line += "  " + st.Cyan.Render("⌕ "+q)
+	}
+	return line
 }
 
 func (m listModel) statusCell(s rpc.Status) string {
@@ -416,6 +501,9 @@ func (m listModel) integrityCell(s rpc.Status) string {
 	v := m.a.verify[s.GID]
 	switch {
 	case v == nil:
+		if s.Status == "error" && s.ErrorMessage != "" {
+			return st.Red.Render(pad("✗ "+s.ErrorMessage, 44))
+		}
 		return st.Dim.Render("—")
 	case v.Running:
 		frac := 0.0
@@ -596,9 +684,14 @@ func shortHash(h string) string {
 	return h
 }
 
-// keybar renders the hint line at row y; every hint is clickable.
+// keybar renders the hint line at row y; every hint is clickable. While the
+// filter is being typed it shows the filter input instead.
 func (m listModel) keybar(y int) string {
 	st := m.a.styles
+	if m.filtering {
+		return " " + st.Key.Render("/") + " " + m.filterInput.View() +
+			"  " + st.Dim.Render("↵ keep · esc clear")
+	}
 	var parts []string
 	var tokens []string // key token behind each part; "" = not clickable
 	add := func(token, k, label string) {
@@ -617,19 +710,20 @@ func (m listModel) keybar(y int) string {
 			// Stopped tab swaps the transfer hints for integrity actions
 			// to keep the bar inside the terminal width.
 			add("d", "d", "remove")
+			add("D", "D", "clear")
 			add("enter", "↵", "details")
 			add("v", "v", "verify")
 			add("R", "R", "re-download")
 			add("c", "c", "checksum")
 			add("o", "o", "open")
 		} else {
-			add(" ", "space", "pause/resume")
+			add(" ", "space", "pause")
 			add("d", "d", "remove")
 			add("enter", "↵", "details")
+			add("/", "/", "filter")
 			add("g", "g", "stats")
 			add("l", "l", "limit")
 			add("s", "s", "servers")
-			add("S", "S", "sched")
 		}
 		add(",", ",", "settings")
 		add("?", "?", "help")

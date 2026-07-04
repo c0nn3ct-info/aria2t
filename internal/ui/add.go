@@ -43,6 +43,9 @@ func newAddModel(a *App) addModel {
 	uris.Placeholder = "https://…"
 	uris.SetHeight(3)
 	uris.SetWidth(56)
+	if v := strings.TrimSpace(clipboardRead()); looksLikeSource(v) {
+		uris.SetValue(v) // a URL on the clipboard is almost surely the intent
+	}
 	file := textinput.New()
 	file.Placeholder = "/path/to/file.torrent"
 	file.Width = 52
