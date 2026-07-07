@@ -1,4 +1,5 @@
 .idea/
-/aria2t
-*.original.md
+
+aria2t
+
 cover*.out
