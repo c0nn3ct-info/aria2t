@@ -31,6 +31,7 @@ type api interface {
 	GetGlobalOption(ctx context.Context) (map[string]string, error)
 	GetGlobalStat(ctx context.Context) (rpc.GlobalStat, error)
 	GetPeers(ctx context.Context, gid string) ([]rpc.Peer, error)
+	GetServers(ctx context.Context, gid string) ([]rpc.ServerStat, error)
 	GetVersion(ctx context.Context) (string, error)
 	Notifications() <-chan rpc.Notification
 	Close() error
@@ -81,10 +82,55 @@ type actionDoneMsg struct {
 }
 
 type detailDataMsg struct {
-	status rpc.Status
-	peers  []rpc.Peer
-	err    error
+	status  rpc.Status
+	peers   []rpc.Peer
+	servers []rpc.ServerStat
+	err     error
 }
+
+// torrentAddedMsg reports a torrent added (paused) for file selection; the
+// add flow opens the tree picker for gid, then unpauses if unpause is set.
+type torrentAddedMsg struct {
+	gid     string
+	unpause bool
+	err     error
+}
+
+// magnetAddedMsg reports a magnet added with pause-metadata: the metadata
+// download runs, then the real torrent is paused until the user picks files.
+type magnetAddedMsg struct {
+	gid     string
+	unpause bool
+	err     error
+}
+
+// metalinkAddedMsg reports a metalink added (paused). If it produced multiple
+// downloads the picker opens to choose which to keep.
+type metalinkAddedMsg struct {
+	gids    []string
+	name    string
+	unpause bool
+	err     error
+}
+
+// filesDataMsg carries a single download's file list into the tree picker.
+type filesDataMsg struct {
+	gid   string
+	dir   string
+	files []rpc.File
+	err   error
+}
+
+// filesMultiMsg carries several downloads' statuses into the metalink picker.
+type filesMultiMsg struct {
+	gids     []string
+	statuses []rpc.Status
+	err      error
+}
+
+// filesRetryMsg re-runs the picker's load after a brief wait, for the rare
+// case where a just-added torrent has not been parsed yet.
+type filesRetryMsg struct{ gid string }
 
 type gidOptionsMsg struct {
 	gid  string

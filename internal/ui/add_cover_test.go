@@ -20,6 +20,7 @@ type addRecAPI struct {
 	torrentOpts map[string]string
 	metaB64     string
 	metaOpts    map[string]string
+	metaGids    []string
 }
 
 func (f *addRecAPI) AddURI(_ context.Context, uris []string, opts map[string]string) (string, error) {
@@ -34,7 +35,7 @@ func (f *addRecAPI) AddTorrent(_ context.Context, b64 string, opts map[string]st
 
 func (f *addRecAPI) AddMetalink(_ context.Context, b64 string, opts map[string]string) ([]string, error) {
 	f.metaB64, f.metaOpts = b64, opts
-	return nil, nil
+	return f.metaGids, nil
 }
 
 func addTestApp(t *testing.T) (*App, *addRecAPI) {
@@ -95,7 +96,7 @@ func TestAddCtrlTCyclesTabs(t *testing.T) {
 	a, _ := testApp(t)
 	m := newAddModel(a)
 	m.focus = 2
-	for i, want := range []int{addTabTorrent, addTabMetalink, addTabURL} {
+	for i, want := range []int{addTabTorrent, addTabMetalink, addTabInput, addTabURL} {
 		var cmd tea.Cmd
 		m, cmd = m.update(ctrl(tea.KeyCtrlT))
 		if m.tab != want || m.focus != 0 || cmd == nil {
@@ -189,6 +190,21 @@ func TestAddCtrlDSubmitsURIs(t *testing.T) {
 	if rec.uriOpts["pause"] != "true" {
 		t.Fatalf("opts = %v", rec.uriOpts)
 	}
+}
+
+func TestAddURLTabRejectsNonURI(t *testing.T) {
+	a, _ := addTestApp(t)
+	a.overlay = overlayAdd
+	m := newAddModel(a)
+	m.uris.SetValue("/Users/ivan/Movies/Films/Смешарики.aria2") // a path, not a link
+	_, cmd := m.update(ctrl(tea.KeyCtrlD))
+	if a.overlay != overlayAdd {
+		t.Fatal("a non-URI must not close the overlay or queue a download")
+	}
+	if !a.statusErr || !strings.Contains(a.status, "not a link") {
+		t.Fatalf("must flash a clear error, status=%q", a.status)
+	}
+	_ = cmd
 }
 
 func TestAddTypingRoutesToFocusedInput(t *testing.T) {
@@ -289,17 +305,22 @@ func TestAddSubmitTorrent(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.overlay = overlayAdd
+	m.startNow = true
 	m.file.SetValue(p)
 	_, cmd := m.submit()
-	if a.overlay != overlayNone {
+	if a.overlay != overlayNone { // submit closes the add overlay first
 		t.Fatalf("overlay = %d", a.overlay)
 	}
 	drain(t, a, cmd)
 	if rec.torrentB64 != base64.StdEncoding.EncodeToString(raw) {
 		t.Fatalf("torrentB64 = %q", rec.torrentB64)
 	}
-	if a.status != "added x.torrent" {
-		t.Fatalf("status = %q", a.status)
+	// Torrents are added paused, then the file picker opens on them.
+	if rec.torrentOpts["pause"] != "true" {
+		t.Fatalf("torrent must be added paused: %v", rec.torrentOpts)
+	}
+	if a.overlay != overlayFiles || a.files.gid != "gid" || !a.files.fromAdd || !a.files.unpauseAfter {
+		t.Fatalf("picker must open on the added torrent: overlay=%d gid=%q", a.overlay, a.files.gid)
 	}
 }
 

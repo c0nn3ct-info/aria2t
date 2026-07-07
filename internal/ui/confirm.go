@@ -7,14 +7,15 @@ import (
 
 // confirmModel is a yes/no modal guarding destructive actions.
 type confirmModel struct {
-	a     *App
-	title string
-	text  string
-	onYes func() tea.Cmd
+	a        *App
+	title    string
+	text     string
+	yesLabel string
+	onYes    func() tea.Cmd
 }
 
 func newConfirmModel(a *App, title, text string, onYes func() tea.Cmd) confirmModel {
-	return confirmModel{a: a, title: title, text: text, onYes: onYes}
+	return confirmModel{a: a, title: title, text: text, yesLabel: "Remove (y)", onYes: onYes}
 }
 
 func (m confirmModel) update(msg tea.KeyMsg) (confirmModel, tea.Cmd) {
@@ -48,7 +49,7 @@ func (m confirmModel) mouse(id string) (confirmModel, tea.Cmd) {
 
 func (m confirmModel) view() string {
 	st := m.a.styles
-	yes := st.Red.Reverse(true).Bold(true).Padding(0, 2).Render("Remove (y)")
+	yes := st.Red.Reverse(true).Bold(true).Padding(0, 2).Render(m.yesLabel)
 	no := lipgloss.NewStyle().Foreground(st.P.FgDim).Padding(0, 2).Render("Cancel (n)")
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		st.Title.Render(m.title),

@@ -18,9 +18,17 @@ type fakeAPI struct {
 		How string
 	}
 	changedOptions map[string]map[string]string // gid → opts
+	globalOpts     map[string]string            // last ChangeGlobalOption
 	paused         []string
+	unpaused       []string
 	removed        []string
-	waiting        []rpc.Status // returned by TellWaiting
+	removedResults []string
+	waiting        []rpc.Status     // returned by TellWaiting
+	status         rpc.Status       // returned by TellStatus
+	servers        []rpc.ServerStat // returned by GetServers
+	addTorrentOpts map[string]string
+	addedURIs      [][]string
+	metalinkGids   []string
 	pausedAll      bool
 	unpausedAll    bool
 	purged         bool
@@ -36,16 +44,18 @@ func (f *fakeAPI) TellStopped(context.Context, int, int) ([]rpc.Status, error) {
 	return nil, nil
 }
 func (f *fakeAPI) TellStatus(context.Context, string) (rpc.Status, error) {
-	return rpc.Status{}, nil
+	return f.status, nil
 }
-func (f *fakeAPI) AddURI(context.Context, []string, map[string]string) (string, error) {
+func (f *fakeAPI) AddURI(_ context.Context, uris []string, _ map[string]string) (string, error) {
+	f.addedURIs = append(f.addedURIs, uris)
 	return "gid", nil
 }
-func (f *fakeAPI) AddTorrent(context.Context, string, map[string]string) (string, error) {
-	return "gid", nil
+func (f *fakeAPI) AddTorrent(_ context.Context, _ string, opts map[string]string) (string, error) {
+	f.addTorrentOpts = opts
+	return "tgid", nil
 }
 func (f *fakeAPI) AddMetalink(context.Context, string, map[string]string) ([]string, error) {
-	return nil, nil
+	return f.metalinkGids, nil
 }
 func (f *fakeAPI) Pause(_ context.Context, gid string) error {
 	f.paused = append(f.paused, gid)
@@ -55,7 +65,10 @@ func (f *fakeAPI) PauseAll(context.Context) error {
 	f.pausedAll = true
 	return nil
 }
-func (f *fakeAPI) Unpause(context.Context, string) error { return nil }
+func (f *fakeAPI) Unpause(_ context.Context, gid string) error {
+	f.unpaused = append(f.unpaused, gid)
+	return nil
+}
 func (f *fakeAPI) UnpauseAll(context.Context) error {
 	f.unpausedAll = true
 	return nil
@@ -68,7 +81,10 @@ func (f *fakeAPI) Remove(_ context.Context, gid string) error {
 	f.removed = append(f.removed, gid)
 	return nil
 }
-func (f *fakeAPI) RemoveDownloadResult(context.Context, string) error { return nil }
+func (f *fakeAPI) RemoveDownloadResult(_ context.Context, gid string) error {
+	f.removedResults = append(f.removedResults, gid)
+	return nil
+}
 func (f *fakeAPI) ChangePosition(_ context.Context, gid string, pos int, how string) (int, error) {
 	f.changePosition = append(f.changePosition, struct {
 		GID string
@@ -84,7 +100,10 @@ func (f *fakeAPI) ChangeOption(_ context.Context, gid string, opts map[string]st
 func (f *fakeAPI) GetOption(context.Context, string) (map[string]string, error) {
 	return map[string]string{}, nil
 }
-func (f *fakeAPI) ChangeGlobalOption(context.Context, map[string]string) error { return nil }
+func (f *fakeAPI) ChangeGlobalOption(_ context.Context, opts map[string]string) error {
+	f.globalOpts = opts
+	return nil
+}
 func (f *fakeAPI) GetGlobalOption(context.Context) (map[string]string, error) {
 	return map[string]string{}, nil
 }
@@ -92,9 +111,12 @@ func (f *fakeAPI) GetGlobalStat(context.Context) (rpc.GlobalStat, error) {
 	return rpc.GlobalStat{}, nil
 }
 func (f *fakeAPI) GetPeers(context.Context, string) ([]rpc.Peer, error) { return nil, nil }
-func (f *fakeAPI) GetVersion(context.Context) (string, error)           { return "test", nil }
-func (f *fakeAPI) Notifications() <-chan rpc.Notification               { return nil }
-func (f *fakeAPI) Close() error                                         { return nil }
+func (f *fakeAPI) GetServers(context.Context, string) ([]rpc.ServerStat, error) {
+	return f.servers, nil
+}
+func (f *fakeAPI) GetVersion(context.Context) (string, error) { return "test", nil }
+func (f *fakeAPI) Notifications() <-chan rpc.Notification     { return nil }
+func (f *fakeAPI) Close() error                               { return nil }
 
 func testApp(t *testing.T) (*App, *fakeAPI) {
 	t.Helper()
@@ -159,11 +181,11 @@ func drain(t *testing.T, a *App, cmd tea.Cmd) {
 
 func TestTabSwitch(t *testing.T) {
 	a, _ := testApp(t)
-	_, _ = a.Update(key("tab"))
-	if a.list.tab != tabWaiting {
+	_, _ = a.Update(key("tab")) // All → Active
+	if a.list.tab != tabActive {
 		t.Fatalf("tab = %d", a.list.tab)
 	}
-	_, _ = a.Update(key("3"))
+	_, _ = a.Update(key("4"))
 	if a.list.tab != tabStopped {
 		t.Fatalf("tab = %d", a.list.tab)
 	}
@@ -171,7 +193,7 @@ func TestTabSwitch(t *testing.T) {
 
 func TestReorderEnterCommitsPosition(t *testing.T) {
 	a, fake := testApp(t)
-	_, _ = a.Update(key("2")) // waiting tab, cursor on w1
+	_, _ = a.Update(key("3")) // waiting tab, cursor on w1
 	_, _ = a.Update(key("J"))
 	if !a.list.reordering {
 		t.Fatal("J must enter reorder mode")
@@ -195,7 +217,7 @@ func TestReorderEnterCommitsPosition(t *testing.T) {
 
 func TestReorderEscRestores(t *testing.T) {
 	a, fake := testApp(t)
-	_, _ = a.Update(key("2"))
+	_, _ = a.Update(key("3"))
 	_, _ = a.Update(key("J"))
 	_, _ = a.Update(key("J")) // w1 now at index 2
 	_, _ = a.Update(key("esc"))
@@ -212,7 +234,7 @@ func TestReorderEscRestores(t *testing.T) {
 
 func TestReorderGGMovesToTop(t *testing.T) {
 	a, _ := testApp(t)
-	_, _ = a.Update(key("2"))
+	_, _ = a.Update(key("3"))
 	_, _ = a.Update(key("j")) // cursor to w2
 	_, _ = a.Update(key("J")) // grab w2, move to index 2
 	_, _ = a.Update(key("g"))
@@ -245,6 +267,7 @@ func TestEnterOpensDetailEscReturns(t *testing.T) {
 
 func TestSelectionClamped(t *testing.T) {
 	a, _ := testApp(t)
+	_, _ = a.Update(key("2")) // Active tab: a single row
 	for i := 0; i < 10; i++ {
 		_, _ = a.Update(key("j"))
 	}

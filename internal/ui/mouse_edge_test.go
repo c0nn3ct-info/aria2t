@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-
-	"aria2t/internal/rpc"
 )
 
 func TestMouseHandlerGuards(t *testing.T) {
@@ -14,27 +12,18 @@ func TestMouseHandlerGuards(t *testing.T) {
 	// list: invalid ids and out-of-range rows are inert.
 	l := a.list
 	for _, id := range []string{"junk", "tab:9", "tab:x", "row:99", "row:-1", "nope:1"} {
-		if _, cmd := l.mouse(id, false); cmd != nil {
+		if _, cmd := l.mouse(id); cmd != nil {
 			t.Fatalf("%q must be inert", id)
 		}
 	}
 	// list: clicks ignored while reordering.
 	l.reordering = true
 	l.localOrder = a.snap.Waiting
-	if m2, _ := l.mouse("tab:2", false); m2.tab != l.tab {
+	if m2, _ := l.mouse("tab:2"); m2.tab != l.tab {
 		t.Fatal("tab click during reorder must be ignored")
 	}
-	if m2, _ := l.mouse("row:0", false); m2.cursor != l.cursor {
+	if m2, _ := l.mouse("row:0"); m2.cursor != l.cursor {
 		t.Fatal("row click during reorder must be ignored")
-	}
-
-	// detail guards.
-	d := newDetailModel(a)
-	d.s = rpc.Status{Files: []rpc.File{{Index: "1"}}}
-	for _, id := range []string{"row:0", "file:5", "file:x"} {
-		if _, cmd := d.mouse(id); cmd != nil {
-			t.Fatalf("%q must be inert", id)
-		}
 	}
 
 	// scheduler guards: editing swallows clicks, bad index inert.
@@ -63,14 +52,14 @@ func TestMouseHandlerGuards(t *testing.T) {
 	// servers guards.
 	sv := newServersModel(a)
 	sv.editing = true
-	if m2, _ := sv.mouse("srv:0", false); m2.cursor != sv.cursor {
+	if m2, _ := sv.mouse("srv:0"); m2.cursor != sv.cursor {
 		t.Fatal("form editing must swallow row clicks")
 	}
 	sv.editing = false
-	if _, cmd := sv.mouse("srv:99", false); cmd != nil {
+	if _, cmd := sv.mouse("srv:99"); cmd != nil {
 		t.Fatal("bad server index must be inert")
 	}
-	if _, cmd := sv.mouse("blah", false); cmd != nil {
+	if _, cmd := sv.mouse("blah"); cmd != nil {
 		t.Fatal("foreign id must be inert")
 	}
 
@@ -113,11 +102,11 @@ func TestMouseHandlerGuards(t *testing.T) {
 	}
 }
 
-func TestAddSubmitButtonClick(t *testing.T) {
+func TestAddSubmitClickHint(t *testing.T) {
 	a, _ := testApp(t)
 	m := newAddModel(a)
-	m.uris.SetValue("") // empty → flash error path via submit
-	m2, cmd := m.mouse("btn:submit")
+	m.uris.SetValue("") // empty → flash error path via the ^d add hint
+	m2, cmd := m.mouse("key:^d")
 	_ = m2
 	if cmd == nil || a.status == "" {
 		t.Fatalf("empty submit must flash, status = %q", a.status)

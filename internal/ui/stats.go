@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"aria2t/internal/rpc"
@@ -130,7 +131,16 @@ func (m statsModel) view() string {
 		rows = append(rows, st.Dim.Render("no active downloads"))
 	}
 	b.WriteString(st.Panel.Width(a.width - 2).Render(strings.Join(rows, "\n")))
-	b.WriteString("\n " + st.Key.Render("esc") + " " + st.Dim.Render("back"))
+	b.WriteString("\n")
+	b.WriteString(a.hintbar(strings.Count(b.String(), "\n"), []keyHint{{"esc", "esc", "back"}}))
 	b.WriteString(a.statusLine())
 	return b.String()
+}
+
+// mouse routes the back hint (and the header "back" region is handled globally).
+func (m statsModel) mouse(id string) (statsModel, tea.Cmd) {
+	if kind, arg := splitID(id); kind == "key" && arg == "esc" {
+		m.a.screen = screenList
+	}
+	return m, nil
 }

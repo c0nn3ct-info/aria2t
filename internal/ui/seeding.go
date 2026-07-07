@@ -220,17 +220,19 @@ func (m seedingModel) save() (seedingModel, tea.Cmd) {
 // mouse handles clicks: extra tracker rows move focus + cursor there.
 func (m seedingModel) mouse(id string) (seedingModel, tea.Cmd) {
 	kind, arg := splitID(id)
-	if kind != "trk" {
-		return m, nil
+	switch kind {
+	case "key":
+		return m.update(keyFromToken(arg))
+	case "trk":
+		i := argInt(arg)
+		if i < 0 || i >= len(m.trackers) {
+			return m, nil
+		}
+		m.ratio.Blur()
+		m.stime.Blur()
+		m.focus = m.trackersStart()
+		m.tCursor = i
 	}
-	i := argInt(arg)
-	if i < 0 || i >= len(m.trackers) {
-		return m, nil
-	}
-	m.ratio.Blur()
-	m.stime.Blur()
-	m.focus = m.trackersStart()
-	m.tCursor = i
 	return m, nil
 }
 
@@ -286,9 +288,14 @@ func (m seedingModel) view() string {
 	var rows []string
 	if len(m.embedded) > 0 {
 		rows = append(rows, st.Dim.Render("EMBEDDED TRACKERS · from the .torrent, read-only"))
-		for _, tr := range m.embedded {
-			rows = append(rows, st.Dim.Render("  "+tr))
+		// A torrent can carry dozens of trackers; cap the read-only list to the
+		// terminal height (with "… N more") so it never pushes the editable
+		// trackers and the key-bar off a short screen.
+		emb := make([]string, len(m.embedded))
+		for i, tr := range m.embedded {
+			emb[i] = st.Dim.Render("  " + tr)
 		}
+		rows = append(rows, capRows(emb, max(3, a.height-14), st.Dim, "")...)
 	}
 	rows = append(rows, st.Dim.Render("EXTRA TRACKERS (bt-tracker)")+"  "+st.Dim.Render("e edit · + add · - remove"))
 	// Extras start after everything already rendered (measured, not
@@ -312,10 +319,9 @@ func (m seedingModel) view() string {
 	}
 	b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(rows, "\n")) + "\n")
 
-	key := func(k, label string) string { return st.Key.Render(k) + " " + st.Dim.Render(label) }
-	b.WriteString(" " + strings.Join([]string{
-		key("tab", "next field"), key("space", "toggle"), key("^s", "save"), key("esc", "back"),
-	}, "  "))
+	b.WriteString(a.hintbar(strings.Count(b.String(), "\n"), []keyHint{
+		{"tab", "tab", "next field"}, {" ", "space", "toggle"}, {"^s", "^s", "save"}, {"esc", "esc", "back"},
+	}))
 	b.WriteString(a.statusLine())
 	return b.String()
 }

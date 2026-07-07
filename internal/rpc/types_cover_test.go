@@ -51,10 +51,11 @@ func TestStatusRatio(t *testing.T) {
 	}
 }
 
-func TestStatusNameMetadataPlaceholder(t *testing.T) {
-	// aria2 reports "[METADATA]xxxx" paths while fetching torrent metadata;
-	// with no URIs the name falls through to the gid.
-	s := Status{GID: "gid9", Files: []File{{Path: "[METADATA]deadbeef"}}}
+func TestStatusNameMemoryPlaceholder(t *testing.T) {
+	// aria2 reports "[MEMORY]xxxx" paths for in-memory control files; with no
+	// URIs the name falls through to the gid. ([METADATA] is handled
+	// separately by IsMetadata — see TestStatusMetadata.)
+	s := Status{GID: "gid9", Files: []File{{Path: "[MEMORY]control"}}}
 	if got := s.Name(); got != "gid9" {
 		t.Fatalf("Name() = %q, want gid fallback", got)
 	}

@@ -163,25 +163,9 @@ func TestActionErrorResetsScheduleKey(t *testing.T) {
 	}
 }
 
-func TestDetailSpaceFlipsLocalSelection(t *testing.T) {
-	a, _ := testApp(t)
-	m := newDetailModel(a)
-	m.gid = "g"
-	m.filesFocused = true
-	m.s = rpc.Status{GID: "g", Files: []rpc.File{{Index: "1", Selected: "true"}}}
-	m, cmd := m.update(key(" "))
-	if cmd == nil || m.s.Files[0].IsSelected() {
-		t.Fatal("first toggle must flip local state off")
-	}
-	m, _ = m.update(key(" "))
-	if !m.s.Files[0].IsSelected() {
-		t.Fatal("second toggle must flip local state back on")
-	}
-}
-
 func TestStoppedTabGuardsThrottleAndSeeding(t *testing.T) {
 	a, _ := testApp(t)
-	_, _ = a.Update(key("3")) // stopped tab
+	_, _ = a.Update(key("4")) // stopped tab
 	_, cmd := a.Update(key("l"))
 	if cmd == nil || a.overlay != overlayNone {
 		t.Fatalf("throttle on stopped must flash, status=%q", a.status)
@@ -294,7 +278,7 @@ func TestShutdownStopsInFlightSpawn(t *testing.T) {
 
 func TestReorderCommitAgainstLiveQueue(t *testing.T) {
 	a, fake := testApp(t)
-	_, _ = a.Update(key("2"))
+	_, _ = a.Update(key("3"))
 	_, _ = a.Update(key("J")) // grab w1 → index 1
 	// w2 (ahead of the drop position) left the queue mid-drag.
 	fake.waiting = []rpc.Status{{GID: "w1"}, {GID: "w3"}}
@@ -305,7 +289,7 @@ func TestReorderCommitAgainstLiveQueue(t *testing.T) {
 	}
 	// Grabbed item itself vanished → error, no changePosition call.
 	a2, fake2 := testApp(t)
-	_, _ = a2.Update(key("2"))
+	_, _ = a2.Update(key("3"))
 	_, _ = a2.Update(key("J"))
 	fake2.waiting = []rpc.Status{{GID: "w2"}, {GID: "w3"}}
 	_, cmd = a2.Update(key("enter"))
@@ -337,7 +321,7 @@ func (waitErrAPI) TellWaiting(context.Context, int, int) ([]rpc.Status, error) {
 func TestReorderCommitTellWaitingError(t *testing.T) {
 	a, fake := testApp(t)
 	a.client = waitErrAPI{fake}
-	_, _ = a.Update(key("2"))
+	_, _ = a.Update(key("3"))
 	_, _ = a.Update(key("J"))
 	_, cmd := a.Update(key("enter"))
 	drain(t, a, cmd)

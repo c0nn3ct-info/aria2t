@@ -193,20 +193,21 @@ func (m serversModel) updateForm(msg tea.KeyMsg) (serversModel, tea.Cmd) {
 	return m, cmd
 }
 
-// mouse handles clicks inside the server switcher.
-func (m serversModel) mouse(id string, double bool) (serversModel, tea.Cmd) {
+// mouse handles clicks inside the server switcher: a row selects; the hint
+// bar's connect/add/edit/remove/close all act via mouse.
+func (m serversModel) mouse(id string) (serversModel, tea.Cmd) {
+	if m.editing {
+		return m, nil
+	}
 	kind, arg := splitID(id)
-	if kind != "srv" || m.editing {
-		return m, nil
+	switch kind {
+	case "srv":
+		if i := argInt(arg); i >= 0 && i < len(m.a.cfg.Servers) {
+			m.cursor = i
+		}
+	case "key":
+		return m.update(keyFromToken(arg))
 	}
-	i := argInt(arg)
-	if i < 0 || i >= len(m.a.cfg.Servers) {
-		return m, nil
-	}
-	if m.cursor == i && double {
-		return m.update(tea.KeyMsg{Type: tea.KeyEnter})
-	}
-	m.cursor = i
 	return m, nil
 }
 
@@ -247,11 +248,11 @@ func (m serversModel) view() string {
 		}
 		state := st.Dim.Render("probing…")
 		if srv.Managed && a.daemon == nil {
-			state = st.Dim.Render("● starts on demand")
+			state = st.Dim.Render("▪ starts on demand")
 		} else if m.dead[i] {
-			state = st.Red.Render("● unreachable")
+			state = st.Red.Render("▪ unreachable")
 		} else if d, ok := m.latency[i]; ok {
-			state = st.Green.Render(fmt.Sprintf("● %dms", d.Milliseconds()))
+			state = st.Green.Render(fmt.Sprintf("▪ %dms", d.Milliseconds()))
 		}
 		active := ""
 		if i == a.cfg.Active {
@@ -272,22 +273,37 @@ func (m serversModel) view() string {
 		}
 		rows = append(rows, line)
 	}
+	hints := []keyHint{
+		{"enter", "↵", "connect"},
+		{"+", "+", "add"},
+		{"e", "e", "edit"},
+		{"-", "-", "remove"},
+		{"esc", "esc", "close"},
+	}
+	hintParts := make([]string, len(hints))
+	for i, h := range hints {
+		hintParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
+	}
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		st.Title.Render("Switch server")+"   "+st.Dim.Render("s to cycle"),
 		"",
 		strings.Join(rows, "\n"),
 		"",
-		st.Key.Render("↵")+" "+st.Dim.Render("connect")+"  "+
-			st.Key.Render("+")+" "+st.Dim.Render("add")+"  "+
-			st.Key.Render("e")+" "+st.Dim.Render("edit")+"  "+
-			st.Key.Render("-")+" "+st.Dim.Render("remove")+"  "+
-			st.Key.Render("esc")+" "+st.Dim.Render("close"),
+		strings.Join(hintParts, "  "),
 	)
 	modal := st.Modal.Render(body)
 	offX, offY := m.a.overlayOffset(modal)
 	for i := range m.a.cfg.Servers {
 		y := offY + 4 + i // frame(2) + title + blank
 		m.a.hits.add(fmt.Sprintf("srv:%d", i), offX+1, y, offX+lipgloss.Width(modal)-2, y)
+	}
+	// Hint bar sits below the rows and a blank line; each hint is clickable.
+	hy := offY + 5 + len(m.a.cfg.Servers)
+	hx := offX + 3
+	for i, h := range hints {
+		w := lipgloss.Width(hintParts[i])
+		m.a.hits.add("key:"+h.token, hx, hy, hx+w-1, hy)
+		hx += w + 2
 	}
 	return modal
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // Error is a JSON-RPC error object returned by aria2.
@@ -83,6 +84,13 @@ func (s Status) Seeds() int       { return int(atoi64(s.NumSeeders)) }
 func (s Status) Conns() int       { return int(atoi64(s.Connections)) }
 func (s Status) IsTorrent() bool  { return s.InfoHash != "" }
 
+// IsMetadata reports whether this is aria2's transient magnet-metadata
+// download — the placeholder entry that resolves into the real torrent (its
+// only "file" is the [METADATA] marker).
+func (s Status) IsMetadata() bool {
+	return len(s.Files) > 0 && strings.HasPrefix(s.Files[0].Path, "[METADATA]")
+}
+
 // Progress returns completion in [0,1].
 func (s Status) Progress() float64 {
 	t := s.Total()
@@ -104,6 +112,16 @@ func (s Status) Ratio() float64 {
 // Name derives a display name: torrent name, else first file base name,
 // else first URI base name, else the gid.
 func (s Status) Name() string {
+	if s.IsMetadata() {
+		h := s.InfoHash
+		if len(h) > 8 {
+			h = h[:8]
+		}
+		if h == "" {
+			return "fetching metadata"
+		}
+		return "metadata · " + h
+	}
 	if s.BitTorrent != nil && s.BitTorrent.Info.Name != "" {
 		return s.BitTorrent.Info.Name
 	}
@@ -133,6 +151,22 @@ type Peer struct {
 
 func (p Peer) DownSpeed() int64 { return atoi64(p.DownloadSpeed) }
 func (p Peer) UpSpeed() int64   { return atoi64(p.UploadSpeed) }
+
+// ServerStat is one file's connected servers, from aria2.getServers (the
+// HTTP/FTP analog of peers).
+type ServerStat struct {
+	Index   string       `json:"index"`
+	Servers []ServerInfo `json:"servers"`
+}
+
+// ServerInfo is one mirror aria2 is currently downloading from.
+type ServerInfo struct {
+	URI           string `json:"uri"`
+	CurrentURI    string `json:"currentUri"`
+	DownloadSpeed string `json:"downloadSpeed"`
+}
+
+func (s ServerInfo) DownSpeed() int64 { return atoi64(s.DownloadSpeed) }
 
 // GlobalStat is aria2.getGlobalStat.
 type GlobalStat struct {

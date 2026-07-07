@@ -26,6 +26,8 @@ func TestSaveLoadRoundtrip(t *testing.T) {
 	want.Active = 1
 	want.SchedulerEnabled = true
 	want.Rules = []Rule{{Start: "09:00", End: "18:00", Days: [7]bool{false, true, true, true, true, true, false}, Label: "work", Down: "5M", Up: "256K"}}
+	want.GlobalDown = "5M"
+	want.GlobalUp = "512K"
 	if err := Save(path, want); err != nil {
 		t.Fatal(err)
 	}
@@ -36,6 +38,9 @@ func TestSaveLoadRoundtrip(t *testing.T) {
 	if got.Active != 1 || len(got.Servers) != 2 || got.Servers[1].Name != "seedbox" ||
 		!got.SchedulerEnabled || len(got.Rules) != 1 || got.Rules[0].Down != "5M" || !got.Rules[0].Days[1] {
 		t.Fatalf("roundtrip mismatch: %+v", got)
+	}
+	if got.GlobalDown != "5M" || got.GlobalUp != "512K" {
+		t.Fatalf("global caps must round-trip: down=%q up=%q", got.GlobalDown, got.GlobalUp)
 	}
 }
 

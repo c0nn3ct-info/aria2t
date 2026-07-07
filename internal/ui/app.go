@@ -42,6 +42,8 @@ const (
 	overlayPrompt
 	overlayConfirm
 	overlayHelp
+	overlayFiles
+	overlayBrowse
 )
 
 // verifyState tracks checksum verification of one stopped download.
@@ -93,9 +95,10 @@ type App struct {
 	prompt    promptModel
 	confirm   confirmModel
 	help      helpModel
+	files     filesModel
+	browse    browseModel
 
-	hits      hitmap
-	lastClick clickState
+	hits hitmap
 
 	verify map[string]*verifyState
 
@@ -103,6 +106,21 @@ type App struct {
 	// tell a fresh completion/failure from history; seeded on first poll.
 	knownStopped  map[string]bool
 	stoppedSeeded bool
+	// metaCleaned tracks magnet-metadata leftovers already purged, so the
+	// removal fires once per gid.
+	metaCleaned map[string]bool
+	// pendingMagnets maps a magnet's metadata gid → whether to start the real
+	// torrent once files are chosen. Watched each poll for its followedBy.
+	pendingMagnets map[string]bool
+	// magnetQueue holds resolved magnets (their real torrent is paused) waiting
+	// to be presented one picker at a time, so several finishing at once don't
+	// stack modals or get lost.
+	magnetQueue []magnetReady
+	// picks persists downloads added paused and awaiting file selection, so a
+	// picker left unanswered at quit is reopened next launch. picksReconciled
+	// gates the one-shot restore against the first snapshot after connect.
+	picks           []pendingPick
+	picksReconciled bool
 
 	status    string
 	statusErr bool
@@ -121,16 +139,18 @@ type App struct {
 func NewApp(cfg config.Config, cfgPath string) *App {
 	styles := NewStyles(PaletteByName(cfg.Theme))
 	a := &App{
-		cfg:      cfg,
-		cfgPath:  cfgPath,
-		styles:   styles,
-		downHist: newRing(60),
-		upHist:   newRing(60),
-		verify:   map[string]*verifyState{},
-		width:    120,
-		height:   36,
-		dial:     dialServer,
-		spawn:    daemon.Start,
+		cfg:            cfg,
+		cfgPath:        cfgPath,
+		styles:         styles,
+		downHist:       newRing(60),
+		upHist:         newRing(60),
+		verify:         map[string]*verifyState{},
+		metaCleaned:    map[string]bool{},
+		pendingMagnets: map[string]bool{},
+		width:          120,
+		height:         36,
+		dial:           dialServer,
+		spawn:          daemon.Start,
 	}
 	a.list = newListModel(a)
 	a.detail = newDetailModel(a)
@@ -142,13 +162,22 @@ func NewApp(cfg config.Config, cfgPath string) *App {
 	a.throttle = newThrottleModel(a)
 	a.servers = newServersModel(a)
 	a.help = newHelpModel(a)
+	a.files = newFilesModel(a)
 	return a
 }
 
-// clickState remembers the last click for double-click detection.
-type clickState struct {
-	id string
-	at time.Time
+// keyHint is one clickable hint in a screen's key-bar: token is the key the
+// click synthesizes (empty = display-only), key/label are shown.
+type keyHint struct{ token, key, label string }
+
+// magnetReady is a magnet whose metadata resolved: its (paused) torrent gid and
+// whether to start it once files are chosen. parent is the persisted-pick key
+// (the metadata gid for a magnet, the torrent gid for a restored torrent pick),
+// cleared once the picker is answered.
+type magnetReady struct {
+	gid     string
+	unpause bool
+	parent  string
 }
 
 // overlayOffset computes where a centered modal lands on screen, so its
@@ -186,12 +215,6 @@ func (a *App) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return a, nil
 	}
-	double := a.lastClick.id == id && time.Since(a.lastClick.at) < 400*time.Millisecond
-	a.lastClick = clickState{id: id, at: time.Now()}
-	if double {
-		a.lastClick.id = "" // a triple click is not two doubles
-	}
-
 	var cmd tea.Cmd
 	switch a.overlay {
 	case overlayAdd:
@@ -199,21 +222,25 @@ func (a *App) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	case overlayThrottle:
 		a.throttle, cmd = a.throttle.mouse(id)
 	case overlayServers:
-		a.servers, cmd = a.servers.mouse(id, double)
+		a.servers, cmd = a.servers.mouse(id)
 	case overlayConfirm:
 		a.confirm, cmd = a.confirm.mouse(id)
+	case overlayFiles:
+		a.files, cmd = a.files.mouse(id)
+	case overlayBrowse:
+		a.browse, cmd = a.browse.mouse(id)
 	case overlayHelp:
 		a.overlay = overlayNone
 	case overlayPrompt:
 		// single input; only esc/enter matter, keyboard handles those
 	default:
-		return a.screenMouse(id, double)
+		return a.screenMouse(id)
 	}
 	return a, cmd
 }
 
 // screenMouse dispatches clicks on the current screen.
-func (a *App) screenMouse(id string, double bool) (tea.Model, tea.Cmd) {
+func (a *App) screenMouse(id string) (tea.Model, tea.Cmd) {
 	if id == "back" && a.screen != screenList {
 		a.screen = screenList
 		return a, nil
@@ -221,9 +248,11 @@ func (a *App) screenMouse(id string, double bool) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch a.screen {
 	case screenList:
-		a.list, cmd = a.list.mouse(id, double)
+		a.list, cmd = a.list.mouse(id)
 	case screenDetail:
 		a.detail, cmd = a.detail.mouse(id)
+	case screenStats:
+		a.stats, cmd = a.stats.mouse(id)
 	case screenSettings:
 		a.settings, cmd = a.settings.mouse(id)
 	case screenSeeding:
@@ -234,6 +263,24 @@ func (a *App) screenMouse(id string, double bool) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+// hintbar renders a clickable key-hint line at row y: each hint with a
+// non-empty token registers a "key:<token>" region so mouse users can trigger
+// the same action as the key. Screens route "key" clicks back through update.
+func (a *App) hintbar(y int, hints []keyHint) string {
+	st := a.styles
+	parts := make([]string, len(hints))
+	x := 1
+	for i, h := range hints {
+		parts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
+		w := lipgloss.Width(parts[i])
+		if h.token != "" && x+w-1 < a.width {
+			a.hits.add("key:"+h.token, x, y, x+w-1, y)
+		}
+		x += w + 2
+	}
+	return " " + strings.Join(parts, "  ")
+}
+
 // wheelNavigates reports whether j/k currently move a selection instead
 // of typing into a focused text input.
 func (a *App) wheelNavigates() bool {
@@ -241,6 +288,10 @@ func (a *App) wheelNavigates() bool {
 	case overlayNone:
 	case overlayServers:
 		return !a.servers.editing
+	case overlayFiles:
+		return true // j/k scroll the tree; no text input
+	case overlayBrowse:
+		return true // j/k scroll the file list
 	default:
 		return false
 	}
@@ -480,6 +531,25 @@ func (a *App) applySchedule(now time.Time) tea.Cmd {
 	})
 }
 
+// applySavedLimitsCmd re-applies the persisted global speed caps on connect, so
+// they survive a managed-daemon restart. Skipped when the scheduler is enabled
+// (it owns the global limits) or when no caps are stored.
+func (a *App) applySavedLimitsCmd() tea.Cmd {
+	if a.cfg.SchedulerEnabled || (a.cfg.GlobalDown == "" && a.cfg.GlobalUp == "") {
+		return nil
+	}
+	opts := map[string]string{}
+	if a.cfg.GlobalDown != "" {
+		opts["max-overall-download-limit"] = a.cfg.GlobalDown
+	}
+	if a.cfg.GlobalUp != "" {
+		opts["max-overall-upload-limit"] = a.cfg.GlobalUp
+	}
+	return a.rpcCmd("limits restored", func(ctx context.Context, c api) error {
+		return c.ChangeGlobalOption(ctx, opts)
+	})
+}
+
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -509,7 +579,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.lastSchedKey = ""     // re-apply schedule on the new server
 		a.stoppedSeeded = false // reseed: the new server's history is not news
 		a.knownStopped = nil
-		return a, tea.Batch(a.pollCmd(), a.listenCmd())
+		a.metaCleaned = map[string]bool{}
+		a.pendingMagnets = map[string]bool{}
+		a.magnetQueue = nil
+		a.picks = a.loadPicks() // restore unanswered file pickers
+		a.picksReconciled = false
+		return a, tea.Batch(a.pollCmd(), a.listenCmd(), a.applySavedLimitsCmd())
 
 	case connectErrMsg:
 		a.connected = false
@@ -547,6 +622,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.list.reordering {
 			msg.snap.Waiting = a.list.frozenWaiting(msg.snap.Waiting)
 		}
+		// Restore any file pickers left unanswered before a previous quit
+		// (once, against the first snapshot after connect).
+		a.reconcilePicks(msg.snap)
+		// A magnet whose metadata just resolved: open the picker on the real
+		// (paused) torrent so files are chosen before anything downloads. Read
+		// followedBy from the raw snapshot, before metadata is stripped below.
+		magnetCmd := a.resolveMagnets(msg.snap)
+		// Drop finished magnet-metadata leftovers: they'd otherwise sit in the
+		// stopped list as a bare hash. Hide them and purge them from aria2.
+		kept, metaGone := a.stripMetadata(msg.snap.Stopped)
+		msg.snap.Stopped = kept
 		notice := a.noticeStopped(msg.snap.Stopped)
 		a.snap = msg.snap
 		a.downHist.Push(msg.snap.Stat.DownSpeed())
@@ -556,7 +642,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.screen == screenDetail {
 			cmd = a.detail.refreshCmd()
 		}
-		return a, tea.Batch(cmd, notice)
+		// Present the next queued magnet if the list is idle now (also drains
+		// the queue after the user closes a previous picker).
+		return a, tea.Batch(cmd, notice, magnetCmd, a.presentNextMagnet(), a.removeResultsCmd(metaGone))
 
 	case notifMsg:
 		cmds := []tea.Cmd{a.listenCmd()}
@@ -607,6 +695,71 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.detail.absorb(msg)
 		return a, nil
 
+	case torrentAddedMsg:
+		if msg.err != nil {
+			return a, a.flash(msg.err.Error(), true)
+		}
+		a.files = newFilesModel(a)
+		a.files.gid = msg.gid
+		a.files.fromAdd = true
+		a.files.unpauseAfter = msg.unpause
+		a.files.pickKey = msg.gid
+		a.overlay = overlayFiles
+		a.addPick(pendingPick{GID: msg.gid, Kind: "torrent", Unpause: msg.unpause})
+		return a, tea.Batch(a.files.loadCmd(), a.flash("added — pick files", false))
+
+	case magnetAddedMsg:
+		if msg.err != nil {
+			return a, a.flash(msg.err.Error(), true)
+		}
+		a.pendingMagnets[msg.gid] = msg.unpause
+		a.addPick(pendingPick{GID: msg.gid, Kind: "magnet", Unpause: msg.unpause})
+		return a, tea.Batch(a.pollCmd(), a.flash("magnet added — fetching metadata…", false))
+
+	case metalinkAddedMsg:
+		if msg.err != nil {
+			return a, a.flash(msg.err.Error(), true)
+		}
+		if len(msg.gids) <= 1 { // single (or empty) download: nothing to pick
+			a.overlay = overlayNone
+			if msg.unpause && len(msg.gids) == 1 {
+				gid := msg.gids[0]
+				return a, a.rpcCmd("added", func(ctx context.Context, c api) error {
+					return c.Unpause(ctx, gid)
+				})
+			}
+			return a, a.flash("added (paused)", false)
+		}
+		a.files = newFilesModel(a)
+		a.files.gids = msg.gids
+		a.files.name = msg.name
+		a.files.fromAdd = true
+		a.files.unpauseAfter = msg.unpause
+		a.overlay = overlayFiles
+		return a, tea.Batch(a.files.loadCmd(), a.flash("added — pick files", false))
+
+	case filesMultiMsg:
+		if a.overlay == overlayFiles {
+			var cmd tea.Cmd
+			a.files, cmd = a.files.absorbMulti(msg)
+			return a, cmd
+		}
+		return a, nil
+
+	case filesDataMsg:
+		if a.overlay == overlayFiles {
+			var cmd tea.Cmd
+			a.files, cmd = a.files.absorb(msg)
+			return a, cmd
+		}
+		return a, nil
+
+	case filesRetryMsg:
+		if a.overlay == overlayFiles && a.files.gid == msg.gid {
+			return a, a.files.loadCmd()
+		}
+		return a, nil
+
 	case gidOptionsMsg:
 		if msg.err == nil {
 			a.seeding.absorbOptions(msg)
@@ -652,6 +805,10 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.prompt, cmd = a.prompt.update(msg)
 		case overlayConfirm:
 			a.confirm, cmd = a.confirm.update(msg)
+		case overlayFiles:
+			a.files, cmd = a.files.update(msg)
+		case overlayBrowse:
+			a.browse, cmd = a.browse.update(msg)
 		case overlayHelp:
 			a.help, cmd = a.help.update(msg)
 		}
@@ -774,6 +931,139 @@ func (a *App) yank(s rpc.Status) tea.Cmd {
 	}
 }
 
+// addURICmd adds uris. A lone magnet uses the pause-metadata → pick-before-start
+// flow (so files are chosen before anything downloads); anything else is a
+// plain add. Shared by the add overlay and the empty-screen quick-add.
+func (a *App) addURICmd(uris []string, opts map[string]string, unpause bool) tea.Cmd {
+	c := a.client
+	if c == nil {
+		return a.flash("not connected", true)
+	}
+	if len(uris) == 1 && strings.HasPrefix(uris[0], "magnet:") {
+		magnet := uris[0]
+		o := mergeOpts(opts, map[string]string{"pause-metadata": "true"})
+		return func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			gid, err := c.AddURI(ctx, []string{magnet}, o)
+			return magnetAddedMsg{gid: gid, unpause: unpause, err: err}
+		}
+	}
+	return a.rpcCmd("added", func(ctx context.Context, c api) error {
+		_, err := c.AddURI(ctx, uris, opts)
+		return err
+	})
+}
+
+// pauseGidCmd pauses one download (best effort); used to guarantee a magnet's
+// resolved torrent is paused before the picker opens, even if the server did
+// not honour pause-metadata.
+func (a *App) pauseGidCmd(gid string) tea.Cmd {
+	c := a.client
+	if c == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = c.Pause(ctx, gid)
+		return actionDoneMsg{}
+	}
+}
+
+// resolveMagnets watches pending magnets for their metadata to finish. Once a
+// magnet's real (paused) torrent appears in followedBy, the picker opens on it
+// so files are chosen before the download starts; if the UI is busy, it flashes
+// instead and leaves the torrent paused.
+func (a *App) resolveMagnets(snap snapshot) tea.Cmd {
+	if len(a.pendingMagnets) == 0 {
+		return nil
+	}
+	byGID := map[string]rpc.Status{}
+	for _, lst := range [][]rpc.Status{snap.Active, snap.Waiting, snap.Stopped} {
+		for _, s := range lst {
+			byGID[s.GID] = s
+		}
+	}
+	var cmds []tea.Cmd
+	for gid, unpause := range a.pendingMagnets {
+		s, ok := byGID[gid]
+		if !ok {
+			continue // metadata download not in this poll yet
+		}
+		if s.Status == "error" {
+			delete(a.pendingMagnets, gid)
+			cmds = append(cmds, a.flash("magnet metadata failed", true))
+			continue
+		}
+		if len(s.FollowedBy) == 0 {
+			continue // metadata still downloading
+		}
+		delete(a.pendingMagnets, gid)
+		child := s.FollowedBy[0]
+		// Guarantee the torrent is paused before we present it, even if the
+		// server ignored pause-metadata, then queue it for the picker.
+		cmds = append(cmds, a.pauseGidCmd(child))
+		a.magnetQueue = append(a.magnetQueue, magnetReady{gid: child, unpause: unpause, parent: gid})
+	}
+	return tea.Batch(cmds...)
+}
+
+// presentNextMagnet opens the picker for the next resolved magnet, but only
+// when the list is idle — so magnets that finish while an earlier picker is
+// still open (or while the user is elsewhere) wait their turn, paused, and are
+// shown one at a time rather than stacking or being dropped.
+func (a *App) presentNextMagnet() tea.Cmd {
+	if len(a.magnetQueue) == 0 || a.overlay != overlayNone || a.screen != screenList {
+		return nil
+	}
+	next := a.magnetQueue[0]
+	a.magnetQueue = a.magnetQueue[1:]
+	a.files = newFilesModel(a)
+	a.files.gid = next.gid
+	a.files.fromAdd = true
+	a.files.unpauseAfter = next.unpause
+	a.files.pickKey = next.parent
+	a.files.moreQueued = len(a.magnetQueue)
+	a.overlay = overlayFiles
+	return a.files.loadCmd()
+}
+
+// stripMetadata removes finished magnet-metadata placeholders from a stopped
+// list, returning the kept entries and the gids to purge (each only once).
+func (a *App) stripMetadata(stopped []rpc.Status) (kept []rpc.Status, purge []string) {
+	for _, s := range stopped {
+		if s.IsMetadata() && s.Status == "complete" {
+			if !a.metaCleaned[s.GID] {
+				a.metaCleaned[s.GID] = true
+				purge = append(purge, s.GID)
+			}
+			continue
+		}
+		kept = append(kept, s)
+	}
+	return kept, purge
+}
+
+// removeResultsCmd clears the given result gids from aria2 (best effort).
+func (a *App) removeResultsCmd(gids []string) tea.Cmd {
+	if len(gids) == 0 {
+		return nil
+	}
+	c := a.client
+	if c == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		for _, g := range gids {
+			_ = c.RemoveDownloadResult(ctx, g)
+		}
+		return actionDoneMsg{}
+	}
+}
+
 // noticeStopped diffs the stopped list against the previous poll and turns
 // newly finished or failed downloads into a flash + terminal bell. The first
 // poll after a (re)connect seeds the set silently, so history is not
@@ -811,10 +1101,7 @@ func (a *App) noticeStopped(stopped []rpc.Status) tea.Cmd {
 		more = fmt.Sprintf(" (+%d more)", extra)
 	}
 	if len(failed) > 0 {
-		text := "✗ " + failed[0].Name() + " failed"
-		if m := failed[0].ErrorMessage; m != "" {
-			text += ": " + m
-		}
+		text := "✗ " + failed[0].Name() + " failed: " + friendlyError(failed[0].ErrorCode, failed[0].ErrorMessage)
 		return a.flash(text+more, true)
 	}
 	return a.flash("✓ "+done[0].Name()+" finished"+more, false)
@@ -850,9 +1137,9 @@ func (a *App) openDir(dir string) tea.Cmd {
 func (a *App) header() string {
 	st := a.styles
 	srv := a.cfg.ActiveServer()
-	conn := st.Green.Render("● connected")
+	conn := st.Green.Render("▪ connected")
 	if !a.connected {
-		conn = st.Red.Render("● disconnected")
+		conn = st.Red.Render("▪ disconnected")
 	}
 	endpoint := a.endpoint
 	if endpoint == "" {
@@ -918,6 +1205,10 @@ func (a *App) View() string {
 			modal = a.prompt.view()
 		case overlayConfirm:
 			modal = a.confirm.view()
+		case overlayFiles:
+			modal = a.files.view()
+		case overlayBrowse:
+			modal = a.browse.view()
 		case overlayHelp:
 			modal = a.help.view()
 		}
@@ -927,8 +1218,12 @@ func (a *App) View() string {
 }
 
 // composite centers the modal over the current screen, dimmed — the design's
-// "modal over dimmed backdrop". Placement mirrors overlayOffset exactly, so
-// the modal's registered click regions match what is drawn.
+// "modal over dimmed backdrop". Placement mirrors overlayOffset exactly, so the
+// modal's registered click regions match what is drawn. The modal is
+// transparent (no background fill) so it shows the terminal's own colours like
+// the rest of the UI — "normal colours", not an opaque card that reads as too
+// dark (Bg) or a clashing surface (Surface downsamples to blue). The backdrop
+// is dimmed to a faint foreground so the bordered modal stands out.
 func (a *App) composite(body, modal string) string {
 	offX, offY := a.overlayOffset(modal)
 	faint := a.styles.Faint

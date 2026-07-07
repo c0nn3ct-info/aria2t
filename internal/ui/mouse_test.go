@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -77,7 +76,7 @@ func wheel(a *App, up bool) {
 
 func TestMouseTabAndRowSelection(t *testing.T) {
 	a, _ := testApp(t)
-	click(t, a, "tab:1")
+	click(t, a, "tab:2")
 	if a.list.tab != tabWaiting {
 		t.Fatalf("tab = %d", a.list.tab)
 	}
@@ -87,28 +86,26 @@ func TestMouseTabAndRowSelection(t *testing.T) {
 	}
 }
 
-func TestMouseDoubleClickOpensDetail(t *testing.T) {
+func TestMouseRowClickOpensDetails(t *testing.T) {
 	a, _ := testApp(t)
+	// A single click selects the row AND opens its details — the expected
+	// primary action, and the only mouse path to details if the key-bar is
+	// scrolled off a short terminal.
 	click(t, a, "row:0")
-	click(t, a, "row:0") // within 400ms → double
-	if a.screen != screenDetail {
-		t.Fatalf("screen = %d", a.screen)
+	if a.list.cursor != 0 || a.screen != screenDetail {
+		t.Fatalf("row click must select and open details: cursor=%d screen=%d", a.list.cursor, a.screen)
 	}
-}
-
-func TestMouseDoubleClickExpiry(t *testing.T) {
-	a, _ := testApp(t)
-	click(t, a, "row:0")
-	a.lastClick.at = time.Now().Add(-time.Second) // stale click
-	click(t, a, "row:0")
-	if a.screen != screenList {
-		t.Fatal("stale second click must not count as double")
+	// The clickable "↵ details" hint also opens it (keyboard/hint path).
+	a.screen = screenList
+	click(t, a, "key:enter")
+	if a.screen != screenDetail {
+		t.Fatalf("details hint must open detail, screen=%d", a.screen)
 	}
 }
 
 func TestMouseWheelMovesSelection(t *testing.T) {
 	a, _ := testApp(t)
-	_, _ = a.Update(key("2")) // waiting tab, 3 rows
+	_, _ = a.Update(key("3")) // waiting tab, 3 rows
 	wheel(a, false)
 	if a.list.cursor != 1 {
 		t.Fatalf("cursor = %d", a.list.cursor)
@@ -195,11 +192,12 @@ func TestSmartSpaceToggle(t *testing.T) {
 	if len(fake.paused) != 1 { // no second pause
 		t.Fatalf("paused = %v", fake.paused)
 	}
-	// Stopped tab: inert.
-	_, _ = a.Update(key("3"))
+	// Stopped tab: space on a finished download flashes rather than acting.
+	_, _ = a.Update(key("4"))
 	_, cmd = a.Update(key(" "))
-	if cmd != nil {
-		t.Fatal("space on stopped must be inert")
+	drain(t, a, cmd)
+	if !a.statusErr || len(fake.paused) != 1 {
+		t.Fatalf("space on stopped must flash, status=%q paused=%v", a.status, fake.paused)
 	}
 }
 
@@ -251,19 +249,20 @@ func TestThrottleChipClick(t *testing.T) {
 	}
 }
 
-func TestServersRowClickAndDoubleClick(t *testing.T) {
+func TestServersRowSelectAndConnectHint(t *testing.T) {
 	a, _ := testApp(t)
 	a.cfg.Servers = append(a.cfg.Servers, a.cfg.Servers[0])
 	a.cfg.Servers[1].Name = "second"
 	a.cfg.Servers[1].Managed = false
 	_, _ = a.Update(key("s"))
+	// Single click selects; connect is a separate clickable hint (no double).
 	click(t, a, "srv:1")
 	if a.servers.cursor != 1 {
 		t.Fatalf("cursor = %d", a.servers.cursor)
 	}
-	click(t, a, "srv:1") // double → connect
-	if a.cfg.Active != 1 || a.overlay != overlayNone {
-		t.Fatalf("active = %d overlay = %d", a.cfg.Active, a.overlay)
+	cmd := click(t, a, "key:enter") // the "↵ connect" hint
+	if a.cfg.Active != 1 || a.overlay != overlayNone || cmd == nil {
+		t.Fatalf("connect hint must switch: active = %d overlay = %d", a.cfg.Active, a.overlay)
 	}
 }
 
@@ -283,22 +282,6 @@ func TestSettingsSidebarAndFieldClick(t *testing.T) {
 	click(t, a, "back")
 	if a.screen != screenList {
 		t.Fatalf("screen = %d", a.screen)
-	}
-}
-
-func TestDetailFileClickToggles(t *testing.T) {
-	a, fake := testApp(t)
-	a.detail = newDetailModel(a)
-	a.detail.gid = "a1"
-	a.detail.s = rpc.Status{GID: "a1", Status: "active", Files: []rpc.File{
-		{Index: "1", Path: "/dl/x", Selected: "true"},
-		{Index: "2", Path: "/dl/y", Selected: "true"},
-	}}
-	a.screen = screenDetail
-	cmd := click(t, a, "file:1")
-	drain(t, a, cmd)
-	if got := fake.changedOptions["a1"]["select-file"]; got != "1" {
-		t.Fatalf("select-file = %q", got)
 	}
 }
 

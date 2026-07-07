@@ -275,6 +275,17 @@ func (m settingsModel) save() (settingsModel, tea.Cmd) {
 		}
 	}
 	m.dirty = false
+	// Persist the overall speed caps so they are re-applied after a restart.
+	capChanged := false
+	if v, ok := opts["max-overall-download-limit"]; ok {
+		a.cfg.GlobalDown, capChanged = v, true
+	}
+	if v, ok := opts["max-overall-upload-limit"]; ok {
+		a.cfg.GlobalUp, capChanged = v, true
+	}
+	if capChanged {
+		_ = a.saveConfig()
+	}
 	cmds := []tea.Cmd{}
 	if len(opts) > 0 {
 		cmds = append(cmds, a.rpcCmd("settings saved", func(ctx context.Context, c api) error {
@@ -293,6 +304,8 @@ func (m settingsModel) save() (settingsModel, tea.Cmd) {
 func (m settingsModel) mouse(id string) (settingsModel, tea.Cmd) {
 	kind, arg := splitID(id)
 	switch kind {
+	case "key":
+		return m.update(keyFromToken(arg))
 	case "side":
 		if i := argInt(arg); i >= 0 && i < len(m.sections) {
 			m.section = i
@@ -322,7 +335,7 @@ func (m settingsModel) view() string {
 	var b strings.Builder
 	marker := ""
 	if m.dirty {
-		marker = "   " + st.Yellow.Render("● unsaved changes")
+		marker = "   " + st.Yellow.Render("▪ unsaved changes")
 	}
 	b.WriteString(" " + st.Dim.Render("← esc") + st.Faint.Render(" │ ") + st.Title.Render("Settings") + marker + "\n")
 
@@ -352,10 +365,9 @@ func (m settingsModel) view() string {
 			st.Dim.Render("Use the server switcher (s → +) to add an external server."))
 		form := st.Panel.Width(a.width - lipgloss.Width(sidebar) - 4).Render(strings.Join(rows, "\n"))
 		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, sidebar, " ", form) + "\n")
-		key := func(k, label string) string { return st.Key.Render(k) + " " + st.Dim.Render(label) }
-		b.WriteString(" " + strings.Join([]string{
-			key("↑↓", "section"), key("^s", "save"), key("esc", "back"),
-		}, "  "))
+		b.WriteString(a.hintbar(strings.Count(b.String(), "\n"), []keyHint{
+			{"", "↑↓", "section"}, {"^s", "^s", "save"}, {"esc", "esc", "back"},
+		}))
 		b.WriteString(a.statusLine())
 		return b.String()
 	}
@@ -394,11 +406,10 @@ func (m settingsModel) view() string {
 	form := st.Panel.Width(a.width - lipgloss.Width(sidebar) - 4).Render(strings.Join(rows, "\n"))
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, sidebar, " ", form) + "\n")
 
-	key := func(k, label string) string { return st.Key.Render(k) + " " + st.Dim.Render(label) }
-	b.WriteString(" " + strings.Join([]string{
-		key("↑↓", "section"), key("tab", "next field"), key("space", "toggle"),
-		key("^s", "save"), key("esc", "back"),
-	}, "  "))
+	b.WriteString(a.hintbar(strings.Count(b.String(), "\n"), []keyHint{
+		{"", "↑↓", "section"}, {"tab", "tab", "next field"}, {" ", "space", "toggle"},
+		{"^s", "^s", "save"}, {"esc", "esc", "back"},
+	}))
 	b.WriteString(a.statusLine())
 	return b.String()
 }

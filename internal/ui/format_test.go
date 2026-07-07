@@ -26,7 +26,7 @@ func TestFmtBytes(t *testing.T) {
 }
 
 func TestFmtSpeed(t *testing.T) {
-	if got := FmtSpeed(0); got != "—" {
+	if got := FmtSpeed(0); got != "-" {
 		t.Errorf("idle = %q", got)
 	}
 	if got := FmtSpeed(13002342); got != "12.4 MiB/s" {
@@ -35,10 +35,10 @@ func TestFmtSpeed(t *testing.T) {
 }
 
 func TestFmtETA(t *testing.T) {
-	if got := FmtETA(0, 100); got != "—" {
+	if got := FmtETA(0, 100); got != "-" {
 		t.Errorf("done = %q", got)
 	}
-	if got := FmtETA(100, 0); got != "—" {
+	if got := FmtETA(100, 0); got != "-" {
 		t.Errorf("stalled = %q", got)
 	}
 	if got := FmtETA(1900, 100); got != "19s" {

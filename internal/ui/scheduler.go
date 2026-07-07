@@ -190,12 +190,17 @@ func fmtDays(d [7]bool) string {
 
 // mouse handles clicks: rule rows select.
 func (m schedulerModel) mouse(id string) (schedulerModel, tea.Cmd) {
-	kind, arg := splitID(id)
-	if kind != "rule" || m.editing {
+	if m.editing {
 		return m, nil
 	}
-	if i := argInt(arg); i >= 0 && i < len(m.a.cfg.Rules) {
-		m.cursor = i
+	kind, arg := splitID(id)
+	switch kind {
+	case "key":
+		return m.update(keyFromToken(arg))
+	case "rule":
+		if i := argInt(arg); i >= 0 && i < len(m.a.cfg.Rules) {
+			m.cursor = i
+		}
 	}
 	return m, nil
 }
@@ -204,7 +209,7 @@ func (m schedulerModel) view() string {
 	a := m.a
 	st := a.styles
 	if m.editing {
-		labels := []string{"Window start (HH:MM)", "Window end (HH:MM)", "Label", "Limit ▼", "Limit ▲"}
+		labels := []string{"Window start (HH:MM)", "Window end (HH:MM)", "Label", "Down limit", "Up limit"}
 		var fields []string
 		for i, l := range labels {
 			box := st.Input
@@ -297,7 +302,7 @@ func (m schedulerModel) view() string {
 	if labelW > 34 {
 		labelW = 34
 	}
-	rows := []string{st.Dim.Render(pad("WINDOW", 16) + pad("DAYS", 12) + pad("RULE", labelW) + lpad("LIMIT ▼/▲", 14))}
+	rows := []string{st.Dim.Render(pad("WINDOW", 16) + pad("DAYS", 12) + pad("RULE", labelW) + lpad("DOWN/UP", 14))}
 	for i, r := range a.cfg.Rules {
 		a.hits.add(fmt.Sprintf("rule:%d", i), 1, 8+i, a.width-2, 8+i)
 		_ = r
@@ -320,11 +325,10 @@ func (m schedulerModel) view() string {
 	}
 	b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(rows, "\n")) + "\n")
 
-	key := func(k, label string) string { return st.Key.Render(k) + " " + st.Dim.Render(label) }
-	b.WriteString(" " + strings.Join([]string{
-		key("+", "add rule"), key("e", "edit"), key("-", "remove"),
-		key("space", "toggle scheduler"), key("esc", "back"),
-	}, "  "))
+	b.WriteString(a.hintbar(strings.Count(b.String(), "\n"), []keyHint{
+		{"+", "+", "add rule"}, {"e", "e", "edit"}, {"-", "-", "remove"},
+		{" ", "space", "toggle scheduler"}, {"esc", "esc", "back"},
+	}))
 	b.WriteString(a.statusLine())
 	return b.String()
 }

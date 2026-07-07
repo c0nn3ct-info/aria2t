@@ -65,6 +65,91 @@ func bigApp(t *testing.T, w, h int) (*App, *fakeAPI) {
 	return a, fake
 }
 
+// TestListColumnsAlign pins the fix for the reported drift: the right edge of
+// each right-aligned numeric column (SIZE/SPEED/CONN/ETA) must coincide between
+// the header and an active row, regardless of the row name's width.
+func TestListColumnsAlign(t *testing.T) {
+	a, _ := testApp(t)
+	a.width, a.height = 200, 24
+	a.snap = snapshot{Active: []rpc.Status{{
+		GID: "g1", Status: "active", TotalLength: "2791728742", CompletedLength: "0",
+		DownloadSpeed: "2200000", Connections: "34",
+		Files: []rpc.File{{Path: "/dl/Смешарики"}}, // Cyrillic: rune vs byte width
+	}}}
+	a.list.tab = tabActive
+	lines := plainLines(a.list.view())
+	// list.view() = status line, tabs, panel(top border, header, row, bottom).
+	var h, r string
+	for i, ln := range lines {
+		if strings.Contains(ln, "PROGRESS") {
+			h, r = ln, lines[i+1]
+			break
+		}
+	}
+	if h == "" {
+		t.Fatal("header row not found")
+	}
+	rightEdge := func(s, tok string) int {
+		i := strings.Index(s, tok)
+		if i < 0 {
+			t.Fatalf("token %q not found in %q", tok, s)
+		}
+		return len([]rune(s[:i])) + len([]rune(tok))
+	}
+	for _, p := range []struct{ head, val string }{
+		{"SIZE", "GiB"}, {"SPEED", "MiB/s"}, {"CONN", "34"}, {"ETA", "8s"},
+	} {
+		if he, ve := rightEdge(h, p.head), rightEdge(r, p.val); he != ve {
+			t.Errorf("%s column misaligned: header right edge %d, value right edge %d", p.head, he, ve)
+		}
+	}
+}
+
+// TestListKeybarPinnedToBottom: the key-bar must stay on-screen (never scroll
+// off) even on a short terminal or with the checksum strip — the reported
+// "hints sometimes disappear". The list is pinned so total == terminal height
+// and the key-bar is the last (or second-last, under a flash) visible row.
+func TestListKeybarPinnedToBottom(t *testing.T) {
+	cases := []struct {
+		h, n  int
+		strip bool
+	}{{6, 1, false}, {8, 3, false}, {12, 3, true}, {10, 30, true}, {24, 30, true}}
+	for _, c := range cases {
+		a, _ := testApp(t)
+		a.width, a.height = 120, c.h
+		var rows []rpc.Status
+		for i := 0; i < c.n; i++ {
+			rows = append(rows, rpc.Status{GID: fmt.Sprintf("g%d", i), Status: "complete",
+				TotalLength: "100", CompletedLength: "100", Files: []rpc.File{{Path: "/dl/f"}}})
+		}
+		a.snap = snapshot{Stopped: rows}
+		a.list.tab = tabStopped
+		if c.strip {
+			a.verify = map[string]*verifyState{"g0": {Expected: "abc", Finished: true, OK: true, Computed: "abc"}}
+		}
+		lines := plainLines(a.list.view())
+		if len(lines) > c.h {
+			t.Errorf("h=%d n=%d strip=%v: frame %d lines exceeds terminal", c.h, c.n, c.strip, len(lines))
+		}
+		kb := -1
+		for i, ln := range lines {
+			if strings.Contains(ln, "d remove") {
+				kb = i
+			}
+		}
+		if kb < 0 || kb >= c.h {
+			t.Errorf("h=%d n=%d strip=%v: key-bar off-screen (line %d of %d)", c.h, c.n, c.strip, kb, c.h)
+		}
+	}
+}
+
+// TestListBottomBarTinyHeight exercises the degenerate a.height≤1 guard.
+func TestListBottomBarTinyHeight(t *testing.T) {
+	a, _ := testApp(t)
+	a.width, a.height = 40, 1
+	_ = a.list.view() // must not panic
+}
+
 func TestFrameNeverExceedsTerminalHeight(t *testing.T) {
 	for _, size := range [][2]int{{80, 12}, {100, 24}, {120, 36}, {90, 10}} {
 		a, _ := bigApp(t, size[0], size[1])
@@ -86,11 +171,12 @@ func TestListRowsDoNotWrapAndRegionsMatch(t *testing.T) {
 		a, _ := bigApp(t, w, 36)
 		lines := plainLines(a.View())
 		// Rows must be single lines: the first download's name must sit on
-		// the exact line its region claims.
-		if got := regionText(t, a, "row:0"); !strings.Contains(got, "debian-13.1.0") {
+		// the exact line its region claims. (Names truncate hard at narrow
+		// widths once every column is shown, so match a short prefix.)
+		if got := regionText(t, a, "row:0"); !strings.Contains(got, "debian") {
 			t.Errorf("w=%d: row:0 region does not cover the first download; got %q", w, strings.TrimSpace(got))
 		}
-		if got := regionText(t, a, "row:2"); !strings.Contains(got, "node-v24.3.0") {
+		if got := regionText(t, a, "row:2"); !strings.Contains(got, "node-v24") {
 			t.Errorf("w=%d: row:2 region does not cover the third download; got %q", w, strings.TrimSpace(got))
 		}
 		// The column header must not spill (ETA on its own line was the bug).
@@ -104,11 +190,10 @@ func TestListRowsDoNotWrapAndRegionsMatch(t *testing.T) {
 
 func TestTabRegionsMatchRenderedChips(t *testing.T) {
 	a, _ := bigApp(t, 120, 36)
-	if got := regionText(t, a, "tab:1"); !strings.Contains(got, "Waiting") {
-		t.Fatalf("tab:1 covers %q", got)
-	}
-	if got := regionText(t, a, "tab:2"); !strings.Contains(got, "Stopped") {
-		t.Fatalf("tab:2 covers %q", got)
+	for i, want := range []string{"All", "Active", "Waiting", "Stopped"} {
+		if got := regionText(t, a, fmt.Sprintf("tab:%d", i)); !strings.Contains(got, want) {
+			t.Fatalf("tab:%d covers %q, want %q", i, got, want)
+		}
 	}
 }
 
@@ -118,7 +203,7 @@ func TestKeybarRegionsMatchHints(t *testing.T) {
 		t.Fatalf("key:g covers %q", got)
 	}
 	// Stopped tab: integrity hints clickable and inside the terminal.
-	_, _ = a.Update(key("3"))
+	_, _ = a.Update(key("4"))
 	if got := regionText(t, a, "key:R"); !strings.Contains(got, "re-download") {
 		t.Fatalf("key:R covers %q", got)
 	}
@@ -130,20 +215,33 @@ func TestKeybarRegionsMatchHints(t *testing.T) {
 	}
 }
 
-func TestDetailFileRegionsMatchRenderedRows(t *testing.T) {
+func TestFilesPickerRegionsMatchRows(t *testing.T) {
 	a, _ := bigApp(t, 120, 36)
-	a.detail = newDetailModel(a)
-	a.detail.gid = "g0"
-	a.detail.s = rpc.Status{GID: "g0", Status: "active", Files: []rpc.File{
-		{Index: "1", Path: "/dl/FILE-ZERO.bin", Selected: "true"},
-		{Index: "2", Path: "/dl/FILE-ONE.bin", Selected: "true"},
-		{Index: "3", Path: "/dl/FILE-TWO.bin", Selected: "true"},
-	}}
-	a.screen = screenDetail
-	for i, name := range []string{"FILE-ZERO", "FILE-ONE", "FILE-TWO"} {
-		if got := regionText(t, a, fmt.Sprintf("file:%d", i)); !strings.Contains(got, name) {
-			t.Fatalf("file:%d region covers %q, want %s", i, strings.TrimSpace(got), name)
-		}
+	a.files = newFilesModel(a)
+	a.files.gid = "g0"
+	a.files.loading = false
+	a.files.root = buildTree([]rpc.File{
+		{Index: "1", Path: "/dl/DIR-ALPHA/FILE-ZERO.bin", Length: "10", Selected: "true"},
+		{Index: "2", Path: "/dl/DIR-ALPHA/FILE-ONE.bin", Length: "10", Selected: "true"},
+		{Index: "3", Path: "/dl/FILE-TWO.bin", Length: "10", Selected: "false"},
+	}, "/dl")
+	a.files.rows = flatten(a.files.root)
+	a.overlay = overlayFiles
+	// Visible rows: 0 DIR-ALPHA/, 1 FILE-ZERO, 2 FILE-ONE, 3 FILE-TWO.
+	if got := regionText(t, a, "row:0"); !strings.Contains(got, "DIR-ALPHA") {
+		t.Fatalf("row:0 covers %q", strings.TrimSpace(got))
+	}
+	if got := regionText(t, a, "row:3"); !strings.Contains(got, "FILE-TWO") {
+		t.Fatalf("row:3 covers %q", strings.TrimSpace(got))
+	}
+	if got := regionText(t, a, "check:1"); !strings.Contains(got, "[") {
+		t.Fatalf("check:1 covers %q", strings.TrimSpace(got))
+	}
+	if got := regionText(t, a, "btn:ok"); !strings.Contains(got, "Confirm") {
+		t.Fatalf("btn:ok covers %q", strings.TrimSpace(got))
+	}
+	if got := regionText(t, a, "btn:cancel"); !strings.Contains(got, "Cancel") {
+		t.Fatalf("btn:cancel covers %q", strings.TrimSpace(got))
 	}
 }
 

@@ -158,6 +158,14 @@ func (c *Client) GetPeers(ctx context.Context, gid string) ([]Peer, error) {
 	return out, err
 }
 
+// GetServers returns the connected HTTP/FTP servers per file (the mirror
+// analog of GetPeers). Only meaningful for active non-torrent downloads.
+func (c *Client) GetServers(ctx context.Context, gid string) ([]ServerStat, error) {
+	var out []ServerStat
+	err := c.call(ctx, "aria2.getServers", &out, gid)
+	return out, err
+}
+
 // PauseAll pauses every active and waiting download.
 func (c *Client) PauseAll(ctx context.Context) error {
 	return c.call(ctx, "aria2.pauseAll", nil)

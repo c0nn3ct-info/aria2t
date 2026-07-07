@@ -115,8 +115,13 @@ func NewStyles(p Palette) Styles {
 		TabIdle:   lipgloss.NewStyle().Foreground(p.FgDim).Border(lipgloss.NormalBorder()).BorderForeground(p.Border).Padding(0, 1),
 		Panel:     lipgloss.NewStyle().Border(border).BorderForeground(p.Border).Padding(0, 1),
 		RowSel:    lipgloss.NewStyle().Background(p.Sel),
-		Input:     lipgloss.NewStyle().Background(p.Bg).Foreground(p.Fg).Border(border).BorderForeground(p.Border).Padding(0, 1),
-		InputHot:  lipgloss.NewStyle().Background(p.Bg).Foreground(p.Fg).Border(border).BorderForeground(p.Accent).Padding(0, 1),
-		Modal:     lipgloss.NewStyle().Background(p.Surface).Border(border).BorderForeground(p.Accent).Padding(1, 2),
+		Input:     lipgloss.NewStyle().Foreground(p.Fg).Border(border).BorderForeground(p.Border).Padding(0, 1),
+		InputHot:  lipgloss.NewStyle().Foreground(p.Fg).Border(border).BorderForeground(p.Accent).Padding(0, 1),
+		// No Background: the modal is transparent so it shows the terminal's own
+		// colours ("normal colours") like the rest of the UI, framed by the
+		// Accent border over App.composite's dimmed backdrop. An opaque fill
+		// reads as too dark (Bg) or a clashing surface (Surface → blue on
+		// non-truecolor), and a block bg would also band (drops after resets).
+		Modal: lipgloss.NewStyle().Border(border).BorderForeground(p.Accent).Padding(1, 2),
 	}
 }

@@ -64,6 +64,12 @@ type Config struct {
 	Rules            []Rule   `json:"rules"`
 	Dir              string   `json:"dir"`   // default download dir for the add form
 	Split            int      `json:"split"` // connections per server for the add form
+	// GlobalDown/GlobalUp are the persisted overall speed caps (aria2 limit
+	// form, e.g. "5M"; "" = unlimited), re-applied to the daemon on connect so
+	// they survive a managed-daemon restart. The scheduler, when enabled, owns
+	// these instead.
+	GlobalDown string `json:"globalDown,omitempty"`
+	GlobalUp   string `json:"globalUp,omitempty"`
 }
 
 // Default returns the out-of-the-box configuration: a managed built-in

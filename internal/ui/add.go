@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -19,6 +21,8 @@ const (
 	addTabURL = iota
 	addTabTorrent
 	addTabMetalink
+	addTabInput
+	addTabCount
 )
 
 // addModel is the "Add download" overlay.
@@ -43,14 +47,24 @@ func newAddModel(a *App) addModel {
 	uris.Placeholder = "https://…"
 	uris.SetHeight(3)
 	uris.SetWidth(56)
-	if v := strings.TrimSpace(clipboardRead()); looksLikeSource(v) {
-		uris.SetValue(v) // a URL on the clipboard is almost surely the intent
-	}
 	file := textinput.New()
 	file.Placeholder = "/path/to/file.torrent"
-	file.Width = 52
+	file.Width = 52 // Width must precede SetValue: overflow windows on set
+	// Prefill from the clipboard and open on the matching tab: a URL or
+	// magnet lands in the URIs box, a local .torrent/.metalink path in the
+	// file box.
+	tab := addTabURL
+	if clip := strings.TrimSpace(clipboardRead()); clip != "" {
+		switch {
+		case looksLikeSource(clip):
+			uris.SetValue(clip)
+		case detectAddTab(clip) != addTabURL:
+			tab = detectAddTab(clip)
+			file.SetValue(clip)
+		}
+	}
 	dir := textinput.New()
-	dir.Width = 22 // Width must precede SetValue: overflow windows on set
+	dir.Width = 22
 	dir.SetValue(a.cfg.Dir)
 	split := textinput.New()
 	split.Width = 6
@@ -58,12 +72,28 @@ func newAddModel(a *App) addModel {
 	out := textinput.New()
 	out.Placeholder = "new-name.iso"
 	out.Width = 22
-	return addModel{a: a, uris: uris, file: file, dir: dir, split: split, out: out, startNow: true}
+	return addModel{a: a, tab: tab, uris: uris, file: file, dir: dir, split: split, out: out, startNow: true}
+}
+
+// detectAddTab guesses the tab that fits a source string: a local
+// .torrent/.metalink path opens the matching file tab, everything else
+// (URLs, magnets) uses the URL tab.
+func detectAddTab(s string) int {
+	low := strings.ToLower(strings.TrimSpace(s))
+	switch {
+	case strings.HasSuffix(low, ".torrent"):
+		return addTabTorrent
+	case strings.HasSuffix(low, ".metalink"), strings.HasSuffix(low, ".meta4"):
+		return addTabMetalink
+	default:
+		return addTabURL
+	}
 }
 
 // focusCmd needs a pointer receiver: textinput/textarea Focus mutates the
 // model, and focusing a copy leaves the stored overlay deaf to typing.
-func (m *addModel) focusCmd() tea.Cmd { return m.uris.Focus() }
+// applyFocus honours the tab chosen at construction.
+func (m *addModel) focusCmd() tea.Cmd { return m.applyFocus() }
 
 // fields returns the focusable inputs for the current tab.
 func (m *addModel) applyFocus() tea.Cmd {
@@ -95,7 +125,7 @@ func (m addModel) update(msg tea.KeyMsg) (addModel, tea.Cmd) {
 		a.overlay = overlayNone
 		return m, nil
 	case "ctrl+t":
-		m.tab = (m.tab + 1) % 3
+		m.tab = (m.tab + 1) % addTabCount
 		m.focus = 0
 		return m, m.applyFocus()
 	case "tab":
@@ -107,6 +137,23 @@ func (m addModel) update(msg tea.KeyMsg) (addModel, tea.Cmd) {
 		return m, m.applyFocus()
 	case "ctrl+s":
 		m.startNow = !m.startNow
+		return m, nil
+	case "ctrl+o":
+		// Browse the filesystem for a file instead of typing its path.
+		if m.tab != addTabURL {
+			var exts []string
+			switch m.tab {
+			case addTabTorrent:
+				exts = []string{".torrent"}
+			case addTabMetalink:
+				exts = []string{".metalink", ".meta4"}
+				// addTabInput: nil → show every file
+			}
+			start := expandHome(strings.TrimSpace(m.dir.Value()))
+			a.browse = newBrowseModel(a, start, exts)
+			a.overlay = overlayBrowse
+			return m, nil
+		}
 		return m, nil
 	case "ctrl+r":
 		m.rename = !m.rename
@@ -178,10 +225,57 @@ func (m addModel) submit() (addModel, tea.Cmd) {
 		if len(uris) == 0 {
 			return m, a.flash("enter at least one URI", true)
 		}
+		// Reject non-URI input (a file path, an aria2 .aria2 control file,
+		// pasted junk) with a clear message instead of silently queueing a
+		// download that aria2 immediately fails.
+		for _, u := range uris {
+			if !looksLikeSource(u) {
+				return m, a.flash("not a link — use http/https/ftp/sftp or a magnet (for local files use the Torrent/Metalink tabs)", true)
+			}
+		}
 		a.overlay = overlayNone
-		return m, a.rpcCmd("added", func(ctx context.Context, c api) error {
-			_, err := c.AddURI(ctx, uris, opts)
-			return err
+		return m, a.addURICmd(uris, opts, m.startNow)
+	case addTabInput:
+		path := expandHome(strings.TrimSpace(m.file.Value()))
+		if path == "" {
+			return m, a.flash("enter a file path", true)
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return m, a.flash(err.Error(), true)
+		}
+		// A binary file (a .torrent or an aria2 .aria2 control file) is a common
+		// mistake here; catch it before parsing produces junk URIs.
+		if bytes.IndexByte(raw, 0) >= 0 {
+			return m, a.flash("that's a binary file, not an aria2 input list (a .torrent goes on the Torrent tab)", true)
+		}
+		// Keep only entries with a real URI, so a stray non-URI line does not
+		// become a failing download.
+		var entries []inputEntry
+		for _, e := range parseInputFile(string(raw)) {
+			var us []string
+			for _, u := range e.uris {
+				if looksLikeSource(u) {
+					us = append(us, u)
+				}
+			}
+			if len(us) > 0 {
+				e.uris = us
+				entries = append(entries, e)
+			}
+		}
+		if len(entries) == 0 {
+			return m, a.flash("no valid links found in the file", true)
+		}
+		base, name := opts, filepath.Base(path)
+		a.overlay = overlayNone
+		return m, a.rpcCmd(fmt.Sprintf("added %d from %s", len(entries), name), func(ctx context.Context, c api) error {
+			for _, e := range entries {
+				if _, err := c.AddURI(ctx, e.uris, mergeOpts(base, e.opts)); err != nil {
+					return err
+				}
+			}
+			return nil
 		})
 	default:
 		path := expandHome(strings.TrimSpace(m.file.Value()))
@@ -193,16 +287,39 @@ func (m addModel) submit() (addModel, tea.Cmd) {
 			return m, a.flash(err.Error(), true)
 		}
 		b64 := base64.StdEncoding.EncodeToString(raw)
-		isTorrent := m.tab == addTabTorrent
 		a.overlay = overlayNone
-		return m, a.rpcCmd("added "+filepath.Base(path), func(ctx context.Context, c api) error {
-			if isTorrent {
-				_, err := c.AddTorrent(ctx, b64, opts)
-				return err
+		if m.tab == addTabTorrent {
+			// Add the torrent paused so the tree picker can show its files
+			// before the download starts; unpause after selection if the user
+			// wanted it started immediately.
+			opts["pause"] = "true"
+			unpause := m.startNow
+			c := a.client
+			if c == nil {
+				return m, a.flash("not connected", true)
 			}
-			_, err := c.AddMetalink(ctx, b64, opts)
-			return err
-		})
+			return m, func() tea.Msg {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				gid, err := c.AddTorrent(ctx, b64, opts)
+				return torrentAddedMsg{gid: gid, unpause: unpause, err: err}
+			}
+		}
+		// Metalink: add paused so multi-file metalinks can be pruned before
+		// they start downloading.
+		opts["pause"] = "true"
+		unpause := m.startNow
+		name := filepath.Base(path)
+		c := a.client
+		if c == nil {
+			return m, a.flash("not connected", true)
+		}
+		return m, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			gids, err := c.AddMetalink(ctx, b64, opts)
+			return metalinkAddedMsg{gids: gids, name: name, unpause: unpause, err: err}
+		}
 	}
 }
 
@@ -215,28 +332,28 @@ func expandHome(p string) string {
 	return p
 }
 
-// mouse handles clicks inside the add overlay.
+// mouse handles clicks inside the add overlay: tab chips switch tabs, footer
+// hints trigger their keys (switch/browse/start/rename/add/close).
 func (m addModel) mouse(id string) (addModel, tea.Cmd) {
 	kind, arg := splitID(id)
 	switch kind {
 	case "atab":
-		if t := argInt(arg); t >= 0 && t <= 2 && t != m.tab {
+		if t := argInt(arg); t >= 0 && t < addTabCount && t != m.tab {
 			m.tab = t
 			m.focus = 0
 			return m, m.applyFocus()
 		}
-	case "btn":
-		if arg == "submit" {
-			return m.submit()
-		}
+	case "key":
+		return m.update(keyFromToken(arg))
 	}
 	return m, nil
 }
 
 func (m addModel) view() string {
 	st := m.a.styles
-	tabs := make([]string, 3)
-	for i, n := range []string{"URL", "Torrent", "Metalink"} {
+	names := []string{"URL", "Torrent", "Metalink", "Input file"}
+	tabs := make([]string, len(names))
+	for i, n := range names {
 		if i == m.tab {
 			tabs[i] = st.Badge.Render(n)
 		} else {
@@ -244,16 +361,28 @@ func (m addModel) view() string {
 		}
 	}
 	var src string
+	label := "File path"
+	if m.tab == addTabInput {
+		label = "aria2 input file (batch)"
+	}
 	if m.tab == addTabURL {
 		src = st.Dim.Render("URIs — one per line (mirrors)") + "\n" + m.uris.View()
 	} else {
-		src = st.Dim.Render("File path") + "\n" + m.file.View()
+		src = st.Dim.Render(label) + "  " + st.Key.Render("^o") + st.Dim.Render(" browse") + "\n" + m.file.View()
 	}
 	check := func(on bool, label string) string {
 		if on {
 			return st.Green.Render("[x] ") + st.Text.Render(label)
 		}
 		return st.Dim.Render("[ ] " + label)
+	}
+	hints := []keyHint{
+		{"^t", "^t", "switch"}, {"^o", "^o", "browse"}, {"^s", "^s", "start"},
+		{"^r", "^r", "rename"}, {"^d", "^d", "add"}, {"esc", "esc", "close"},
+	}
+	hintParts := make([]string, len(hints))
+	for i, h := range hints {
+		hintParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
 	}
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		st.Title.Render("Add download")+"   "+st.Dim.Render("esc to close"),
@@ -276,11 +405,11 @@ func (m addModel) view() string {
 			return ""
 		}(),
 		"",
-		st.Dim.Render("tab next field · ")+st.Green.Render("↵/^d add"),
+		strings.Join(hintParts, "  "),
 	)
 	modal := st.Modal.Render(body)
 
-	// Clickable regions: source tabs and the add hint.
+	// Clickable regions: source tabs and every footer hint.
 	offX, offY := m.a.overlayOffset(modal)
 	x := offX + 3 // border + horizontal padding
 	tabsY := offY + 4
@@ -290,6 +419,22 @@ func (m addModel) view() string {
 		x += w + 1
 	}
 	lastY := offY + lipgloss.Height(modal) - 3
-	m.a.hits.add("btn:submit", offX+3, lastY, offX+lipgloss.Width(modal)-4, lastY)
+	hx := offX + 3
+	for i, h := range hints {
+		w := lipgloss.Width(hintParts[i])
+		m.a.hits.add("key:"+h.token, hx, lastY, hx+w-1, lastY)
+		hx += w + 2
+	}
+	// On the file tabs, make the inline "^o browse" next to the path and the
+	// path field itself clickable, so a mouse user opens the picker without the
+	// keyboard (the footer hint alone is easy to miss). The header above src —
+	// title, blank, tabs, blank — is a fixed four lines, so src's label sits at
+	// offY+6 and its input at offY+7.
+	if m.tab != addTabURL {
+		bx := offX + 3 + lipgloss.Width(label) + 2
+		m.a.hits.add("key:^o", bx, offY+6, bx+lipgloss.Width("^o browse")-1, offY+6)
+		inW := lipgloss.Width(m.file.View())
+		m.a.hits.add("key:^o", offX+3, offY+7, offX+3+inW-1, offY+7)
+	}
 	return modal
 }

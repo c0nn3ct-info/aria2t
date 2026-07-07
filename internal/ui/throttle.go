@@ -175,6 +175,9 @@ func (m throttleModel) apply() (throttleModel, tea.Cmd) {
 // mouse handles clicks inside the throttle overlay.
 func (m throttleModel) mouse(id string) (throttleModel, tea.Cmd) {
 	kind, arg := splitID(id)
+	if kind == "key" {
+		return m.update(keyFromToken(arg))
+	}
 	if kind != "chip" {
 		return m, nil
 	}
@@ -263,5 +266,8 @@ func (m throttleModel) view() string {
 			x += w
 		}
 	}
+	// The footer (body row 10) cancels on click.
+	footerY := offY + 2 + 10
+	m.a.hits.add("key:esc", offX+3, footerY, offX+lipgloss.Width(modal)-4, footerY)
 	return modal
 }

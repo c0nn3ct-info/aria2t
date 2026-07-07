@@ -30,8 +30,8 @@ func TestFmtSpeedEdges(t *testing.T) {
 		n    int64
 		want string
 	}{
-		{-1, "—"},
-		{0, "—"},
+		{-1, "-"},
+		{0, "-"},
 		{500, "500 B/s"},
 		{720 * 1024, "720 KiB/s"},
 		{13002342, "12.4 MiB/s"},
@@ -45,10 +45,10 @@ func TestFmtSpeedEdges(t *testing.T) {
 }
 
 func TestFmtETAEdges(t *testing.T) {
-	if got := FmtETA(0, 100); got != "—" {
+	if got := FmtETA(0, 100); got != "-" {
 		t.Errorf("no remaining = %q", got)
 	}
-	if got := FmtETA(100, 0); got != "—" {
+	if got := FmtETA(100, 0); got != "-" {
 		t.Errorf("no speed = %q", got)
 	}
 	if got := FmtETA(100, 10); got != "10s" {

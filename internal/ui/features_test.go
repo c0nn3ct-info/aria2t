@@ -43,6 +43,7 @@ func TestPurgeStoppedNeedsConfirm(t *testing.T) {
 
 func TestPurgeIgnoredOutsideStoppedTab(t *testing.T) {
 	a, fake := testApp(t)
+	a.list.tab = tabActive
 	_, _ = a.Update(key("D"))
 	if a.overlay != overlayNone || fake.purged {
 		t.Fatal("D must do nothing on the active tab")
@@ -221,6 +222,7 @@ func namedStatus(gid, name, status string) rpc.Status {
 
 func filterApp(t *testing.T) *App {
 	a, _ := testApp(t)
+	a.list.tab = tabActive // exercise the filter over a single known group
 	a.snap.Active = []rpc.Status{
 		namedStatus("a1", "ubuntu.iso", "active"),
 		namedStatus("a2", "fedora.iso", "active"),

@@ -67,6 +67,43 @@ func TestTellActiveDecodes(t *testing.T) {
 	}
 }
 
+func TestStatusMetadata(t *testing.T) {
+	meta := Status{InfoHash: "deadbeefcafe1234", Files: []File{{Path: "[METADATA]deadbeefcafe1234"}}}
+	if !meta.IsMetadata() {
+		t.Fatal("[METADATA] file must be detected")
+	}
+	if got := meta.Name(); got != "metadata · deadbeef" {
+		t.Fatalf("name = %q", got)
+	}
+	noHash := Status{Files: []File{{Path: "[METADATA]"}}}
+	if got := noHash.Name(); got != "fetching metadata" {
+		t.Fatalf("name = %q", got)
+	}
+	normal := Status{Files: []File{{Path: "/dl/x.iso"}}}
+	if normal.IsMetadata() {
+		t.Fatal("a normal download is not metadata")
+	}
+}
+
+func TestGetServersDecodes(t *testing.T) {
+	srv, last := rpcServer(t, `[{"index":"1","servers":[{"uri":"https://mirror/x.iso","currentUri":"https://cdn/x.iso","downloadSpeed":"555000"}]}]`)
+	c := New(srv.URL, "")
+	got, err := c.GetServers(context.Background(), "gid1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if last.Method != "aria2.getServers" {
+		t.Fatalf("method = %q", last.Method)
+	}
+	if len(got) != 1 || len(got[0].Servers) != 1 {
+		t.Fatalf("decode = %+v", got)
+	}
+	sv := got[0].Servers[0]
+	if sv.URI != "https://mirror/x.iso" || sv.CurrentURI != "https://cdn/x.iso" || sv.DownSpeed() != 555000 {
+		t.Fatalf("server = %+v speed=%d", sv, sv.DownSpeed())
+	}
+}
+
 func TestRPCErrorSurfaced(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"jsonrpc":"2.0","id":"1","error":{"code":1,"message":"Unauthorized"}}`))

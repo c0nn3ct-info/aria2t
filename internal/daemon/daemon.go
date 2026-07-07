@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -35,8 +36,9 @@ type Daemon struct {
 	Port   int
 	Secret string
 
-	cmd  *exec.Cmd
-	done chan struct{} // closed once Wait returns
+	cmd       *exec.Cmd
+	done      chan struct{} // closed once Wait returns
+	stateFile string        // reap state path, removed on a clean Stop
 }
 
 // Alive reports whether the child process is still running.
@@ -75,6 +77,50 @@ var (
 	netListen = net.Listen
 	randRead  = rand.Read
 )
+
+// daemonState* are indirections for tests over the reap state file.
+var (
+	daemonStateRead   = os.ReadFile
+	daemonStateWrite  = os.WriteFile
+	daemonStateRemove = os.Remove
+)
+
+// daemonState records a spawned daemon's coordinates so the next launch can
+// reap it if this process died without stopping it (a crash or kill -9).
+type daemonState struct {
+	PID    int    `json:"pid"`
+	Port   int    `json:"port"`
+	Secret string `json:"secret"`
+}
+
+func stateFilePath(dataDir string) string { return filepath.Join(dataDir, "daemon.json") }
+
+// reapStale cleanly shuts down a daemon left running by a previous aria2t. It
+// only targets a process still answering on the recorded port with the recorded
+// secret — unambiguously our own aria2c — so it can never hit an unrelated
+// program that happens to have inherited a recycled PID. Best effort: a dead
+// port simply fails the RPC and is ignored.
+func reapStale(dataDir string) {
+	raw, err := daemonStateRead(stateFilePath(dataDir))
+	if err != nil {
+		return
+	}
+	var st daemonState
+	if json.Unmarshal(raw, &st) != nil || st.Port == 0 {
+		return
+	}
+	c := rpc.New(fmt.Sprintf("http://localhost:%d/jsonrpc", st.Port), st.Secret)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = c.SaveSession(ctx)
+	_ = c.Shutdown(ctx)
+}
+
+// writeState records the running daemon so a later launch can reap it.
+func writeState(path string, st daemonState) {
+	raw, _ := json.Marshal(st) // cannot fail for this type
+	_ = daemonStateWrite(path, raw, 0o600)
+}
 
 // FreePort asks the kernel for an unused TCP port on localhost.
 func FreePort() (int, error) {
@@ -159,6 +205,7 @@ func Start(opts Options) (*Daemon, error) {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return nil, err
 	}
+	reapStale(dataDir) // clean up a daemon a previous crash left running
 	sessionFile := filepath.Join(dataDir, "session.txt")
 	logFile := filepath.Join(dataDir, "aria2.log")
 	confFile := filepath.Join(dataDir, "aria2t.conf")
@@ -172,7 +219,8 @@ func Start(opts Options) (*Daemon, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s: %w", bin, err)
 	}
-	d := &Daemon{Port: port, Secret: secret, cmd: cmd, done: make(chan struct{})}
+	d := &Daemon{Port: port, Secret: secret, cmd: cmd, done: make(chan struct{}), stateFile: stateFilePath(dataDir)}
+	writeState(d.stateFile, daemonState{PID: cmd.Process.Pid, Port: port, Secret: secret})
 	go func() {
 		_ = cmd.Wait()
 		close(d.done)
@@ -210,6 +258,7 @@ func (d *Daemon) URL() string { return fmt.Sprintf("ws://localhost:%d/jsonrpc", 
 // Stop shuts the daemon down: saveSession + shutdown over RPC, then
 // SIGTERM, then SIGKILL — first thing that works wins.
 func (d *Daemon) Stop(ctx context.Context) error {
+	defer func() { _ = daemonStateRemove(d.stateFile) }() // clean exit leaves nothing to reap
 	c := rpc.New(fmt.Sprintf("http://localhost:%d/jsonrpc", d.Port), d.Secret)
 	_ = c.SaveSession(ctx)
 	_ = c.Shutdown(ctx)

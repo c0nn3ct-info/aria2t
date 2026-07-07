@@ -11,19 +11,28 @@ import (
 )
 
 func TestListQuitKey(t *testing.T) {
+	// With downloads in flight, q asks first (managed daemon pauses them).
 	a, _ := testApp(t)
 	_, cmd := a.Update(key("q"))
-	if cmd == nil {
-		t.Fatal("q must return a command")
+	if a.overlay != overlayConfirm || cmd != nil {
+		t.Fatalf("q with active downloads must confirm, overlay=%d", a.overlay)
 	}
+	_, cmd = a.Update(key("y"))
 	if _, ok := cmd().(tea.QuitMsg); !ok {
-		t.Fatal("q must quit")
+		t.Fatal("confirm-yes must quit")
+	}
+	// With nothing running, q quits immediately.
+	a, _ = testApp(t)
+	a.snap = snapshot{}
+	_, cmd = a.Update(key("q"))
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal("q with no active downloads must quit directly")
 	}
 }
 
 func TestListNavigationKeys(t *testing.T) {
 	a, _ := testApp(t)
-	_, _ = a.Update(key("2"))
+	_, _ = a.Update(key("3"))
 	if a.list.tab != tabWaiting {
 		t.Fatalf("tab = %d", a.list.tab)
 	}
@@ -35,8 +44,12 @@ func TestListNavigationKeys(t *testing.T) {
 	if a.list.cursor != 0 {
 		t.Fatalf("cursor = %d", a.list.cursor)
 	}
-	_, _ = a.Update(key("1"))
+	_, _ = a.Update(key("2"))
 	if a.list.tab != tabActive {
+		t.Fatalf("tab = %d", a.list.tab)
+	}
+	_, _ = a.Update(key("1"))
+	if a.list.tab != tabAll {
 		t.Fatalf("tab = %d", a.list.tab)
 	}
 }
@@ -92,7 +105,7 @@ func TestListResumeAndRemove(t *testing.T) {
 	if len(fake.removed) != 1 || fake.removed[0] != "a1" {
 		t.Fatalf("removed = %v", fake.removed)
 	}
-	_, _ = a.Update(key("3")) // stopped tab → RemoveDownloadResult path
+	_, _ = a.Update(key("4")) // stopped tab → RemoveDownloadResult path
 	_, _ = a.Update(key("d"))
 	_, cmd = a.Update(key("y"))
 	drain(t, a, cmd)
@@ -100,7 +113,7 @@ func TestListResumeAndRemove(t *testing.T) {
 		t.Fatalf("stopped remove must use RemoveDownloadResult, removed = %v", fake.removed)
 	}
 	// n declines: nothing removed.
-	_, _ = a.Update(key("1"))
+	_, _ = a.Update(key("2"))
 	_, _ = a.Update(key("d"))
 	_, cmd = a.Update(key("n"))
 	drain(t, a, cmd)
@@ -132,7 +145,7 @@ func TestListTorrentKey(t *testing.T) {
 
 func TestListChecksumPromptFlow(t *testing.T) {
 	a, _ := testApp(t)
-	_, _ = a.Update(key("3")) // stopped tab, cursor on s1
+	_, _ = a.Update(key("4")) // stopped tab, cursor on s1
 	_, cmd := a.Update(key("c"))
 	if a.overlay != overlayPrompt || cmd == nil {
 		t.Fatalf("overlay = %d", a.overlay)
@@ -151,7 +164,7 @@ func TestListChecksumPromptFlow(t *testing.T) {
 
 func TestListVerifyKeyNoChecksum(t *testing.T) {
 	a, _ := testApp(t)
-	_, _ = a.Update(key("3"))
+	_, _ = a.Update(key("4"))
 	_, cmd := a.Update(key("v"))
 	if cmd == nil || !strings.Contains(a.status, "no expected checksum") {
 		t.Fatalf("status = %q", a.status)
@@ -160,7 +173,7 @@ func TestListVerifyKeyNoChecksum(t *testing.T) {
 
 func TestListRedownloadKeyNoURIs(t *testing.T) {
 	a, _ := testApp(t)
-	_, _ = a.Update(key("3"))
+	_, _ = a.Update(key("4"))
 	_, cmd := a.Update(key("R"))
 	if cmd == nil || !strings.Contains(a.status, "no source URIs") {
 		t.Fatalf("status = %q", a.status)
@@ -177,7 +190,7 @@ func TestListOpenDirKeyEmpty(t *testing.T) {
 
 func TestReorderMoveGuards(t *testing.T) {
 	a, _ := testApp(t)
-	_, _ = a.Update(key("2"))
+	_, _ = a.Update(key("3"))
 	_, _ = a.Update(key("K")) // grab w1 at top; move(-1) hits the to<0 guard
 	if !a.list.reordering || a.list.cursor != 0 {
 		t.Fatalf("reordering=%v cursor=%d", a.list.reordering, a.list.cursor)
@@ -229,9 +242,10 @@ func TestSelectedOutOfRange(t *testing.T) {
 
 func TestClampCursorBothBounds(t *testing.T) {
 	a, _ := testApp(t)
+	a.list.tab = tabActive // one active row
 	a.list.cursor = 99
 	a.list.clampCursor()
-	if a.list.cursor != 0 { // one active row
+	if a.list.cursor != 0 {
 		t.Fatalf("cursor = %d", a.list.cursor)
 	}
 	a.snap = snapshot{}
@@ -278,14 +292,14 @@ func TestIntegrityCellAll(t *testing.T) {
 		v    *verifyState
 		want string
 	}{
-		{nil, "—"},
+		{nil, "-"},
 		{vsWithProgress(5, 10), "verifying"},
 		{&verifyState{Running: true}, "verifying"},
 		{&verifyState{Finished: true, Err: errors.New("boom")}, "boom"},
 		{&verifyState{Finished: true, OK: true}, "verified"},
 		{&verifyState{Finished: true}, "MISMATCH"},
 		{&verifyState{Expected: "abc"}, "checksum set"},
-		{&verifyState{}, "—"},
+		{&verifyState{}, "-"},
 	}
 	for i, c := range cases {
 		if c.v == nil {
@@ -339,10 +353,24 @@ func TestListViewNarrowWidth(t *testing.T) {
 }
 
 func TestListViewEmpty(t *testing.T) {
+	// Connected + no downloads → the onboarding welcome, not a bare table.
 	a, _ := testApp(t)
 	a.snap = snapshot{}
+	if v := a.list.view(); !strings.Contains(v, "Welcome to aria2t") {
+		t.Fatalf("empty connected view must welcome:\n%s", v)
+	}
+	// Disconnected empty → the plain placeholder.
+	a.connected = false
 	if v := a.list.view(); !strings.Contains(v, "nothing here") {
-		t.Fatal("must render empty placeholder")
+		t.Fatalf("disconnected empty view must show placeholder:\n%s", v)
+	}
+}
+
+func TestListViewFilterNoMatch(t *testing.T) {
+	a, _ := testApp(t)
+	a.list.filterInput.SetValue("zzz-no-such-name")
+	if v := a.list.view(); !strings.Contains(v, "nothing here") {
+		t.Fatalf("filter with no matches must show placeholder:\n%s", v)
 	}
 }
 
@@ -352,7 +380,7 @@ func TestListViewStoppedChecksumStrip(t *testing.T) {
 		{GID: "s1", Status: "complete"},
 		{GID: "s2", Status: "error"},
 	}
-	_, _ = a.Update(key("3"))
+	_, _ = a.Update(key("4"))
 
 	a.verify["s1"] = &verifyState{Expected: strings.Repeat("a", 64)}
 	if v := a.list.view(); !strings.Contains(v, "CHECKSUM") || !strings.Contains(v, "expected") {
@@ -375,7 +403,7 @@ func TestListViewStoppedChecksumStrip(t *testing.T) {
 
 func TestListViewReordering(t *testing.T) {
 	a, _ := testApp(t)
-	_, _ = a.Update(key("2"))
+	_, _ = a.Update(key("3"))
 	_, _ = a.Update(key("J")) // grab w1, moved to index 1
 	if v := a.list.view(); !strings.Contains(v, "REORDER MODE") || !strings.Contains(v, "grabbed") {
 		t.Fatal("reorder view missing markers")
