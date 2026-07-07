@@ -9,23 +9,32 @@ aria2t ist eine Terminal-Oberfläche für den Download-Manager [aria2](https://a
 ## Was es kann
 
 - Downloads von Anfang bis Ende verwalten: hinzufügen (URL-Spiegel, `.torrent`, `.metalink`), einzeln oder alle pausieren/fortsetzen, entfernen, neu einreihen.
-- Live-Fortschritt, Geschwindigkeiten, ETA und Piece-Karte in den Tabs **Active / Waiting / Stopped**.
+- Eine **Alle**-Ansicht als Standard mit Live-Fortschritt, Geschwindigkeiten und ETA zeigt jeden Download auf einmal: Ein Eintrag bleibt sichtbar und wechselt beim Übergang von aktiv zu fertig nur sein Abzeichen, statt scheinbar zu verschwinden — die Tabs Active / Waiting / Stopped sind einen Tastendruck entfernt.
+- Jede Zeile ist eine saubere Spaltentabelle — **NAME · STATUS · PROGRESS · SIZE · SPEED · CONN · ETA** — mit einer eigenen farbigen **STATUS**-Spalte und — wie `aria2c` — Verbindungs- und Seed-Zahlen.
+- Wählen, welche Dateien geladen werden, bevor überhaupt etwas lädt — Mehrdatei-Torrents, Metalinks und Magnets öffnen alle zuerst einen einklappbaren Kästchen-Baum (Magnets nach dem Auflösen ihrer Metadaten, was bis zur Auswahl pausiert bleibt); jederzeit mit `f` erreichbar.
+- Volle aria2-Dateiunterstützung: `.torrent`, `.metalink`/`.meta4`, Magnet-Links und aria2-Eingabedateien (der Eingabedatei-Tab fügt jede URL mit ihren Optionen pro Download stapelweise hinzu). Das Dateisystem durchsuchen, um mit `^o` eine Datei zu wählen, statt einen Pfad zu tippen.
+- Vorübergehende Magnet-Metadaten-Einträge werden beschriftet und automatisch aufgeräumt — nie bleibt ein blanker Hash in der Liste.
+- Reichhaltiger Detail-Bildschirm: Piece-Karte, Fortschritt und Flags pro Peer bei Torrents, verbundene HTTP-/FTP-Spiegel und ihre Geschwindigkeiten bei Direkt-Downloads, Fortschritt pro Datei, Upload-Summe und Ratio.
 - Filtern (`/`), Warteschlange umsortieren (`J`/`K` — greifen und ablegen), Drosselung pro Download oder nach Tageszeit.
 - Fertige Downloads gegen eine eingefügte sha-256 prüfen und bei Abweichung neu laden.
-- BitTorrent-Seeding steuern: Stop-Ratio, Seed-Zeit, Tracker-Liste; Peers und Dateiauswahl.
+- Erklärt Fehler in Klartext (z. B. „Datei auf dem Server nicht gefunden (404)", „nicht genug Speicherplatz", „Host konnte nicht aufgelöst werden") statt roher Fehlercodes.
+- BitTorrent-Seeding steuern: Stop-Ratio, Seed-Zeit, Tracker-Liste.
 - Zwischen Servern wechseln, mit Latenz-Messung; Terminal-Glocke und Download-Name bei Abschluss oder Fehler.
-- Volle Mausunterstützung: Klick auf Tabs/Zeilen/Buttons/Chips, Doppelklick öffnet, Mausrad scrollt.
+- Freundlicher Startbildschirm beim ersten Lauf mit Ein-Tasten-Hinzufügen eines Links aus der Zwischenablage; warnt vor dem Beenden, solange noch Downloads laufen.
+- Volle Mausunterstützung ohne Doppelklicks: Ein einfacher Klick auf einen Download öffnet seine Details, und jeder Hinweis in der Tastenleiste ist klickbar (pausieren, entfernen, Dateien wählen, einen Server verbinden…) — alles ist mit der Maus **und** der Tastatur erreichbar. Das Mausrad scrollt.
 
 ## Bildschirme
 
 | | |
 |---|---|
-| ![Download-Liste](docs/media/list-active.png) Die Liste — Fortschritt, Geschwindigkeiten, ETA live | ![Detail](docs/media/detail.png) Detail — Piece-Karte, Peers, Dateiauswahl |
-| ![Download hinzufügen](docs/media/add-overlay.png) Hinzufügen — aus der Zwischenablage vorausgefüllt, Spiegel, Umbenennen | ![Drosselung](docs/media/throttle.png) Drosselung pro Download mit Preset-Chips |
+| ![Alle-Ansicht](docs/media/list-active.png) Die Liste — die Alle-Ansicht: jeder Download auf einmal, Fortschritt, Geschwindigkeiten, ETA live | ![Dateiauswahl](docs/media/files-picker.png) Dateiauswahl für Mehrdatei-Torrents — einklappbarer Baum, Tri-State-Kästchen |
+| ![Detail](docs/media/detail.png) Detail — Piece-Karte, Spiegel/Peers, Fortschritt pro Datei, Ratio | ![Download hinzufügen](docs/media/add-overlay.png) Hinzufügen — aus der Zwischenablage vorausgefüllt, Spiegel, Umbenennen |
+| ![Willkommen](docs/media/onboarding.png) Willkommen — Link aus der Zwischenablage per Taste | ![Drosselung](docs/media/throttle.png) Drosselung pro Download mit Preset-Chips |
 | ![Filter](docs/media/filter.png) Live-Filter mit `/` | ![Umsortieren](docs/media/reorder.png) Warteschlange — greifen, verschieben, ablegen |
-| ![Integrität](docs/media/stopped-integrity.png) sha-256-Prüfung und Fehlerzeilen | ![Statistik](docs/media/stats.png) Globale Statistik — 60-s-Sparkline, Sitzungssummen |
+| ![Integrität](docs/media/stopped-integrity.png) sha-256-Prüfung mit Klartext-Fehlern in der Zeile | ![Statistik](docs/media/stats.png) Globale Statistik — 60-s-Sparkline, Sitzungssummen |
 | ![Zeitplaner](docs/media/scheduler.png) Bandbreiten-Zeitplaner nach Tageszeit | ![Server](docs/media/servers.png) Server-Umschalter mit Latenz-Messung |
-| ![Einstellungen](docs/media/settings.png) Einstellungen — Live-Editor für `getGlobalOption` | ![Helles Thema](docs/media/list-light.png) Tokyo Night Day (`T` wechselt) |
+| ![Einstellungen](docs/media/settings.png) Einstellungen — Live-Editor für `getGlobalOption` | ![Dateibrowser](docs/media/file-browser.png) Hinzufügen — im Dateisystem nach einer `.torrent`/`.metalink` suchen (`^o`) |
+| ![Helles Thema](docs/media/list-light.png) Tokyo Night Day (`T` wechselt) | |
 
 ## Wie es funktioniert
 
@@ -43,7 +52,7 @@ flowchart LR
     UI -. "ws:// oder http(s)://" .-> R
 ```
 
-Standardmäßig findet aria2t `aria2c` im `PATH`, startet einen privaten Daemon auf einem freien Port mit zufälligem Secret und verwaltet dessen kompletten Lebenszyklus: Die Sitzung wird beim Beenden gespeichert und beim nächsten Start fortgesetzt, der Kindprozess wird sauber gestoppt (saveSession- + shutdown-RPC, Signale nur als Eskalation). Nichts zu konfigurieren, nichts bleibt laufen.
+Standardmäßig findet aria2t `aria2c` im `PATH`, startet einen privaten Daemon auf einem freien Port mit zufälligem Secret und verwaltet dessen kompletten Lebenszyklus: Die Sitzung wird beim Beenden gespeichert und beim nächsten Start fortgesetzt, der Kindprozess wird sauber gestoppt (saveSession- + shutdown-RPC, Signale nur als Eskalation). Falls ein Absturz einmal einen Daemon am Laufen lässt, räumt der nächste Start ihn ab, bevor er einen frischen startet. Nichts zu konfigurieren, nichts bleibt laufen.
 
 Zeigt man stattdessen auf einen externen Server, startet der eingebaute Daemon gar nicht erst: aria2t ist dann ein reiner RPC-Client, und alles — inklusive der Prüfsummen-Verifikation, die die Datei von der lokalen Platte liest — degradiert sauber, wenn die Dateien woanders liegen.
 
@@ -72,15 +81,17 @@ oder Server im Umschalter hinzufügen (`s` → `+`). Die Konfiguration liegt in 
 
 ## Bedienung
 
-**Hinzufügen.** `a` öffnet das Overlay. Liegt in der Zwischenablage eine URL oder ein Magnet-Link, ist er schon eingetragen. Ein URI pro Zeile bedeutet Spiegel derselben Datei; `^t` wechselt in den `.torrent`-/`.metalink`-Dateimodus; `^r` benennt das Ziel um; `^s` startet pausiert.
+**Hinzufügen.** `a` öffnet das Overlay. Liegt in der Zwischenablage eine URL oder ein Magnet-Link, ist er schon eingetragen. Ein URI pro Zeile bedeutet Spiegel derselben Datei; `^t` wechselt durch die Tabs, darunter der Eingabedatei-Tab, der jeden Download aus einer aria2-Eingabedatei (URLs + Optionen pro Download) stapelweise hinzufügt; `^o` durchsucht das Dateisystem nach der Datei, statt den Pfad zu tippen; `^r` benennt das Ziel um; `^s` startet pausiert. Auf dem leeren Startbildschirm des ersten Laufs fügt `↵` direkt einen Link aus der Zwischenablage hinzu.
 
-**Die Liste.** `space` schaltet Pause/Fortsetzen intelligent um, `P`/`U` pausieren und setzen alles fort, `d` entfernt (mit Rückfrage), `D` leert die ganze Stopped-Liste, `y` kopiert die Quell-URL (oder einen aus dem Info-Hash gebauten Magnet-Link) in die Zwischenablage, `/` filtert beim Tippen nach Namen — `enter` behält den Filter (ein `⌕`-Abzeichen zeigt ihn), `esc` löscht ihn.
+**Dateien auswählen.** Bei Mehrdatei-Torrents, Metalinks und Magnets öffnet sich der Kästchen-Baum, bevor überhaupt etwas lädt (ein Magnet bleibt nach dem Auflösen seiner Metadaten pausiert, bis du wählst): `space` schaltet eine Datei oder einen ganzen Ordner um, `a`/`n` wählen alles/nichts, `h`/`l` klappen einen Ordner ein/aus, `↵` bestätigt (und startet, falls gewünscht), `esc` bricht ab. Beendest du, bevor du wählst, öffnet sich die Auswahl beim nächsten Start erneut — der Download bleibt bis zur Auswahl pausiert, sodass nie etwas Ungewolltes geladen wird. Später jederzeit mit `f` wieder erreichbar. Ein-Datei-Torrents überspringen den Schritt.
+
+**Die Liste.** Der Standard-Tab **Alle** zeigt jeden Download auf einmal; `tab` oder `1`–`4` wechseln zwischen Alle / Active / Waiting / Stopped. `space` schaltet je nach Zustand des Eintrags Pause/Fortsetzen um, `P`/`U` pausieren und setzen alles fort, `d` entfernt (mit Rückfrage), `D` leert die ganze Stopped-Liste, `y` kopiert die Quell-URL (oder einen aus dem Info-Hash gebauten Magnet-Link) in die Zwischenablage, `/` filtert beim Tippen nach Namen — `enter` behält den Filter (ein `⌕`-Abzeichen zeigt ihn), `esc` löscht ihn. Beim Beenden mit noch laufenden Downloads fragt aria2t erst nach.
 
 **Warteschlange.** Im Waiting-Tab greifen `J`/`K` den gewählten Eintrag und verschieben ihn; `gg`/`G` schicken ihn an Anfang/Ende, `↵` legt ab. Während des Ziehens friert die Liste ein, die Endposition wird gegen die live-Warteschlange neu berechnet — der Eintrag landet dort, wo es aussieht, selbst wenn zwischendurch Downloads fertig wurden.
 
-**Bandbreite.** `l` drosselt den gewählten Download mit Preset-Chips (`∞`/1M/5M/10M/eigene). Der Zeitplaner (`S`) wendet globale Limits nach Tageszeit und Wochentag an — Regeln wie „5 MiB/s zur Arbeitszeit, nachts unbegrenzt" laufen über `changeGlobalOption` und überleben Reconnects.
+**Bandbreite.** `l` drosselt den gewählten Download mit Preset-Chips (`∞`/1M/5M/10M/eigene). Ein in den Einstellungen (`,`) gesetztes globales Limit wird gespeichert und beim Neustart des Daemons erneut angewendet. Der Zeitplaner (`S`) wendet globale Limits nach Tageszeit und Wochentag an — Regeln wie „5 MiB/s zur Arbeitszeit, nachts unbegrenzt" laufen über `changeGlobalOption` und überleben Reconnects (und haben, solange er aktiviert ist, Vorrang vor dem gespeicherten manuellen Limit).
 
-**Integrität.** Im Stopped-Tab speichert `c` die erwartete sha-256, `v` liest die lokale Datei und vergleicht, `R` reiht bei Abweichung anhand der aufgezeichneten URIs neu ein. Fehlgeschlagene Downloads zeigen aria2s Fehlermeldung direkt in der Liste.
+**Integrität.** Im Stopped-Tab speichert `c` die erwartete sha-256, `v` liest die lokale Datei und vergleicht, `R` reiht bei Abweichung anhand der aufgezeichneten URIs neu ein. Fehlgeschlagene Downloads nennen den Grund in Klartext direkt in der Liste (etwa „Datei auf dem Server nicht gefunden (404)" oder „nicht genug Speicherplatz") statt eines rohen Fehlercodes.
 
 **Benachrichtigungen.** Wenn ein Download fertig wird oder scheitert — egal auf welchem Bildschirm — nennt die Statuszeile den Namen und die Terminal-Glocke läutet. Funktioniert auch über reines HTTP-Polling; WebSocket-Push macht es nur sofortig.
 
@@ -88,11 +99,12 @@ oder Server im Umschalter hinzufügen (`s` → `+`). Die Konfiguration liegt in 
 
 | Kontext | Tasten |
 |---|---|
-| Liste | `a` hinzufügen · `space` Pause/weiter · `P`/`U` alles pausieren/fortsetzen · `d` entfernen · `y` Quelle kopieren · `/` filtern · `↵` Details · `g` Statistik · `l` Limit · `s` Server · `S` Zeitplaner · `t` Seeding · `,` Einstellungen · `T` Thema · `tab`/`1‑3` Tabs · `?` Hilfe · `q` beenden |
-| Maus | Klick wählt/fokussiert · Doppelklick öffnet/verbindet · Rad scrollt · Tabs, Chips, Buttons, Tastenleiste klickbar |
+| Liste | `a` hinzufügen · `space` Pause/weiter · `P`/`U` alles pausieren/fortsetzen · `d` entfernen · `f` Dateien wählen · `y` Quelle kopieren · `/` filtern · `↵` Details · `g` Statistik · `l` Limit · `s` Server · `S` Zeitplaner · `t` Seeding · `,` Einstellungen · `T` Thema · `tab`/`1‑4` Tabs · `?` Hilfe · `q` beenden |
+| Maus | Klick auf eine Zeile → Details · Klick auf jeden Hinweis der Tastenleiste (Pause, Dateien, verbinden…) · Klick auf das FILES-Panel → Dateiauswahl · Rad scrollt · kein Doppelklick nötig |
 | Waiting-Tab | `J`/`K` greifen + verschieben · `gg`/`G` Anfang/Ende · `↵` ablegen · `esc` abbrechen |
 | Stopped-Tab | `c` Prüfsumme einfügen · `v` prüfen · `R` neu laden · `D` Liste leeren · `o` Ordner öffnen |
-| Detail | `p` Pause/weiter · `d` entfernen · `f` Dateiauswahl · `t` Tracker · `o` Ordner öffnen |
+| Dateiauswahl | `space` umschalten · `a`/`n` alle/keine · `h`/`l` ein-/ausklappen · `↵` bestätigen · `esc` abbrechen · `^o` (in Hinzufügen) Datei suchen |
+| Detail | `p` Pause/weiter · `d` entfernen · `f` Dateien wählen · `t` Tracker · `o` Ordner öffnen |
 | Formulare | `tab` nächstes Feld · `space` umschalten · `^s` speichern · `esc` zurück |
 
 ## Konfiguration
@@ -113,11 +125,13 @@ oder Server im Umschalter hinzufügen (`s` → `+`). Die Konfiguration liegt in 
       "label": "Working hours", "down": "5M", "up": "256K" }
   ],
   "dir": "~/Downloads",
-  "split": 16
+  "split": 16,
+  "globalDown": "5M",
+  "globalUp": "512K"
 }
 ```
 
-Ein Server mit `managed` ist der eingebaute Daemon (Port und Secret werden beim Start gewählt). Alles andere sind externe Endpunkte; `path` überschreibt den RPC-Pfad für Daemons hinter einem Reverse-Proxy. Ausgelassene Felder behalten ihre Defaults.
+Ein Server mit `managed` ist der eingebaute Daemon (Port und Secret werden beim Start gewählt). Alles andere sind externe Endpunkte; `path` überschreibt den RPC-Pfad für Daemons hinter einem Reverse-Proxy. `globalDown`/`globalUp` sind die gespeicherten globalen Geschwindigkeitslimits (beim Verbinden erneut auf den Daemon angewendet; weglassen oder `""` für unbegrenzt). Ausgelassene Felder behalten ihre Defaults.
 
 ## Entwicklung
 
