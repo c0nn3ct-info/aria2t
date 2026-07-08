@@ -382,7 +382,7 @@ func (m addModel) view() string {
 	for i, h := range navHints {
 		navParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
 	}
-	buttons := []button{{"esc", "Cancel", "esc", btnNeutral}, {"^d", "Add", "^d", btnPrimary}}
+	buttons := []button{{"esc", "Cancel", "esc", btnRed}, {"^d", "Add", "^d", btnGreen}}
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		st.Title.Render("Add download"),
 		"",

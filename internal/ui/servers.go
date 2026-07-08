@@ -236,7 +236,7 @@ func (m serversModel) view() string {
 		protoLabel := st.Dim.Render("Protocol  ")
 		wsChip := m.a.tab("ws", m.formWS)
 		httpChip := m.a.tab("http", !m.formWS)
-		buttons := []button{{"esc", "Cancel", "esc", btnNeutral}, {"enter", "Save", "↵", btnPrimary}}
+		buttons := []button{{"esc", "Cancel", "esc", btnRed}, {"enter", "Save", "↵", btnGreen}}
 		body := lipgloss.JoinVertical(lipgloss.Left,
 			st.Title.Render(title),
 			"",
@@ -307,7 +307,7 @@ func (m serversModel) view() string {
 	for i, h := range navHints {
 		navParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
 	}
-	buttons := []button{{"esc", "Close", "esc", btnNeutral}, {"enter", "Connect", "↵", btnPrimary}}
+	buttons := []button{{"esc", "Close", "esc", btnRed}, {"enter", "Connect", "↵", btnGreen}}
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		st.Title.Render("Switch server")+"   "+st.Dim.Render("s to cycle"),
 		"",

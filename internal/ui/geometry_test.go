@@ -166,6 +166,66 @@ func TestFrameNeverExceedsTerminalHeight(t *testing.T) {
 	}
 }
 
+// TestAllScreensPinHintBar: every screen (not just the list) must keep its
+// hint bar on-screen and never exceed the terminal height, even with tall
+// content on a short terminal — the "hints sometimes disappear" report.
+func TestAllScreensPinHintBar(t *testing.T) {
+	var many []rpc.Status
+	var files []rpc.File
+	for i := 0; i < 40; i++ {
+		many = append(many, rpc.Status{GID: fmt.Sprintf("g%02d", i), Status: "active",
+			TotalLength: "1000", CompletedLength: "500", InfoHash: "h", Files: []rpc.File{{Path: fmt.Sprintf("/dl/f%02d", i)}}})
+		files = append(files, rpc.File{Index: fmt.Sprintf("%d", i+1), Path: fmt.Sprintf("/dl/f%02d", i), Length: "100", CompletedLength: "50"})
+	}
+	screens := []struct {
+		name  string
+		scr   screen
+		setup func(a *App)
+	}{
+		{"detail", screenDetail, func(a *App) {
+			a.detail = newDetailModel(a)
+			a.detail.gid = "g00"
+			a.detail.s = rpc.Status{GID: "g00", Status: "active", InfoHash: "h", Files: files}
+		}},
+		{"stats", screenStats, func(a *App) {}},
+		{"settings", screenSettings, func(a *App) { a.settings = newSettingsModel(a) }},
+		{"seeding", screenSeeding, func(a *App) {
+			a.seeding = newSeedingModel(a)
+			a.seeding.gid = "g00"
+			for i := 0; i < 30; i++ {
+				a.seeding.trackers = append(a.seeding.trackers, fmt.Sprintf("http://tr%02d", i))
+			}
+		}},
+		{"scheduler", screenScheduler, func(a *App) {}},
+	}
+	for _, size := range [][2]int{{100, 8}, {100, 12}, {90, 6}} {
+		w, h := size[0], size[1]
+		for _, sc := range screens {
+			a, _ := testApp(t)
+			a.width, a.height = w, h
+			a.snap.Active = many
+			for i := 0; i < 30; i++ {
+				a.cfg.Rules = append(a.cfg.Rules, config.Rule{Start: "00:00", End: "01:00", Label: fmt.Sprintf("r%d", i), Down: "1M", Up: "1M"})
+			}
+			a.screen = sc.scr
+			sc.setup(a)
+			lines := plainLines(a.View())
+			if len(lines) > h {
+				t.Errorf("%s %dx%d: frame %d lines exceeds terminal height", sc.name, w, h, len(lines))
+			}
+			found := false
+			for i, l := range lines {
+				if i < h && strings.Contains(l, "back") {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("%s %dx%d: hint bar ('… back') not on a visible line", sc.name, w, h)
+			}
+		}
+	}
+}
+
 func TestListRowsDoNotWrapAndRegionsMatch(t *testing.T) {
 	for _, w := range []int{80, 100, 120, 160} {
 		a, _ := bigApp(t, w, 36)

@@ -53,7 +53,7 @@ func (m promptModel) mouse(id string) (promptModel, tea.Cmd) {
 
 func (m promptModel) view() string {
 	st := m.a.styles
-	buttons := []button{{"esc", "Cancel", "esc", btnNeutral}, {"enter", "Confirm", "↵", btnPrimary}}
+	buttons := []button{{"esc", "Cancel", "esc", btnRed}, {"enter", "Confirm", "↵", btnGreen}}
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		st.Title.Render(m.title),
 		"",

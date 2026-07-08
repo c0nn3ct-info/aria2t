@@ -47,8 +47,8 @@ func (m confirmModel) mouse(id string) (confirmModel, tea.Cmd) {
 
 func (m confirmModel) buttons() []button {
 	return []button{
-		{"n", "Cancel", "n", btnNeutral},
-		{"y", m.yesLabel, "y", btnDanger},
+		{"n", "Cancel", "n", btnGreen}, // green = the safe way out
+		{"y", m.yesLabel, "y", btnRed}, // red = the destructive action
 	}
 }
 

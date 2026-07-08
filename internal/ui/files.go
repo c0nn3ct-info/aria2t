@@ -405,7 +405,7 @@ func (m filesModel) view() string {
 	for i, h := range fhints {
 		fhintParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
 	}
-	buttons := []button{{"esc", "Cancel", "esc", btnNeutral}, {"enter", "Confirm", "↵", btnPrimary}}
+	buttons := []button{{"esc", "Cancel", "esc", btnRed}, {"enter", "Confirm", "↵", btnGreen}}
 	lines = append(lines,
 		"",
 		strings.Join(fhintParts, "  "),

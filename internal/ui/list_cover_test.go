@@ -80,15 +80,21 @@ func TestListScreenAndOverlayKeys(t *testing.T) {
 	}
 }
 
-func TestThemeToggleBothWays(t *testing.T) {
+func TestThemeToggleViaSettings(t *testing.T) {
 	a, _ := testApp(t)
-	_, _ = a.Update(key("T"))
-	if a.cfg.Theme != "light" {
-		t.Fatalf("theme = %s", a.cfg.Theme)
+	m := newSettingsModel(a)
+	m.fields[4][0].on = true // Light theme
+	_, cmd := m.save()
+	drain(t, a, cmd)
+	if a.cfg.Theme != "light" || a.styles.P.Name != "light" {
+		t.Fatalf("settings must switch to light, got %s", a.cfg.Theme)
 	}
-	_, _ = a.Update(key("T"))
+	m2 := newSettingsModel(a)
+	m2.fields[4][0].on = false
+	_, cmd = m2.save()
+	drain(t, a, cmd)
 	if a.cfg.Theme != "dark" {
-		t.Fatalf("theme = %s", a.cfg.Theme)
+		t.Fatalf("settings must switch back to dark, got %s", a.cfg.Theme)
 	}
 }
 
@@ -128,6 +134,27 @@ func TestListResumeAndRemove(t *testing.T) {
 
 // TestRemoveActiveErrorSkipsPurge: when aria2.remove fails, the follow-up purge
 // is skipped and the error surfaces (covers the early-return arm).
+// TestSeedingStatusWord: a completed-but-uploading torrent must read "seeding",
+// not "active"; a plain active download still reads "active".
+func TestSeedingStatusWord(t *testing.T) {
+	a, _ := testApp(t)
+	a.width, a.height = 120, 20
+	a.snap.Active = []rpc.Status{
+		{GID: "t1", Status: "active", Seeder: "true", InfoHash: "abc",
+			TotalLength: "100", CompletedLength: "100", Files: []rpc.File{{Path: "/dl/torrent.iso"}}},
+		{GID: "a2", Status: "active", TotalLength: "100", CompletedLength: "40",
+			Files: []rpc.File{{Path: "/dl/plain.iso"}}},
+	}
+	a.list.tab = tabActive
+	v := a.list.view()
+	if !strings.Contains(v, "seeding") {
+		t.Fatal("a seeding torrent must show STATUS 'seeding'")
+	}
+	if !strings.Contains(v, "active") {
+		t.Fatal("a plain active download must still show 'active'")
+	}
+}
+
 func TestRemoveActiveErrorSkipsPurge(t *testing.T) {
 	a, fake := testApp(t)
 	fake.removeErr = errors.New("boom")
@@ -432,8 +459,13 @@ func TestListViewReordering(t *testing.T) {
 
 func TestKeybarVariants(t *testing.T) {
 	a, _ := testApp(t)
-	if kb := a.list.keybar(10); !strings.Contains(kb, "add") {
-		t.Fatalf("normal keybar = %q", kb)
+	a.width = 200 // wide enough that no hint is width-dropped
+	kb := a.list.keybar(10)
+	if !strings.Contains(kb, "add") || !strings.Contains(kb, "copy url") || !strings.Contains(kb, "seeding") {
+		t.Fatalf("normal keybar must surface add/copy/seeding: %q", kb)
+	}
+	if strings.Contains(kb, "theme") {
+		t.Fatal("theme is no longer a global keybar hint")
 	}
 	a.list.tab = tabWaiting
 	if kb := a.list.keybar(10); !strings.Contains(kb, "reorder") {

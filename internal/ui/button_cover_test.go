@@ -16,7 +16,7 @@ func TestButtonHelpers(t *testing.T) {
 	st := a.styles
 	// Exercise every style arm; the test color profile strips colour, so assert
 	// on the label/key text rather than the (stripped) background.
-	for _, v := range []btnVariant{btnPrimary, btnDanger, btnNeutral} {
+	for _, v := range []btnVariant{btnGreen, btnRed} {
 		if got := (button{"y", "Go", "y", v}).render(st); !strings.Contains(got, "Go") || !strings.Contains(got, "y") {
 			t.Fatalf("button render missing label/key: %q", got)
 		}
@@ -43,6 +43,34 @@ func TestHintbarExTrailer(t *testing.T) {
 	}
 	a.width = 4 // gap clamps to 1
 	_ = a.hintbarEx(3, []keyHint{{"a", "a", "add"}}, a.styles.Key, a.styles.Dim.Render("1/9"))
+}
+
+// TestScreenFrameTinyHeight exercises the degenerate a.height≤1 guard on a
+// non-list screen (screenFrame's top<1 branch).
+func TestScreenFrameTinyHeight(t *testing.T) {
+	a, _ := testApp(t)
+	a.width, a.height = 40, 1
+	a.screen = screenStats
+	_ = a.View() // must not panic
+}
+
+// TestHintbarWidthDrop: a too-narrow bar drops the lowest-priority (rightmost)
+// hints instead of wrapping; the first hint always survives.
+func TestHintbarWidthDrop(t *testing.T) {
+	a, _ := testApp(t)
+	a.width = 20
+	line := a.hintbarEx(0, []keyHint{
+		{"a", "a", "add"}, {"b", "b", "bbbbbbbbbb"}, {"c", "c", "ccccccccc"},
+	}, a.styles.Key, "")
+	if strings.Contains(line, "\n") {
+		t.Fatalf("hintbar must stay one line, got %q", line)
+	}
+	if !strings.Contains(line, "add") {
+		t.Fatal("the first hint must always show")
+	}
+	if strings.Contains(line, "ccccccccc") {
+		t.Fatalf("overflowing hint must be dropped, got %q", line)
+	}
 }
 
 // TestPromptButtonClicks: the checksum prompt's Confirm/Cancel buttons work by
@@ -207,8 +235,8 @@ func TestSeedingInputClicks(t *testing.T) {
 // TestListQuitAndReorderClickable: q and the reorder J/K are now clickable.
 func TestListQuitAndReorderClickable(t *testing.T) {
 	a, _ := testApp(t)
-	a.width, a.height = 120, 30
-	click(t, a, "key:q") // active downloads → quit confirm
+	a.width, a.height = 200, 30 // wide enough that q is not width-dropped from the bar
+	click(t, a, "key:q")        // active downloads → quit confirm
 	if a.overlay != overlayConfirm {
 		t.Fatalf("q click must open the quit confirm, overlay=%d", a.overlay)
 	}

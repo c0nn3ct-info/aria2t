@@ -192,12 +192,10 @@ func (m detailModel) view() string {
 	a.hits.add("key:f", lipgloss.Width(leftPanel), yP, a.width-1, yP+lipgloss.Height(filesPanel)-1)
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, filesPanel) + "\n")
 
-	b.WriteString(a.hintbar(strings.Count(b.String(), "\n"), []keyHint{
+	return a.screenFrame(b.String(), []keyHint{
 		{"p", "p", "pause/resume"}, {"d", "d", "remove"}, {"f", "f", "select files"},
 		{"t", "t", "trackers"}, {"o", "o", "open dir"}, {"esc", "esc", "back"},
-	}))
-	b.WriteString(a.statusLine())
-	return b.String()
+	})
 }
 
 // mouse routes key-bar clicks on the detail screen (the back region is handled

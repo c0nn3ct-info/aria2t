@@ -231,7 +231,7 @@ func (m browseModel) view() string {
 		navParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
 	}
 	navPrefix := st.Dim.Render("↑↓ move   ")
-	buttons := []button{{"esc", "Cancel", "esc", btnNeutral}, {"enter", "Open", "↵", btnPrimary}}
+	buttons := []button{{"esc", "Cancel", "esc", btnRed}, {"enter", "Open", "↵", btnGreen}}
 	lines = append(lines, "", navPrefix+strings.Join(navParts, "  "), m.a.buttonRow(buttons))
 	modal := m.a.modalCard(false).Render(strings.Join(lines, "\n"))
 

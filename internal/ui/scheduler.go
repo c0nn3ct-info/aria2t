@@ -235,7 +235,7 @@ func (m schedulerModel) view() string {
 }
 
 func (m schedulerModel) formButtons() []button {
-	return []button{{"esc", "Cancel", "esc", btnNeutral}, {"enter", "Save", "↵", btnPrimary}}
+	return []button{{"esc", "Cancel", "esc", btnRed}, {"enter", "Save", "↵", btnGreen}}
 }
 
 func (m schedulerModel) formBody() string {
@@ -386,10 +386,8 @@ func (m schedulerModel) listBody() string {
 	}
 	b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(rows, "\n")) + "\n")
 
-	b.WriteString(a.hintbar(strings.Count(b.String(), "\n"), []keyHint{
+	return a.screenFrame(b.String(), []keyHint{
 		{"+", "+", "add rule"}, {"e", "e", "edit"}, {"-", "-", "remove"},
 		{" ", "space", "toggle scheduler"}, {"esc", "esc", "back"},
-	}))
-	b.WriteString(a.statusLine())
-	return b.String()
+	})
 }

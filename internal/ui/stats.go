@@ -132,9 +132,7 @@ func (m statsModel) view() string {
 	}
 	b.WriteString(st.Panel.Width(a.width - 2).Render(strings.Join(rows, "\n")))
 	b.WriteString("\n")
-	b.WriteString(a.hintbar(strings.Count(b.String(), "\n"), []keyHint{{"esc", "esc", "back"}}))
-	b.WriteString(a.statusLine())
-	return b.String()
+	return a.screenFrame(b.String(), []keyHint{{"esc", "esc", "back"}})
 }
 
 // mouse routes the back hint (and the header "back" region is handled globally).

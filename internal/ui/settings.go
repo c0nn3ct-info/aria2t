@@ -372,11 +372,9 @@ func (m settingsModel) view() string {
 			st.Dim.Render("Use the server switcher (s → +) to add an external server."))
 		form := st.Panel.Width(a.width - lipgloss.Width(sidebar) - 4).Render(strings.Join(rows, "\n"))
 		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, sidebar, " ", form) + "\n")
-		b.WriteString(a.hintbar(strings.Count(b.String(), "\n"), []keyHint{
+		return a.screenFrame(b.String(), []keyHint{
 			{"", "↑↓", "section"}, {"^s", "^s", "save"}, {"esc", "esc", "back"},
-		}))
-		b.WriteString(a.statusLine())
-		return b.String()
+		})
 	}
 	fx0, fx1 := 20, a.width-4 // form panel content x-range (after sidebar)
 	for i, f := range m.fields[m.section] {
@@ -413,10 +411,8 @@ func (m settingsModel) view() string {
 	form := st.Panel.Width(a.width - lipgloss.Width(sidebar) - 4).Render(strings.Join(rows, "\n"))
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, sidebar, " ", form) + "\n")
 
-	b.WriteString(a.hintbar(strings.Count(b.String(), "\n"), []keyHint{
+	return a.screenFrame(b.String(), []keyHint{
 		{"", "↑↓", "section"}, {"tab", "tab", "next field"}, {" ", "space", "toggle"},
 		{"^s", "^s", "save"}, {"esc", "esc", "back"},
-	}))
-	b.WriteString(a.statusLine())
-	return b.String()
+	})
 }

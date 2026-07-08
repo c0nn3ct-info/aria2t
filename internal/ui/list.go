@@ -238,12 +238,6 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 	case "S":
 		a.scheduler = newSchedulerModel(a)
 		a.screen = screenScheduler
-	case "T":
-		if a.cfg.Theme == "light" {
-			a.setTheme("dark")
-		} else {
-			a.setTheme("light")
-		}
 	case "p":
 		if s, ok := m.selected(); ok {
 			gid := s.GID
@@ -263,7 +257,7 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 		if s, ok := m.selected(); ok {
 			return m, a.yank(s)
 		}
-	case "D":
+	case "X":
 		if m.tab == tabStopped || m.tab == tabAll {
 			a.confirm = newConfirmModel(a, "Clear stopped list?",
 				fmt.Sprintf("%d download results will be forgotten", len(a.snap.Stopped)),
@@ -724,6 +718,12 @@ func (m listModel) view() string {
 			case "active":
 				word, wstyle = "active", st.Green
 			}
+			// A torrent whose download finished but is still uploading stays
+			// "active" in aria2; show it as "seeding" (upload-coloured) so the
+			// status visibly changes on completion.
+			if s.IsSeeding() {
+				word, wstyle = "seeding", st.Magenta
+			}
 			row := marker + style.Render(pad(s.Name(), nameCol)) + " " +
 				wstyle.Render(pad(word, statusW)) + " " + progress +
 				st.Dim.Render(lpad(FmtBytes(s.Total()), 9)) +
@@ -813,26 +813,28 @@ func (m listModel) keybar(y int) string {
 			{"", "gg/G", "to top/bottom"}, // a chord — no single-click semantics
 			{"enter", "↵", "drop"}, {"esc", "esc", "cancel"},
 		}
-	} else {
-		hints = append(hints, keyHint{"a", "a", "add"})
-		if m.tab == tabStopped {
-			// Stopped tab swaps the transfer hints for integrity actions
-			// to keep the bar inside the terminal width.
-			hints = append(hints,
-				keyHint{"d", "d", "remove"}, keyHint{"D", "D", "clear"},
-				keyHint{"enter", "↵", "details"}, keyHint{"v", "v", "verify"},
-				keyHint{"R", "R", "re-download"}, keyHint{"c", "c", "checksum"},
-				keyHint{"o", "o", "open"})
-		} else {
-			hints = append(hints,
-				keyHint{" ", "space", "pause"}, keyHint{"d", "d", "remove"},
-				keyHint{"enter", "↵", "details"}, keyHint{"/", "/", "filter"},
-				keyHint{"g", "g", "stats"}, keyHint{"l", "l", "limit"},
-				keyHint{"s", "s", "servers"})
+	} else if m.tab == tabStopped {
+		// Stopped tab leads with integrity actions; ordered most-used-first,
+		// hintbarEx drops the rightmost (?, q) first on a narrow terminal.
+		hints = []keyHint{
+			{"a", "a", "add"}, {"enter", "↵", "details"}, {"o", "o", "open"},
+			{"v", "v", "verify"}, {"c", "c", "checksum"}, {"R", "R", "re-download"},
+			{"d", "d", "remove"}, {"X", "X", "clear"}, {"/", "/", "filter"},
+			{"y", "y", "copy url"}, {"s", "s", "servers"}, {",", ",", "settings"},
+			{"?", "?", "help"}, {"q", "q", "quit"},
 		}
-		hints = append(hints,
-			keyHint{",", ",", "settings"}, keyHint{"?", "?", "help"},
-			keyHint{"q", "q", "quit"}) // q is guarded by the Quit confirm, so a click is safe
+	} else {
+		// Active/All/Waiting, ordered most-used-first. The two newly-surfaced
+		// screen switches (S/t) sit at the tail so they are the first the
+		// width-adaptive bar drops on a narrow terminal — the essentials
+		// (settings/help/quit) survive; S/t are also in the ? reference.
+		hints = []keyHint{
+			{"a", "a", "add"}, {" ", "space", "pause"}, {"enter", "↵", "details"},
+			{"d", "d", "remove"}, {"l", "l", "limit"}, {"/", "/", "filter"},
+			{"y", "y", "copy url"}, {"g", "g", "stats"}, {"s", "s", "servers"},
+			{",", ",", "settings"}, {"?", "?", "help"}, {"q", "q", "quit"}, // q guarded by Quit confirm
+			{"S", "S", "scheduler"}, {"t", "t", "seeding"},
+		}
 		if m.tab == tabWaiting {
 			hints = append(hints, keyHint{"", "J/K", "reorder"}) // teaser: no row to grab yet
 		}

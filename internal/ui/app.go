@@ -275,11 +275,22 @@ func (a *App) hintbar(y int, hints []keyHint) string {
 // right-aligned on the same row (the list's cursor/total counter).
 func (a *App) hintbarEx(y int, hints []keyHint, keyStyle lipgloss.Style, trailer string) string {
 	st := a.styles
-	parts := make([]string, len(hints))
+	budget := a.width // width available to hints (reserve room for the trailer)
+	if trailer != "" {
+		budget -= lipgloss.Width(trailer) + 2
+	}
+	var parts []string
 	x := 1
-	for i, h := range hints {
-		parts[i] = keyStyle.Render(h.key) + " " + st.Dim.Render(h.label)
-		w := lipgloss.Width(parts[i])
+	for _, h := range hints {
+		part := keyStyle.Render(h.key) + " " + st.Dim.Render(h.label)
+		w := lipgloss.Width(part)
+		// Width-adaptive: drop the lowest-priority (rightmost) hints rather than
+		// wrap to a second line (a wrapped bar breaks the screenFrame/bottomBar
+		// line count). Always keep at least the first hint.
+		if len(parts) > 0 && x+w-1 >= budget {
+			break
+		}
+		parts = append(parts, part)
 		if h.token != "" && x+w-1 < a.width {
 			a.hits.add("key:"+h.token, x, y, x+w-1, y)
 		}
@@ -322,6 +333,27 @@ func (a *App) modalCard(destructive bool) lipgloss.Style {
 		return a.styles.Modal.BorderForeground(a.styles.P.Red)
 	}
 	return a.styles.Modal
+}
+
+// screenFrame pins a screen's key-bar (and the transient status line) to the
+// terminal bottom: it clips/pads the body so the frame is exactly a.height lines
+// and the bar is always the last visible row — the fix for hints scrolling off a
+// short terminal. The bar is rendered at its final y so its click regions match.
+// (list.go keeps its own bottomBar: it has the position trailer + filter modes.)
+func (a *App) screenFrame(body string, hints []keyHint) string {
+	status := a.statusLine() // "" or "\n <flash>"
+	top := a.height - 1 - strings.Count(status, "\n")
+	if top < 1 {
+		top = 1
+	}
+	lines := strings.Split(strings.TrimRight(body, "\n"), "\n")
+	if len(lines) > top {
+		lines = lines[:top]
+	}
+	for len(lines) < top {
+		lines = append(lines, "")
+	}
+	return strings.Join(lines, "\n") + "\n" + a.hintbar(top, hints) + status
 }
 
 // wheelNavigates reports whether j/k currently move a selection instead

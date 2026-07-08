@@ -27,9 +27,9 @@ func TestPauseAllResumeAllKeys(t *testing.T) {
 func TestPurgeStoppedNeedsConfirm(t *testing.T) {
 	a, fake := testApp(t)
 	a.list.tab = tabStopped
-	_, _ = a.Update(key("D"))
+	_, _ = a.Update(key("X"))
 	if a.overlay != overlayConfirm {
-		t.Fatalf("D on stopped tab must ask first, overlay=%d", a.overlay)
+		t.Fatalf("X on stopped tab must ask first, overlay=%d", a.overlay)
 	}
 	if fake.purged {
 		t.Fatal("purge must not run before confirmation")
@@ -44,9 +44,9 @@ func TestPurgeStoppedNeedsConfirm(t *testing.T) {
 func TestPurgeIgnoredOutsideStoppedTab(t *testing.T) {
 	a, fake := testApp(t)
 	a.list.tab = tabActive
-	_, _ = a.Update(key("D"))
+	_, _ = a.Update(key("X"))
 	if a.overlay != overlayNone || fake.purged {
-		t.Fatal("D must do nothing on the active tab")
+		t.Fatal("X must do nothing on the active tab")
 	}
 }
 

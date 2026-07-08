@@ -42,6 +42,18 @@ func TestStatusGetters(t *testing.T) {
 	}
 }
 
+func TestStatusIsSeeding(t *testing.T) {
+	if !(Status{Status: "active", Seeder: "true"}).IsSeeding() {
+		t.Fatal("active + Seeder=true must be seeding")
+	}
+	if (Status{Status: "active", Seeder: "false"}).IsSeeding() {
+		t.Fatal("non-seeder active must not be seeding")
+	}
+	if (Status{Status: "complete", Seeder: "true"}).IsSeeding() {
+		t.Fatal("only active downloads can be seeding")
+	}
+}
+
 func TestStatusRatio(t *testing.T) {
 	if r := (Status{CompletedLength: "0", UploadLength: "100"}).Ratio(); r != 0 {
 		t.Fatalf("ratio with zero completed = %f", r)

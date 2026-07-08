@@ -351,11 +351,9 @@ func (m seedingModel) view() string {
 	}
 	b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(rows, "\n")) + "\n")
 
-	b.WriteString(a.hintbar(strings.Count(b.String(), "\n"), []keyHint{
+	return a.screenFrame(b.String(), []keyHint{
 		{"tab", "tab", "next field"}, {" ", "space", "toggle"}, {"^s", "^s", "save"}, {"esc", "esc", "back"},
-	}))
-	b.WriteString(a.statusLine())
-	return b.String()
+	})
 }
 
 func parseFloat(s string) float64 {

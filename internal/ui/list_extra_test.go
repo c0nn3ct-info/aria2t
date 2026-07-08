@@ -65,7 +65,7 @@ func TestReorderFlashOnAllTab(t *testing.T) {
 
 func TestPurgeOnAllTab(t *testing.T) {
 	a, _ := testApp(t) // All tab
-	_, _ = a.Update(key("D"))
+	_, _ = a.Update(key("X"))
 	if a.overlay != overlayConfirm || a.confirm.yesLabel != "Clear" {
 		t.Fatalf("D on All must confirm: overlay=%d label=%q", a.overlay, a.confirm.yesLabel)
 	}

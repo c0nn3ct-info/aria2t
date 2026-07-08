@@ -249,7 +249,7 @@ func (m throttleModel) view() string {
 		navParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
 	}
 	navLine := strings.Join(navParts, "  ") + "   " + st.Dim.Render("h/l select")
-	buttons := []button{{"esc", "Cancel", "esc", btnNeutral}, {"enter", "Apply", "↵", btnPrimary}}
+	buttons := []button{{"esc", "Cancel", "esc", btnRed}, {"enter", "Apply", "↵", btnGreen}}
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		st.Title.Render("Throttle")+"  "+st.Dim.Render(m.name),
 		"",

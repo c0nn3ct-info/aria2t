@@ -84,6 +84,11 @@ func (s Status) Seeds() int       { return int(atoi64(s.NumSeeders)) }
 func (s Status) Conns() int       { return int(atoi64(s.Connections)) }
 func (s Status) IsTorrent() bool  { return s.InfoHash != "" }
 
+// IsSeeding reports whether the download has finished and the torrent is now
+// only uploading. aria2 keeps such a torrent in the active list with
+// Status=="active", so callers must check this to show a distinct state.
+func (s Status) IsSeeding() bool { return s.Status == "active" && s.Seeder == "true" }
+
 // IsMetadata reports whether this is aria2's transient magnet-metadata
 // download — the placeholder entry that resolves into the real torrent (its
 // only "file" is the [METADATA] marker).

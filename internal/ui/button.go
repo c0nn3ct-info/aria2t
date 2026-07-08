@@ -9,13 +9,13 @@ import (
 
 // btnVariant selects a filled button style. Buttons are single-span labels, so
 // unlike Modal/Input they carry a Background safely (the span resets before any
-// sibling span, so it cannot band).
+// sibling span, so it cannot band). Green = the safe/expected choice, Red = the
+// consequential one; each dialog assigns them per action.
 type btnVariant int
 
 const (
-	btnNeutral btnVariant = iota // muted fill — Cancel / secondary (leftmost)
-	btnPrimary                   // Accent fill — primary commit (rightmost)
-	btnDanger                    // Red fill — destructive commit
+	btnGreen btnVariant = iota // green fill
+	btnRed                     // red fill
 )
 
 // button is one filled action control in an overlay footer. token is dispatched
@@ -29,14 +29,10 @@ type button struct {
 }
 
 func (b button) style(st Styles) lipgloss.Style {
-	switch b.variant {
-	case btnPrimary:
-		return st.BtnPrimary
-	case btnDanger:
-		return st.BtnDanger
-	default:
-		return st.BtnNeutral
+	if b.variant == btnRed {
+		return st.BtnRed
 	}
+	return st.BtnGreen
 }
 
 func (b button) render(st Styles) string { return b.style(st).Render(b.label + "  " + b.key) }

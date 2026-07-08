@@ -281,11 +281,12 @@ func TestSelectionClamped(t *testing.T) {
 	}
 }
 
-func TestThemeToggle(t *testing.T) {
+func TestThemeKeyRemoved(t *testing.T) {
 	a, _ := testApp(t)
-	_, _ = a.Update(key("T"))
-	if a.cfg.Theme != "light" || a.styles.P.Name != "light" {
-		t.Fatalf("theme = %s", a.cfg.Theme)
+	before := a.cfg.Theme
+	_, _ = a.Update(key("T")) // global T is gone; theme lives in Settings now
+	if a.cfg.Theme != before {
+		t.Fatalf("T must no longer toggle theme, got %s", a.cfg.Theme)
 	}
 }
 
