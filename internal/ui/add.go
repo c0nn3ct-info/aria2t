@@ -345,6 +345,8 @@ func (m addModel) mouse(id string) (addModel, tea.Cmd) {
 		}
 	case "key":
 		return m.update(keyFromToken(arg))
+	case "btn":
+		return m.update(dispatchBtn(arg))
 	}
 	return m, nil
 }
@@ -354,11 +356,7 @@ func (m addModel) view() string {
 	names := []string{"URL", "Torrent", "Metalink", "Input file"}
 	tabs := make([]string, len(names))
 	for i, n := range names {
-		if i == m.tab {
-			tabs[i] = st.Badge.Render(n)
-		} else {
-			tabs[i] = st.Dim.Render("[ " + n + " ]")
-		}
+		tabs[i] = m.a.tab(n, i == m.tab)
 	}
 	var src string
 	label := "File path"
@@ -371,23 +369,24 @@ func (m addModel) view() string {
 		src = st.Dim.Render(label) + "  " + st.Key.Render("^o") + st.Dim.Render(" browse") + "\n" + m.file.View()
 	}
 	check := func(on bool, label string) string {
+		ls := st.Dim
 		if on {
-			return st.Green.Render("[x] ") + st.Text.Render(label)
+			ls = st.Text
 		}
-		return st.Dim.Render("[ ] " + label)
+		return m.a.checkbox(on) + " " + ls.Render(label)
 	}
-	hints := []keyHint{
-		{"^t", "^t", "switch"}, {"^o", "^o", "browse"}, {"^s", "^s", "start"},
-		{"^r", "^r", "rename"}, {"^d", "^d", "add"}, {"esc", "esc", "close"},
+	navHints := []keyHint{
+		{"^t", "^t", "switch"}, {"^o", "^o", "browse"}, {"^s", "^s", "start"}, {"^r", "^r", "rename"},
 	}
-	hintParts := make([]string, len(hints))
-	for i, h := range hints {
-		hintParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
+	navParts := make([]string, len(navHints))
+	for i, h := range navHints {
+		navParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
 	}
+	buttons := []button{{"esc", "Cancel", "esc", btnNeutral}, {"^d", "Add", "^d", btnPrimary}}
 	body := lipgloss.JoinVertical(lipgloss.Left,
-		st.Title.Render("Add download")+"   "+st.Dim.Render("esc to close"),
+		st.Title.Render("Add download"),
 		"",
-		strings.Join(tabs, " ")+"  "+st.Dim.Render("^t switch"),
+		strings.Join(tabs, " "),
 		"",
 		src,
 		"",
@@ -405,11 +404,12 @@ func (m addModel) view() string {
 			return ""
 		}(),
 		"",
-		strings.Join(hintParts, "  "),
+		strings.Join(navParts, "  "),
+		m.a.buttonRow(buttons),
 	)
-	modal := st.Modal.Render(body)
+	modal := m.a.modalCard(false).Render(body)
 
-	// Clickable regions: source tabs and every footer hint.
+	// Clickable regions: source tabs, the nav-hint line, and the buttons.
 	offX, offY := m.a.overlayOffset(modal)
 	x := offX + 3 // border + horizontal padding
 	tabsY := offY + 4
@@ -418,13 +418,14 @@ func (m addModel) view() string {
 		m.a.hits.add(fmt.Sprintf("atab:%d", i), x, tabsY, x+w-1, tabsY)
 		x += w + 1
 	}
-	lastY := offY + lipgloss.Height(modal) - 3
+	navY := offY + lipgloss.Height(modal) - 4
 	hx := offX + 3
-	for i, h := range hints {
-		w := lipgloss.Width(hintParts[i])
-		m.a.hits.add("key:"+h.token, hx, lastY, hx+w-1, lastY)
+	for i, h := range navHints {
+		w := lipgloss.Width(navParts[i])
+		m.a.hits.add("key:"+h.token, hx, navY, hx+w-1, navY)
 		hx += w + 2
 	}
+	m.a.registerButtons(offX, offY, modal, buttons)
 	// On the file tabs, make the inline "^o browse" next to the path and the
 	// path field itself clickable, so a mouse user opens the picker without the
 	// keyboard (the footer hint alone is easy to miss). The header above src —

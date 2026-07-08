@@ -95,7 +95,11 @@ func (m detailModel) update(msg tea.KeyMsg) (detailModel, tea.Cmd) {
 				if stopped {
 					return c.RemoveDownloadResult(ctx, gid)
 				}
-				return c.Remove(ctx, gid)
+				if err := c.Remove(ctx, gid); err != nil {
+					return err
+				}
+				_ = c.RemoveDownloadResult(ctx, gid) // purge so --force-save can't resurrect it
+				return nil
 			})
 		})
 	case "t":

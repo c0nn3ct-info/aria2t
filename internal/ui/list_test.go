@@ -23,6 +23,7 @@ type fakeAPI struct {
 	unpaused       []string
 	removed        []string
 	removedResults []string
+	removeErr      error            // when set, Remove returns it (exercises the purge early-return)
 	waiting        []rpc.Status     // returned by TellWaiting
 	status         rpc.Status       // returned by TellStatus
 	servers        []rpc.ServerStat // returned by GetServers
@@ -79,7 +80,7 @@ func (f *fakeAPI) PurgeDownloadResult(context.Context) error {
 }
 func (f *fakeAPI) Remove(_ context.Context, gid string) error {
 	f.removed = append(f.removed, gid)
-	return nil
+	return f.removeErr
 }
 func (f *fakeAPI) RemoveDownloadResult(_ context.Context, gid string) error {
 	f.removedResults = append(f.removedResults, gid)

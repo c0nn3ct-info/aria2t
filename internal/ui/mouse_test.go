@@ -142,14 +142,14 @@ func TestConfirmModalFlow(t *testing.T) {
 		t.Fatalf("overlay = %d", a.overlay)
 	}
 	// Click Cancel: nothing removed.
-	cmd := click(t, a, "btn:no")
+	cmd := click(t, a, "btn:n")
 	drain(t, a, cmd)
 	if a.overlay != overlayNone || len(fake.removed) != 0 {
 		t.Fatalf("cancel failed: overlay=%d removed=%v", a.overlay, fake.removed)
 	}
 	// Again, click Remove.
 	_, _ = a.Update(key("d"))
-	cmd = click(t, a, "btn:yes")
+	cmd = click(t, a, "btn:y")
 	drain(t, a, cmd)
 	if len(fake.removed) != 1 {
 		t.Fatalf("removed = %v", fake.removed)
@@ -260,9 +260,9 @@ func TestServersRowSelectAndConnectHint(t *testing.T) {
 	if a.servers.cursor != 1 {
 		t.Fatalf("cursor = %d", a.servers.cursor)
 	}
-	cmd := click(t, a, "key:enter") // the "↵ connect" hint
+	cmd := click(t, a, "btn:enter") // the "Connect ↵" button
 	if a.cfg.Active != 1 || a.overlay != overlayNone || cmd == nil {
-		t.Fatalf("connect hint must switch: active = %d overlay = %d", a.cfg.Active, a.overlay)
+		t.Fatalf("connect button must switch: active = %d overlay = %d", a.cfg.Active, a.overlay)
 	}
 }
 

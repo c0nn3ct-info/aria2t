@@ -170,20 +170,21 @@ func (m browseModel) update(msg tea.KeyMsg) (browseModel, tea.Cmd) {
 // choose a file); the cancel hint returns to the add overlay.
 func (m browseModel) mouse(id string) (browseModel, tea.Cmd) {
 	kind, arg := splitID(id)
-	if kind == "key" && arg == "esc" {
-		m.a.overlay = overlayAdd
-		return m, nil
+	switch kind {
+	case "key":
+		return m.update(keyFromToken(arg))
+	case "btn":
+		return m.update(dispatchBtn(arg))
+	case "row":
+		i := argInt(arg)
+		if i < 0 || i >= len(m.entries) {
+			return m, nil
+		}
+		m.cursor = i
+		m.clamp()
+		return m.update(tea.KeyMsg{Type: tea.KeyEnter})
 	}
-	if kind != "row" {
-		return m, nil
-	}
-	i := argInt(arg)
-	if i < 0 || i >= len(m.entries) {
-		return m, nil
-	}
-	m.cursor = i
-	m.clamp()
-	return m.update(tea.KeyMsg{Type: tea.KeyEnter})
+	return m, nil
 }
 
 func (m browseModel) view() string {
@@ -224,16 +225,29 @@ func (m browseModel) view() string {
 			lines = append(lines, st.Dim.Render(fmt.Sprintf("… %d more", extra)))
 		}
 	}
-	lines = append(lines, "", st.Dim.Render("↑↓ move · ↵ open · h up · esc cancel"))
-	modal := st.Modal.Render(strings.Join(lines, "\n"))
+	navHints := []keyHint{{"h", "h", "up"}}
+	navParts := make([]string, len(navHints))
+	for i, h := range navHints {
+		navParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
+	}
+	navPrefix := st.Dim.Render("↑↓ move   ")
+	buttons := []button{{"esc", "Cancel", "esc", btnNeutral}, {"enter", "Open", "↵", btnPrimary}}
+	lines = append(lines, "", navPrefix+strings.Join(navParts, "  "), m.a.buttonRow(buttons))
+	modal := m.a.modalCard(false).Render(strings.Join(lines, "\n"))
 
 	offX, offY := m.a.overlayOffset(modal)
 	for wi := range window {
 		y := offY + 2 + rowStart + wi
 		m.a.hits.add(fmt.Sprintf("row:%d", start+wi), offX+3, y, offX+lipgloss.Width(modal)-4, y)
 	}
-	// The footer line cancels back to the add overlay when clicked.
-	footerY := offY + 2 + len(lines) - 1
-	m.a.hits.add("key:esc", offX+3, footerY, offX+lipgloss.Width(modal)-4, footerY)
+	// Nav-hint line (h up clickable) sits one line above the buttons.
+	navY := offY + 2 + len(lines) - 2
+	hx := offX + 3 + lipgloss.Width(navPrefix)
+	for i, h := range navHints {
+		w := lipgloss.Width(navParts[i])
+		m.a.hits.add("key:"+h.token, hx, navY, hx+w-1, navY)
+		hx += w + 2
+	}
+	m.a.registerButtons(offX, offY, modal, buttons)
 	return modal
 }

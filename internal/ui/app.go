@@ -232,7 +232,7 @@ func (a *App) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	case overlayHelp:
 		a.overlay = overlayNone
 	case overlayPrompt:
-		// single input; only esc/enter matter, keyboard handles those
+		a.prompt, cmd = a.prompt.mouse(id)
 	default:
 		return a.screenMouse(id)
 	}
@@ -267,18 +267,61 @@ func (a *App) screenMouse(id string) (tea.Model, tea.Cmd) {
 // non-empty token registers a "key:<token>" region so mouse users can trigger
 // the same action as the key. Screens route "key" clicks back through update.
 func (a *App) hintbar(y int, hints []keyHint) string {
+	return a.hintbarEx(y, hints, a.styles.Key, "")
+}
+
+// hintbarEx is the one shared key-bar renderer. keyStyle colours the key glyph
+// (Key normally; Magenta in the list's reorder mode). trailer, when set, is
+// right-aligned on the same row (the list's cursor/total counter).
+func (a *App) hintbarEx(y int, hints []keyHint, keyStyle lipgloss.Style, trailer string) string {
 	st := a.styles
 	parts := make([]string, len(hints))
 	x := 1
 	for i, h := range hints {
-		parts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
+		parts[i] = keyStyle.Render(h.key) + " " + st.Dim.Render(h.label)
 		w := lipgloss.Width(parts[i])
 		if h.token != "" && x+w-1 < a.width {
 			a.hits.add("key:"+h.token, x, y, x+w-1, y)
 		}
 		x += w + 2
 	}
-	return " " + strings.Join(parts, "  ")
+	line := " " + strings.Join(parts, "  ")
+	if trailer != "" {
+		gap := a.width - lipgloss.Width(line) - lipgloss.Width(trailer) - 1
+		if gap < 1 {
+			gap = 1
+		}
+		line += strings.Repeat(" ", gap) + trailer
+	}
+	return line
+}
+
+// checkbox renders the shared [x]/[ ] indicator: Green when on, Dim off. ASCII,
+// 3 cells — safe in column-aligned rows.
+func (a *App) checkbox(on bool) string {
+	if on {
+		return a.styles.Green.Render("[x]")
+	}
+	return a.styles.Dim.Render("[ ]")
+}
+
+// tab renders a tab/segment chip: a filled Accent badge when active, bracketed
+// dim text when idle. Shared by the list tabs, add source tabs, and the servers
+// ws/http toggle.
+func (a *App) tab(label string, active bool) string {
+	if active {
+		return a.styles.Badge.Render(label)
+	}
+	return a.styles.TabIdle.Render("[ " + label + " ]")
+}
+
+// modalCard is the shared modal-border rule: Red for a destructive dialog,
+// Accent otherwise. No background (see the Modal style).
+func (a *App) modalCard(destructive bool) lipgloss.Style {
+	if destructive {
+		return a.styles.Modal.BorderForeground(a.styles.P.Red)
+	}
+	return a.styles.Modal
 }
 
 // wheelNavigates reports whether j/k currently move a selection instead
@@ -531,21 +574,30 @@ func (a *App) applySchedule(now time.Time) tea.Cmd {
 	})
 }
 
-// applySavedLimitsCmd re-applies the persisted global speed caps on connect, so
-// they survive a managed-daemon restart. Skipped when the scheduler is enabled
-// (it owns the global limits) or when no caps are stored.
+// applySavedLimitsCmd re-applies the persisted global settings on connect, so
+// they survive a managed-daemon restart. The speed caps are skipped when the
+// scheduler is enabled (it owns the global limits); the seed defaults are
+// independent of the scheduler and always applied when stored.
 func (a *App) applySavedLimitsCmd() tea.Cmd {
-	if a.cfg.SchedulerEnabled || (a.cfg.GlobalDown == "" && a.cfg.GlobalUp == "") {
+	opts := map[string]string{}
+	if !a.cfg.SchedulerEnabled {
+		if a.cfg.GlobalDown != "" {
+			opts["max-overall-download-limit"] = a.cfg.GlobalDown
+		}
+		if a.cfg.GlobalUp != "" {
+			opts["max-overall-upload-limit"] = a.cfg.GlobalUp
+		}
+	}
+	if a.cfg.SeedRatio != "" {
+		opts["seed-ratio"] = a.cfg.SeedRatio
+	}
+	if a.cfg.SeedTime != "" {
+		opts["seed-time"] = a.cfg.SeedTime
+	}
+	if len(opts) == 0 {
 		return nil
 	}
-	opts := map[string]string{}
-	if a.cfg.GlobalDown != "" {
-		opts["max-overall-download-limit"] = a.cfg.GlobalDown
-	}
-	if a.cfg.GlobalUp != "" {
-		opts["max-overall-upload-limit"] = a.cfg.GlobalUp
-	}
-	return a.rpcCmd("limits restored", func(ctx context.Context, c api) error {
+	return a.rpcCmd("settings restored", func(ctx context.Context, c api) error {
 		return c.ChangeGlobalOption(ctx, opts)
 	})
 }

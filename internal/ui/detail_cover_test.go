@@ -183,6 +183,26 @@ func TestDetailRemove(t *testing.T) {
 	if len(fake.removed) != 1 || fake.removed[0] != "a1" {
 		t.Fatalf("removed = %v", fake.removed)
 	}
+	// Active removal also purges the result (so --force-save can't resurrect it).
+	if len(fake.removedResults) != 1 || fake.removedResults[0] != "a1" {
+		t.Fatalf("active remove must purge the result, removedResults = %v", fake.removedResults)
+	}
+}
+
+// TestDetailRemoveActiveErrorSkipsPurge covers the detail early-return arm when
+// aria2.remove fails.
+func TestDetailRemoveActiveErrorSkipsPurge(t *testing.T) {
+	a, fake := testApp(t)
+	fake.removeErr = errors.New("boom")
+	a.screen = screenDetail
+	a.detail.gid = "a1"
+	a.detail.s = rpc.Status{GID: "a1", Status: "active"}
+	_, _ = a.Update(key("d"))
+	_, cmd := a.Update(key("y"))
+	drain(t, a, cmd)
+	if len(fake.removedResults) != 0 {
+		t.Fatalf("detail purge must be skipped on error, removedResults = %v", fake.removedResults)
+	}
 }
 
 func TestDetailTrackersKey(t *testing.T) {

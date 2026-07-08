@@ -331,12 +331,7 @@ func (m filesModel) mouse(id string) (filesModel, tea.Cmd) {
 	kind, arg := splitID(id)
 	switch kind {
 	case "btn":
-		if arg == "ok" {
-			return m, m.confirmCmd()
-		}
-		if arg == "cancel" {
-			return m, m.cancelCmd()
-		}
+		return m.update(dispatchBtn(arg))
 	case "key":
 		return m.update(keyFromToken(arg))
 	case "row":
@@ -405,19 +400,18 @@ func (m filesModel) view() string {
 		}
 	}
 
-	fhints := []keyHint{{" ", "space", "toggle"}, {"a", "a", "all"}, {"n", "n", "none"}, {"", "h/l", "fold/unfold"}}
+	fhints := []keyHint{{" ", "space", "toggle"}, {"a", "a", "all"}, {"n", "n", "none"}, {"h", "h", "fold"}, {"l", "l", "unfold"}}
 	fhintParts := make([]string, len(fhints))
 	for i, h := range fhints {
 		fhintParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
 	}
-	confirmBtn := st.Green.Reverse(true).Bold(true).Padding(0, 2).Render("Confirm ↵")
-	cancelBtn := lipgloss.NewStyle().Foreground(st.P.FgDim).Padding(0, 2).Render("Cancel esc")
+	buttons := []button{{"esc", "Cancel", "esc", btnNeutral}, {"enter", "Confirm", "↵", btnPrimary}}
 	lines = append(lines,
 		"",
 		strings.Join(fhintParts, "  "),
-		confirmBtn+"   "+cancelBtn,
+		m.a.buttonRow(buttons),
 	)
-	modal := st.Modal.Render(strings.Join(lines, "\n"))
+	modal := m.a.modalCard(false).Render(strings.Join(lines, "\n"))
 
 	// Regions. Content sits at offX+3 (border+padding), offY+2 (border+padding).
 	offX, offY := m.a.overlayOffset(modal)
@@ -443,11 +437,7 @@ func (m filesModel) view() string {
 		checkX := triX + 2
 		m.a.hits.add(fmt.Sprintf("check:%d", gi), checkX, y, checkX+2, y)
 	}
-	btnY := offY + lipgloss.Height(modal) - 3
-	x0 := offX + 3
-	m.a.hits.add("btn:ok", x0, btnY, x0+lipgloss.Width(confirmBtn)-1, btnY)
-	cx := x0 + lipgloss.Width(confirmBtn) + 3
-	m.a.hits.add("btn:cancel", cx, btnY, cx+lipgloss.Width(cancelBtn)-1, btnY)
+	m.a.registerButtons(offX, offY, modal, buttons)
 	return modal
 }
 

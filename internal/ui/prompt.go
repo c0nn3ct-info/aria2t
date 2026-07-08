@@ -43,14 +43,26 @@ func (m promptModel) update(msg tea.KeyMsg) (promptModel, tea.Cmd) {
 	return m, cmd
 }
 
+// mouse routes a button click to the same path as its key.
+func (m promptModel) mouse(id string) (promptModel, tea.Cmd) {
+	if kind, arg := splitID(id); kind == "btn" {
+		return m.update(dispatchBtn(arg))
+	}
+	return m, nil
+}
+
 func (m promptModel) view() string {
 	st := m.a.styles
+	buttons := []button{{"esc", "Cancel", "esc", btnNeutral}, {"enter", "Confirm", "↵", btnPrimary}}
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		st.Title.Render(m.title),
 		"",
 		m.input.View(),
 		"",
-		st.Dim.Render("↵ confirm · esc cancel"),
+		m.a.buttonRow(buttons),
 	)
-	return st.Modal.Render(body)
+	modal := m.a.modalCard(false).Render(body)
+	offX, offY := m.a.overlayOffset(modal)
+	m.a.registerButtons(offX, offY, modal, buttons)
+	return modal
 }

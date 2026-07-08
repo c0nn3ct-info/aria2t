@@ -286,14 +286,14 @@ func TestFilesMouse(t *testing.T) {
 		}
 	}
 	// Buttons.
-	if _, cmd := m.mouse("btn:cancel"); cmd != nil {
-		t.Fatal("detail cancel button yields no cmd")
+	if _, cmd := m.mouse("btn:esc"); cmd != nil {
+		t.Fatal("cancel button yields no cmd")
 	}
 	a.overlay = overlayFiles
-	_, cmd := m.mouse("btn:ok")
+	_, cmd := m.mouse("btn:enter")
 	drain(t, a, cmd)
 	if fake.changedOptions["g1"] == nil {
-		t.Fatal("ok button must apply selection")
+		t.Fatal("confirm button must apply selection")
 	}
 }
 

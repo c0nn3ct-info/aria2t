@@ -95,9 +95,9 @@ func TestThrottleCancelHintClickable(t *testing.T) {
 	a.throttle = newThrottleModel(a)
 	a.throttle.gid = "a1"
 	a.overlay = overlayThrottle
-	click(t, a, "key:esc")
+	click(t, a, "btn:esc")
 	if a.overlay != overlayNone {
-		t.Fatalf("throttle esc hint must cancel, overlay=%d", a.overlay)
+		t.Fatalf("throttle cancel button must cancel, overlay=%d", a.overlay)
 	}
 }
 

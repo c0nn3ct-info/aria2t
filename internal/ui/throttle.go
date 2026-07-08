@@ -178,6 +178,9 @@ func (m throttleModel) mouse(id string) (throttleModel, tea.Cmd) {
 	if kind == "key" {
 		return m.update(keyFromToken(arg))
 	}
+	if kind == "btn" {
+		return m.update(dispatchBtn(arg))
+	}
 	if kind != "chip" {
 		return m, nil
 	}
@@ -240,6 +243,13 @@ func (m throttleModel) chipRow(row int, label string) string {
 
 func (m throttleModel) view() string {
 	st := m.a.styles
+	navHints := []keyHint{{"tab", "tab", "row"}}
+	navParts := make([]string, len(navHints))
+	for i, h := range navHints {
+		navParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
+	}
+	navLine := strings.Join(navParts, "  ") + "   " + st.Dim.Render("h/l select")
+	buttons := []button{{"esc", "Cancel", "esc", btnNeutral}, {"enter", "Apply", "↵", btnPrimary}}
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		st.Title.Render("Throttle")+"  "+st.Dim.Render(m.name),
 		"",
@@ -249,9 +259,10 @@ func (m throttleModel) view() string {
 		"",
 		st.Dim.Render("Currently ")+st.Cyan.Render("▼ "+FmtSpeed(m.speed))+st.Dim.Render(" · limit takes effect immediately"),
 		"",
-		st.Dim.Render("h/l select · tab row · ")+st.Yellow.Render("↵ apply")+st.Dim.Render(" · esc cancel"),
+		navLine,
+		m.a.buttonRow(buttons),
 	)
-	modal := st.Modal.BorderForeground(m.a.styles.P.Yellow).Render(body)
+	modal := m.a.modalCard(false).Render(body)
 
 	// Chips lines sit at body rows 3 (download) and 6 (upload); content
 	// starts 2 rows/3 cols inside the modal frame. Regions measure the
@@ -266,8 +277,14 @@ func (m throttleModel) view() string {
 			x += w
 		}
 	}
-	// The footer (body row 10) cancels on click.
-	footerY := offY + 2 + 10
-	m.a.hits.add("key:esc", offX+3, footerY, offX+lipgloss.Width(modal)-4, footerY)
+	// Nav-hint line (tab clickable) sits one line above the buttons.
+	navY := offY + lipgloss.Height(modal) - 4
+	hx := offX + 3
+	for i, h := range navHints {
+		w := lipgloss.Width(navParts[i])
+		m.a.hits.add("key:"+h.token, hx, navY, hx+w-1, navY)
+		hx += w + 2
+	}
+	m.a.registerButtons(offX, offY, modal, buttons)
 	return modal
 }

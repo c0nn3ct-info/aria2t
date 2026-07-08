@@ -44,7 +44,7 @@ func TestBuildArgs(t *testing.T) {
 	args := buildArgs("/dl", session, "/tmp/l.log", "/tmp/a.conf", 1234)
 	joined := strings.Join(args, " ")
 	for _, want := range []string{"--enable-rpc", "--rpc-listen-port=1234", "--conf-path=/tmp/a.conf",
-		"--save-session=" + session, "--dir=/dl", "--rpc-listen-all=false"} {
+		"--save-session=" + session, "--force-save=true", "--dir=/dl", "--rpc-listen-all=false"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("missing %q in %q", want, joined)
 		}

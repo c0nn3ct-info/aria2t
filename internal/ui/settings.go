@@ -275,15 +275,22 @@ func (m settingsModel) save() (settingsModel, tea.Cmd) {
 		}
 	}
 	m.dirty = false
-	// Persist the overall speed caps so they are re-applied after a restart.
-	capChanged := false
+	// Persist the overall speed caps and global seed defaults so they are
+	// re-applied after a managed-daemon restart.
+	cfgChanged := false
 	if v, ok := opts["max-overall-download-limit"]; ok {
-		a.cfg.GlobalDown, capChanged = v, true
+		a.cfg.GlobalDown, cfgChanged = v, true
 	}
 	if v, ok := opts["max-overall-upload-limit"]; ok {
-		a.cfg.GlobalUp, capChanged = v, true
+		a.cfg.GlobalUp, cfgChanged = v, true
 	}
-	if capChanged {
+	if v, ok := opts["seed-ratio"]; ok {
+		a.cfg.SeedRatio, cfgChanged = v, true
+	}
+	if v, ok := opts["seed-time"]; ok {
+		a.cfg.SeedTime, cfgChanged = v, true
+	}
+	if cfgChanged {
 		_ = a.saveConfig()
 	}
 	cmds := []tea.Cmd{}

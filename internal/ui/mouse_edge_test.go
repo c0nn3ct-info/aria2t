@@ -97,8 +97,8 @@ func TestMouseHandlerGuards(t *testing.T) {
 	if m2, _ := ad.mouse("atab:0"); m2.tab != ad.tab {
 		t.Fatal("same tab click must be a no-op")
 	}
-	if _, cmd := ad.mouse("btn:nothing"); cmd != nil {
-		t.Fatal("unknown button must be inert")
+	if _, cmd := ad.mouse("bogus:1"); cmd != nil {
+		t.Fatal("unknown id must be inert")
 	}
 }
 

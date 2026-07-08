@@ -196,10 +196,22 @@ func (m serversModel) updateForm(msg tea.KeyMsg) (serversModel, tea.Cmd) {
 // mouse handles clicks inside the server switcher: a row selects; the hint
 // bar's connect/add/edit/remove/close all act via mouse.
 func (m serversModel) mouse(id string) (serversModel, tea.Cmd) {
+	kind, arg := splitID(id)
 	if m.editing {
+		switch kind {
+		case "field":
+			if i := argInt(arg); i >= 0 && i < len(m.form) {
+				m.form[m.formFoc].Blur()
+				m.formFoc = i
+				return m, m.form[i].Focus()
+			}
+		case "proto":
+			m.formWS = arg == "ws"
+		case "btn":
+			return m.updateForm(dispatchBtn(arg))
+		}
 		return m, nil
 	}
-	kind, arg := splitID(id)
 	switch kind {
 	case "srv":
 		if i := argInt(arg); i >= 0 && i < len(m.a.cfg.Servers) {
@@ -207,6 +219,8 @@ func (m serversModel) mouse(id string) (serversModel, tea.Cmd) {
 		}
 	case "key":
 		return m.update(keyFromToken(arg))
+	case "btn":
+		return m.update(dispatchBtn(arg))
 	}
 	return m, nil
 }
@@ -219,10 +233,10 @@ func (m serversModel) view() string {
 		if m.editIdx >= 0 {
 			title = "Edit server"
 		}
-		proto := st.Badge.Render("ws") + " " + st.Dim.Render("[ http ]")
-		if !m.formWS {
-			proto = st.Dim.Render("[ ws ]") + " " + st.Badge.Render("http")
-		}
+		protoLabel := st.Dim.Render("Protocol  ")
+		wsChip := m.a.tab("ws", m.formWS)
+		httpChip := m.a.tab("http", !m.formWS)
+		buttons := []button{{"esc", "Cancel", "esc", btnNeutral}, {"enter", "Save", "↵", btnPrimary}}
 		body := lipgloss.JoinVertical(lipgloss.Left,
 			st.Title.Render(title),
 			"",
@@ -231,11 +245,26 @@ func (m serversModel) view() string {
 			st.Dim.Render("Port")+"\n"+m.form[2].View(),
 			st.Dim.Render("RPC secret")+"\n"+m.form[3].View(),
 			"",
-			st.Dim.Render("Protocol  ")+proto+st.Dim.Render("  (^w toggles)"),
+			protoLabel+wsChip+" "+httpChip+st.Dim.Render("  (^w toggles)"),
 			"",
-			st.Dim.Render("tab next · ")+st.Green.Render("↵ save")+st.Dim.Render(" · esc cancel"),
+			m.a.buttonRow(buttons),
 		)
-		return st.Modal.Render(body)
+		modal := m.a.modalCard(false).Render(body)
+		offX, offY := m.a.overlayOffset(modal)
+		// Each field is a label row + input row (label at body row 2+2i, input at
+		// 3+2i; content starts at offY+2). Register both rows as one focus target.
+		for i := range m.form {
+			y0 := offY + 4 + 2*i
+			m.a.hits.add(fmt.Sprintf("field:%d", i), offX+3, y0, offX+lipgloss.Width(modal)-4, y0+1)
+		}
+		protoY := offY + 2 + 11
+		px := offX + 3 + lipgloss.Width(protoLabel)
+		wsW := lipgloss.Width(wsChip)
+		m.a.hits.add("proto:ws", px, protoY, px+wsW-1, protoY)
+		hx := px + wsW + 1
+		m.a.hits.add("proto:http", hx, protoY, hx+lipgloss.Width(httpChip)-1, protoY)
+		m.a.registerButtons(offX, offY, modal, buttons)
+		return modal
 	}
 
 	var rows []string
@@ -273,37 +302,34 @@ func (m serversModel) view() string {
 		}
 		rows = append(rows, line)
 	}
-	hints := []keyHint{
-		{"enter", "↵", "connect"},
-		{"+", "+", "add"},
-		{"e", "e", "edit"},
-		{"-", "-", "remove"},
-		{"esc", "esc", "close"},
+	navHints := []keyHint{{"+", "+", "add"}, {"e", "e", "edit"}, {"-", "-", "remove"}}
+	navParts := make([]string, len(navHints))
+	for i, h := range navHints {
+		navParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
 	}
-	hintParts := make([]string, len(hints))
-	for i, h := range hints {
-		hintParts[i] = st.Key.Render(h.key) + " " + st.Dim.Render(h.label)
-	}
+	buttons := []button{{"esc", "Close", "esc", btnNeutral}, {"enter", "Connect", "↵", btnPrimary}}
 	body := lipgloss.JoinVertical(lipgloss.Left,
 		st.Title.Render("Switch server")+"   "+st.Dim.Render("s to cycle"),
 		"",
 		strings.Join(rows, "\n"),
 		"",
-		strings.Join(hintParts, "  "),
+		strings.Join(navParts, "  "),
+		m.a.buttonRow(buttons),
 	)
-	modal := st.Modal.Render(body)
+	modal := m.a.modalCard(false).Render(body)
 	offX, offY := m.a.overlayOffset(modal)
 	for i := range m.a.cfg.Servers {
 		y := offY + 4 + i // frame(2) + title + blank
 		m.a.hits.add(fmt.Sprintf("srv:%d", i), offX+1, y, offX+lipgloss.Width(modal)-2, y)
 	}
-	// Hint bar sits below the rows and a blank line; each hint is clickable.
-	hy := offY + 5 + len(m.a.cfg.Servers)
+	// Nav-hint line sits one line above the buttons.
+	navY := offY + lipgloss.Height(modal) - 4
 	hx := offX + 3
-	for i, h := range hints {
-		w := lipgloss.Width(hintParts[i])
-		m.a.hits.add("key:"+h.token, hx, hy, hx+w-1, hy)
+	for i, h := range navHints {
+		w := lipgloss.Width(navParts[i])
+		m.a.hits.add("key:"+h.token, hx, navY, hx+w-1, navY)
 		hx += w + 2
 	}
+	m.a.registerButtons(offX, offY, modal, buttons)
 	return modal
 }

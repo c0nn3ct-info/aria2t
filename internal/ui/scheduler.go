@@ -188,12 +188,27 @@ func fmtDays(d [7]bool) string {
 	return strings.Join(on, ",")
 }
 
-// mouse handles clicks: rule rows select.
+// mouse handles clicks: rule rows select; while editing, form fields focus, day
+// chips toggle, and the buttons save/cancel.
 func (m schedulerModel) mouse(id string) (schedulerModel, tea.Cmd) {
+	kind, arg := splitID(id)
 	if m.editing {
+		switch kind {
+		case "field":
+			if i := argInt(arg); i >= 0 && i < len(m.form) {
+				m.form[m.formFoc].Blur()
+				m.formFoc = i
+				return m, m.form[i].Focus()
+			}
+		case "day":
+			if i := argInt(arg); i >= 0 && i < 7 {
+				m.days[i] = !m.days[i]
+			}
+		case "btn":
+			return m.updateForm(dispatchBtn(arg))
+		}
 		return m, nil
 	}
-	kind, arg := splitID(id)
 	switch kind {
 	case "key":
 		return m.update(keyFromToken(arg))
@@ -205,41 +220,87 @@ func (m schedulerModel) mouse(id string) (schedulerModel, tea.Cmd) {
 	return m, nil
 }
 
+// view renders the rules list, and when editing, composites the rule form over
+// it (dimmed backdrop, like every overlay) so the form has proper click regions.
 func (m schedulerModel) view() string {
+	body := m.listBody()
+	if !m.editing {
+		return body
+	}
+	m.a.hits.reset() // only the form is interactive while editing
+	modal := m.a.modalCard(false).Render(m.formBody())
+	offX, offY := m.a.overlayOffset(modal)
+	m.registerForm(offX, offY, modal)
+	return m.a.composite(body, modal)
+}
+
+func (m schedulerModel) formButtons() []button {
+	return []button{{"esc", "Cancel", "esc", btnNeutral}, {"enter", "Save", "↵", btnPrimary}}
+}
+
+func (m schedulerModel) formBody() string {
+	st := m.a.styles
+	labels := []string{"Window start (HH:MM)", "Window end (HH:MM)", "Label", "Down limit", "Up limit"}
+	var fields []string
+	for i, l := range labels {
+		box := st.Input
+		if m.formFoc == i {
+			box = st.InputHot
+		}
+		fields = append(fields, st.Dim.Render(l)+"\n"+box.Render(m.form[i].View()))
+	}
+	names := []string{"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"}
+	var days []string
+	for n, label := range names {
+		idx := (n + 1) % 7
+		if m.days[idx] {
+			days = append(days, st.Green.Render("["+label+"]"))
+		} else {
+			days = append(days, st.Dim.Render(" "+label+" "))
+		}
+	}
+	return lipgloss.JoinVertical(lipgloss.Left,
+		st.Title.Render("Scheduler rule"),
+		"",
+		strings.Join(fields, "\n"),
+		"",
+		st.Dim.Render("Days (1–7 toggle)  ")+strings.Join(days, " "),
+		"",
+		m.a.buttonRow(m.formButtons()),
+	)
+}
+
+// registerForm registers click regions for the composited rule form: each input
+// row focuses, each day chip toggles, and the buttons save/cancel.
+func (m schedulerModel) registerForm(offX, offY int, modal string) {
+	st := m.a.styles
+	// Fields are a label row + a 3-line bordered input box, so each spans 4 rows.
+	// Fields block starts at body row 2 → field i at body row 2+4i; content
+	// starts at offY+2. Register the whole 4-row block as one focus target.
+	for i := range m.form {
+		y0 := offY + 4 + 4*i
+		m.a.hits.add(fmt.Sprintf("field:%d", i), offX+3, y0, offX+lipgloss.Width(modal)-4, y0+3)
+	}
+	dayY := offY + 25 // body row 23 (5 fields × 4 rows + title + 2 blanks)
+	prefix := st.Dim.Render("Days (1–7 toggle)  ")
+	dx := offX + 3 + lipgloss.Width(prefix)
+	names := []string{"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"}
+	for n, label := range names {
+		idx := (n + 1) % 7
+		chip := st.Dim.Render(" " + label + " ")
+		if m.days[idx] {
+			chip = st.Green.Render("[" + label + "]")
+		}
+		w := lipgloss.Width(chip)
+		m.a.hits.add(fmt.Sprintf("day:%d", idx), dx, dayY, dx+w-1, dayY)
+		dx += w + 1 // chips joined with a space
+	}
+	m.a.registerButtons(offX, offY, modal, m.formButtons())
+}
+
+func (m schedulerModel) listBody() string {
 	a := m.a
 	st := a.styles
-	if m.editing {
-		labels := []string{"Window start (HH:MM)", "Window end (HH:MM)", "Label", "Down limit", "Up limit"}
-		var fields []string
-		for i, l := range labels {
-			box := st.Input
-			if m.formFoc == i {
-				box = st.InputHot
-			}
-			fields = append(fields, st.Dim.Render(l)+"\n"+box.Render(m.form[i].View()))
-		}
-		names := []string{"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"}
-		var days []string
-		for n, label := range names {
-			idx := (n + 1) % 7
-			if m.days[idx] {
-				days = append(days, st.Green.Render("["+label+"]"))
-			} else {
-				days = append(days, st.Dim.Render(" "+label+" "))
-			}
-		}
-		body := lipgloss.JoinVertical(lipgloss.Left,
-			st.Title.Render("Scheduler rule"),
-			"",
-			strings.Join(fields, "\n"),
-			"",
-			st.Dim.Render("Days (1–7 toggle)  ")+strings.Join(days, " "),
-			"",
-			st.Dim.Render("tab next · ")+st.Green.Render("↵ save")+st.Dim.Render(" · esc cancel"),
-		)
-		return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, st.Modal.Render(body))
-	}
-
 	var b strings.Builder
 	enabled := st.Dim.Render("[ ] enabled")
 	if a.cfg.SchedulerEnabled {

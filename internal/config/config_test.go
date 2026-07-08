@@ -28,6 +28,8 @@ func TestSaveLoadRoundtrip(t *testing.T) {
 	want.Rules = []Rule{{Start: "09:00", End: "18:00", Days: [7]bool{false, true, true, true, true, true, false}, Label: "work", Down: "5M", Up: "256K"}}
 	want.GlobalDown = "5M"
 	want.GlobalUp = "512K"
+	want.SeedRatio = "1.5"
+	want.SeedTime = "120"
 	if err := Save(path, want); err != nil {
 		t.Fatal(err)
 	}
@@ -41,6 +43,9 @@ func TestSaveLoadRoundtrip(t *testing.T) {
 	}
 	if got.GlobalDown != "5M" || got.GlobalUp != "512K" {
 		t.Fatalf("global caps must round-trip: down=%q up=%q", got.GlobalDown, got.GlobalUp)
+	}
+	if got.SeedRatio != "1.5" || got.SeedTime != "120" {
+		t.Fatalf("seed defaults must round-trip: ratio=%q time=%q", got.SeedRatio, got.SeedTime)
 	}
 }
 

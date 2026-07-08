@@ -153,6 +153,11 @@ func buildArgs(dir, sessionFile, logFile, confFile string, port int) []string {
 		"--rpc-listen-all=false",
 		"--save-session=" + sessionFile,
 		"--save-session-interval=30",
+		// Persist completed (and seeding) downloads too, not just
+		// unfinished/errored ones — otherwise the stopped list is empty after a
+		// restart. Reloaded completes are recognised via their control file and
+		// are not re-downloaded.
+		"--force-save=true",
 		"--log=" + logFile,
 		"--log-level=warn",
 		"--quiet=true",

@@ -237,11 +237,11 @@ func TestFilesPickerRegionsMatchRows(t *testing.T) {
 	if got := regionText(t, a, "check:1"); !strings.Contains(got, "[") {
 		t.Fatalf("check:1 covers %q", strings.TrimSpace(got))
 	}
-	if got := regionText(t, a, "btn:ok"); !strings.Contains(got, "Confirm") {
-		t.Fatalf("btn:ok covers %q", strings.TrimSpace(got))
+	if got := regionText(t, a, "btn:enter"); !strings.Contains(got, "Confirm") {
+		t.Fatalf("btn:enter covers %q", strings.TrimSpace(got))
 	}
-	if got := regionText(t, a, "btn:cancel"); !strings.Contains(got, "Cancel") {
-		t.Fatalf("btn:cancel covers %q", strings.TrimSpace(got))
+	if got := regionText(t, a, "btn:esc"); !strings.Contains(got, "Cancel") {
+		t.Fatalf("btn:esc covers %q", strings.TrimSpace(got))
 	}
 }
 
@@ -317,11 +317,11 @@ func TestConfirmButtonRegionsMatchButtons(t *testing.T) {
 	a, _ := bigApp(t, 120, 36)
 	a.confirm = newConfirmModel(a, "Remove download?", "x", nil)
 	a.overlay = overlayConfirm
-	if got := regionText(t, a, "btn:yes"); !strings.Contains(got, "Remove") {
-		t.Fatalf("btn:yes covers %q", strings.TrimSpace(got))
+	if got := regionText(t, a, "btn:y"); !strings.Contains(got, "Remove") {
+		t.Fatalf("btn:y covers %q", strings.TrimSpace(got))
 	}
-	if got := regionText(t, a, "btn:no"); !strings.Contains(got, "Cancel") {
-		t.Fatalf("btn:no covers %q", strings.TrimSpace(got))
+	if got := regionText(t, a, "btn:n"); !strings.Contains(got, "Cancel") {
+		t.Fatalf("btn:n covers %q", strings.TrimSpace(got))
 	}
 }
 

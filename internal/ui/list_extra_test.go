@@ -66,7 +66,7 @@ func TestReorderFlashOnAllTab(t *testing.T) {
 func TestPurgeOnAllTab(t *testing.T) {
 	a, _ := testApp(t) // All tab
 	_, _ = a.Update(key("D"))
-	if a.overlay != overlayConfirm || a.confirm.yesLabel != "Clear (y)" {
+	if a.overlay != overlayConfirm || a.confirm.yesLabel != "Clear" {
 		t.Fatalf("D on All must confirm: overlay=%d label=%q", a.overlay, a.confirm.yesLabel)
 	}
 }
@@ -74,10 +74,10 @@ func TestPurgeOnAllTab(t *testing.T) {
 func TestQuitConfirmLabel(t *testing.T) {
 	a, _ := testApp(t)
 	_, _ = a.Update(key("q"))
-	if a.overlay != overlayConfirm || a.confirm.yesLabel != "Quit (y)" {
+	if a.overlay != overlayConfirm || a.confirm.yesLabel != "Quit" {
 		t.Fatalf("quit confirm label = %q", a.confirm.yesLabel)
 	}
-	if v := a.View(); !strings.Contains(v, "Quit (y)") {
+	if v := a.View(); !strings.Contains(v, "Quit") {
 		t.Fatal("quit confirm must render its label")
 	}
 }

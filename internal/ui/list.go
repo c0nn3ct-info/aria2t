@@ -193,7 +193,7 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 			a.confirm = newConfirmModel(a, "Quit aria2t?",
 				fmt.Sprintf("%d download(s) still going — they'll pause now and resume next launch.", n),
 				func() tea.Cmd { return tea.Quit })
-			a.confirm.yesLabel = "Quit (y)"
+			a.confirm.yesLabel = "Quit"
 			a.overlay = overlayConfirm
 			return m, nil
 		}
@@ -272,7 +272,7 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 						return c.PurgeDownloadResult(ctx)
 					})
 				})
-			a.confirm.yesLabel = "Clear (y)"
+			a.confirm.yesLabel = "Clear"
 			a.overlay = overlayConfirm
 		}
 	case " ":
@@ -306,7 +306,11 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 					if stopped {
 						return c.RemoveDownloadResult(ctx, gid)
 					}
-					return c.Remove(ctx, gid)
+					if err := c.Remove(ctx, gid); err != nil {
+						return err
+					}
+					_ = c.RemoveDownloadResult(ctx, gid) // purge so --force-save can't resurrect it
+					return nil
 				})
 			})
 		}
@@ -791,73 +795,53 @@ func shortHash(h string) string {
 	return h
 }
 
-// keybar renders the hint line at row y; every hint is clickable. While the
-// filter is being typed it shows the filter input instead.
+// keybar renders the hint line at row y via the shared hintbarEx renderer;
+// every tokened hint is clickable. While the filter is being typed it shows the
+// filter input instead.
 func (m listModel) keybar(y int) string {
 	st := m.a.styles
 	if m.filtering {
 		return " " + st.Key.Render("/") + " " + m.filterInput.View() +
 			"  " + st.Dim.Render("↵ keep · esc clear")
 	}
-	var parts []string
-	var tokens []string // key token behind each part; "" = not clickable
-	add := func(token, k, label string) {
-		parts = append(parts, st.Key.Render(k)+" "+st.Dim.Render(label))
-		tokens = append(tokens, token)
-	}
+	var hints []keyHint
+	keyStyle := st.Key
 	if m.reordering {
-		mk := func(k, label string) string {
-			return st.Magenta.Bold(true).Render(k) + " " + st.Dim.Render(label)
+		keyStyle = st.Magenta.Bold(true)
+		hints = []keyHint{
+			{"J", "J", "down"}, {"K", "K", "up"},
+			{"", "gg/G", "to top/bottom"}, // a chord — no single-click semantics
+			{"enter", "↵", "drop"}, {"esc", "esc", "cancel"},
 		}
-		parts = []string{mk("J/K", "move down/up"), mk("gg/G", "to top/bottom"), mk("↵", "drop"), mk("esc", "cancel")}
-		tokens = []string{"", "", "enter", "esc"}
 	} else {
-		add("a", "a", "add")
+		hints = append(hints, keyHint{"a", "a", "add"})
 		if m.tab == tabStopped {
 			// Stopped tab swaps the transfer hints for integrity actions
 			// to keep the bar inside the terminal width.
-			add("d", "d", "remove")
-			add("D", "D", "clear")
-			add("enter", "↵", "details")
-			add("v", "v", "verify")
-			add("R", "R", "re-download")
-			add("c", "c", "checksum")
-			add("o", "o", "open")
+			hints = append(hints,
+				keyHint{"d", "d", "remove"}, keyHint{"D", "D", "clear"},
+				keyHint{"enter", "↵", "details"}, keyHint{"v", "v", "verify"},
+				keyHint{"R", "R", "re-download"}, keyHint{"c", "c", "checksum"},
+				keyHint{"o", "o", "open"})
 		} else {
-			add(" ", "space", "pause")
-			add("d", "d", "remove")
-			add("enter", "↵", "details")
-			add("/", "/", "filter")
-			add("g", "g", "stats")
-			add("l", "l", "limit")
-			add("s", "s", "servers")
+			hints = append(hints,
+				keyHint{" ", "space", "pause"}, keyHint{"d", "d", "remove"},
+				keyHint{"enter", "↵", "details"}, keyHint{"/", "/", "filter"},
+				keyHint{"g", "g", "stats"}, keyHint{"l", "l", "limit"},
+				keyHint{"s", "s", "servers"})
 		}
-		add(",", ",", "settings")
-		add("?", "?", "help")
-		// q stays keyboard-only: a stray click must not quit the app.
-		add("", "q", "quit")
+		hints = append(hints,
+			keyHint{",", ",", "settings"}, keyHint{"?", "?", "help"},
+			keyHint{"q", "q", "quit"}) // q is guarded by the Quit confirm, so a click is safe
 		if m.tab == tabWaiting {
-			add("", "J/K", "reorder")
+			hints = append(hints, keyHint{"", "J/K", "reorder"}) // teaser: no row to grab yet
 		}
-	}
-	x := 1
-	for i, p := range parts {
-		w := lipgloss.Width(p)
-		if tokens[i] != "" && x+w-1 < m.a.width {
-			m.a.hits.add("key:"+tokens[i], x, y, x+w-1, y)
-		}
-		x += w + 2
 	}
 	pos := ""
 	if n := len(m.rows()); n > 0 {
 		pos = st.Dim.Render(fmt.Sprintf("%d/%d", m.cursor+1, n))
 	}
-	line := " " + strings.Join(parts, "  ")
-	gap := m.a.width - lipgloss.Width(line) - lipgloss.Width(pos) - 2
-	if gap < 1 {
-		gap = 1
-	}
-	return line + strings.Repeat(" ", gap) + pos
+	return m.a.hintbarEx(y, hints, keyStyle, pos)
 }
 
 // mouse handles clicks on the list screen. Single click selects a row; every

@@ -25,6 +25,25 @@ func TestSettingsSavePersistsGlobalCaps(t *testing.T) {
 	}
 }
 
+func TestSettingsSavePersistsSeedDefaults(t *testing.T) {
+	a, _ := testApp(t)
+	m := newSettingsModel(a)
+	m.fields[3][4].input.SetValue("1.5") // Default seed ratio
+	m.fields[3][5].input.SetValue("120") // Default seed time (min)
+	_, cmd := m.save()
+	drain(t, a, cmd)
+	if a.cfg.SeedRatio != "1.5" || a.cfg.SeedTime != "120" {
+		t.Fatalf("seed defaults not stored: ratio=%q time=%q", a.cfg.SeedRatio, a.cfg.SeedTime)
+	}
+	got, err := config.Load(a.cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SeedRatio != "1.5" || got.SeedTime != "120" {
+		t.Fatalf("seed defaults not persisted: %+v", got)
+	}
+}
+
 func TestApplySavedLimits(t *testing.T) {
 	a, fake := testApp(t)
 
@@ -61,5 +80,21 @@ func TestApplySavedLimits(t *testing.T) {
 	}
 	if _, ok := fake.globalOpts["max-overall-download-limit"]; ok {
 		t.Fatalf("download cap must be absent: %v", fake.globalOpts)
+	}
+
+	// Seed defaults apply regardless of the scheduler; caps are skipped when it
+	// is enabled.
+	a.cfg.GlobalDown = "9M"
+	a.cfg.GlobalUp = "9M"
+	a.cfg.SeedRatio = "2.0"
+	a.cfg.SeedTime = "60"
+	a.cfg.SchedulerEnabled = true
+	fake.globalOpts = nil
+	drain(t, a, a.applySavedLimitsCmd())
+	if fake.globalOpts["seed-ratio"] != "2.0" || fake.globalOpts["seed-time"] != "60" {
+		t.Fatalf("seed defaults not applied: %v", fake.globalOpts)
+	}
+	if _, ok := fake.globalOpts["max-overall-download-limit"]; ok {
+		t.Fatalf("caps must be skipped when scheduler enabled: %v", fake.globalOpts)
 	}
 }

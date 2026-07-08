@@ -70,6 +70,12 @@ type Config struct {
 	// these instead.
 	GlobalDown string `json:"globalDown,omitempty"`
 	GlobalUp   string `json:"globalUp,omitempty"`
+	// SeedRatio/SeedTime are the persisted global default seeding limits
+	// (seed-ratio like "1.5"; seed-time in minutes). Re-applied on connect so
+	// they survive a managed-daemon restart. "" = aria2's own default. Unlike
+	// the speed caps these are independent of the scheduler.
+	SeedRatio string `json:"seedRatio,omitempty"`
+	SeedTime  string `json:"seedTime,omitempty"`
 }
 
 // Default returns the out-of-the-box configuration: a managed built-in

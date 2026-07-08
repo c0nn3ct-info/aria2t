@@ -105,6 +105,10 @@ func TestListResumeAndRemove(t *testing.T) {
 	if len(fake.removed) != 1 || fake.removed[0] != "a1" {
 		t.Fatalf("removed = %v", fake.removed)
 	}
+	// Active removal also purges the result so --force-save can't resurrect it.
+	if len(fake.removedResults) != 1 || fake.removedResults[0] != "a1" {
+		t.Fatalf("active remove must purge the result, removedResults = %v", fake.removedResults)
+	}
 	_, _ = a.Update(key("4")) // stopped tab → RemoveDownloadResult path
 	_, _ = a.Update(key("d"))
 	_, cmd = a.Update(key("y"))
@@ -119,6 +123,22 @@ func TestListResumeAndRemove(t *testing.T) {
 	drain(t, a, cmd)
 	if len(fake.removed) != 1 || a.overlay != overlayNone {
 		t.Fatalf("decline must not remove: %v", fake.removed)
+	}
+}
+
+// TestRemoveActiveErrorSkipsPurge: when aria2.remove fails, the follow-up purge
+// is skipped and the error surfaces (covers the early-return arm).
+func TestRemoveActiveErrorSkipsPurge(t *testing.T) {
+	a, fake := testApp(t)
+	fake.removeErr = errors.New("boom")
+	_, _ = a.Update(key("d"))
+	_, cmd := a.Update(key("y"))
+	drain(t, a, cmd)
+	if len(fake.removed) != 1 {
+		t.Fatalf("remove must be attempted, removed = %v", fake.removed)
+	}
+	if len(fake.removedResults) != 0 {
+		t.Fatalf("purge must be skipped when remove errors, removedResults = %v", fake.removedResults)
 	}
 }
 

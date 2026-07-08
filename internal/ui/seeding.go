@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"aria2t/internal/rpc"
 )
@@ -223,6 +224,22 @@ func (m seedingModel) mouse(id string) (seedingModel, tea.Cmd) {
 	switch kind {
 	case "key":
 		return m.update(keyFromToken(arg))
+	case "field":
+		switch argInt(arg) {
+		case 0:
+			m.stime.Blur()
+			m.focus = 0
+			return m, m.ratio.Focus()
+		case 1:
+			m.ratio.Blur()
+			m.focus = 1
+			return m, m.stime.Focus()
+		}
+	case "tog":
+		if i := argInt(arg); i >= 0 && i < len(m.toggles) {
+			// Read-only startup options — same message as pressing space on one.
+			return m, m.a.flash(m.toggles[i].label+" is set at aria2 startup — not changeable at runtime", true)
+		}
 	case "trk":
 		i := argInt(arg)
 		if i < 0 || i >= len(m.trackers) {
@@ -252,10 +269,7 @@ func (m seedingModel) view() string {
 	}
 	var togglesLine []string
 	for i, t := range m.toggles {
-		box := st.Dim.Render("[ ]")
-		if t.on {
-			box = st.Green.Render("[x]")
-		}
+		box := a.checkbox(t.on)
 		label := " " + t.label
 		if m.focus == 2+i {
 			label = st.Title.Render(" " + t.label + " ◂")
@@ -274,8 +288,10 @@ func (m seedingModel) view() string {
 		frac = ratioNow / t
 	}
 	f, e := Bar(frac, 18)
+	block0 := inputView(0, "Stop at ratio", m.ratio)
+	block1 := inputView(1, "Or after seeding (min)", m.stime)
 	top := []string{
-		inputView(0, "Stop at ratio", m.ratio) + "      " + inputView(1, "Or after seeding (min)", m.stime),
+		lipgloss.JoinHorizontal(lipgloss.Top, block0, "   ", block1),
 		"",
 		st.Dim.Render("ratio now  ") + st.Green.Render(f) + st.Faint.Render(e) + " " +
 			st.Title.Render(ratioText+" / "+orDefault(target, "∞")),
@@ -283,6 +299,22 @@ func (m seedingModel) view() string {
 		strings.Join(togglesLine, "   ") + st.Dim.Render("  · startup options, read-only"),
 	}
 	b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(top, "\n")) + "\n")
+
+	// Clickable inputs + toggles. Panel content origin: col 2 (border + padding),
+	// screen row 2 (header line + panel top border). Each input block is h0 rows
+	// tall; the toggles line sits 3 content rows below the inputs block.
+	const fx0, fy = 2, 2
+	h0, w0 := lipgloss.Height(block0), lipgloss.Width(block0)
+	a.hits.add("field:0", fx0, fy, fx0+w0-1, fy+h0-1)
+	fx1 := fx0 + w0 + 3
+	a.hits.add("field:1", fx1, fy, fx1+lipgloss.Width(block1)-1, fy+lipgloss.Height(block1)-1)
+	togY := fy + h0 + 3
+	tx := fx0
+	for i, chip := range togglesLine {
+		w := lipgloss.Width(chip)
+		a.hits.add(fmt.Sprintf("tog:%d", i), tx, togY, tx+w-1, togY)
+		tx += w + 3
+	}
 
 	a.hits.line("back", 0, a.width)
 	var rows []string
