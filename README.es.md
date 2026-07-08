@@ -18,10 +18,11 @@ aria2t es una interfaz de terminal para el gestor de descargas [aria2](https://a
 - Explica los fallos en lenguaje claro — *archivo no encontrado en el servidor (404)*, *espacio en disco insuficiente*, *no se pudo resolver el host* — en lugar de códigos de error crudos de aria2.
 - Filtra (`/`), reordena la cola de espera (`J`/`K`, agarrar y soltar), limita velocidad por descarga o por franjas horarias.
 - Verifica descargas terminadas contra un sha-256 pegado y las vuelve a descargar si no coincide.
-- Controla el seeding de BitTorrent: ratio de parada, tiempo de seed, lista de trackers.
+- Hace seeding de torrents terminados (hasta un ratio de parada, por defecto 1.0) y lo controla por descarga o como valor global guardado por defecto — ratio de parada, tiempo de seed, lista de trackers.
 - Una pantalla de bienvenida amable con añadido de un enlace del portapapeles con una sola tecla; avisa antes de salir mientras aún hay descargas en curso.
 - Cambia entre servidores con sondas de latencia; hace sonar la campana del terminal y nombra la descarga cuando algo termina o falla.
-- Soporte completo de ratón sin dobles clics: un solo clic en una descarga abre sus detalles, y cada indicación de la barra de teclas es clicable (pausar, eliminar, elegir archivos, conectar un servidor…) — todo es alcanzable con el ratón **y** con el teclado. La rueda desplaza.
+- Soporte completo de ratón sin dobles clics: un solo clic en una descarga abre sus detalles, y cada indicación de la barra de teclas es clicable (pausar, eliminar, elegir archivos, conectar un servidor…). Cada diálogo lleva botones **Cancel** / confirmar rellenos y coherentes (un confirmar en rojo para cualquier acción destructiva) — todo es alcanzable con el ratón **y** con el teclado. La rueda desplaza.
+- **Nada se pierde al salir**: las descargas terminadas permanecen en la lista entre reinicios, las transferencias sin terminar se reanudan, y un selector de archivos que cerraste sin responder se vuelve a abrir en el siguiente arranque.
 
 ## Pantallas
 
@@ -52,7 +53,7 @@ flowchart LR
     UI -. "ws:// o http(s)://" .-> R
 ```
 
-Por defecto aria2t encuentra `aria2c` en tu `PATH`, lanza un demonio privado en un puerto libre con un secreto aleatorio y gestiona todo su ciclo de vida: la sesión se guarda al salir y se reanuda en el siguiente arranque, y el proceso hijo se detiene limpiamente (RPC saveSession + shutdown, escalando a señales solo si hace falta) cuando sales. Si un fallo alguna vez deja un demonio corriendo, el siguiente arranque lo recoge antes de lanzar uno nuevo. Nada que configurar, nada que quede corriendo.
+Por defecto aria2t encuentra `aria2c` en tu `PATH`, lanza un demonio privado en un puerto libre con un secreto aleatorio y gestiona todo su ciclo de vida: la sesión completa — tanto las descargas terminadas como las transferencias en curso — se guarda al salir y se restaura en el siguiente arranque (las terminadas reaparecen como completadas, no se vuelven a descargar), y el proceso hijo se detiene limpiamente (RPC saveSession + shutdown, escalando a señales solo si hace falta) cuando sales. Si un fallo alguna vez deja un demonio corriendo, el siguiente arranque lo recoge antes de lanzar uno nuevo. Nada que configurar, nada que quede corriendo.
 
 Apúntalo a un servidor externo y el demonio integrado ni siquiera arranca: aria2t pasa a ser un cliente RPC puro, y todo — incluida la verificación de checksums, que lee el archivo del disco local — degrada con elegancia cuando los archivos viven en otra parte.
 
@@ -101,7 +102,7 @@ o añade servidores en el selector (`s` → `+`). La configuración persiste en 
 |---|---|
 | Lista | `a` añadir · `space` pausar/reanudar · `P`/`U` pausar/reanudar todo · `d` eliminar · `f` elegir archivos · `y` copiar origen · `/` filtrar · `↵` detalle · `g` estadísticas · `l` límite · `s` servidores · `S` planificador · `t` seeding · `,` ajustes · `T` tema · `tab`/`1‑4` All/Active/Waiting/Stopped · `?` ayuda · `q` salir |
 | Selector de archivos | `space` alternar archivo/carpeta · `a`/`n` todo/nada · `h`/`l` plegar/desplegar · `↵` confirmar · `esc` cancelar · `^o` (en Añadir) explorar disco |
-| Ratón | clic en una fila → detalle · clic en cualquier indicación de la barra de teclas (pausar, archivos, conectar…) · clic en el panel FILES → selector · rueda desplaza · sin necesidad de doble clic |
+| Ratón | clic en una fila → detalle · clic en cualquier indicación de la barra de teclas (pausar, archivos, conectar…) · clic en el botón Cancel/confirmar de un diálogo · clic en el panel FILES → selector · rueda desplaza · sin necesidad de doble clic |
 | Pestaña Waiting | `J`/`K` agarrar + mover · `gg`/`G` principio/final · `↵` soltar · `esc` cancelar |
 | Pestaña Stopped | `c` pegar checksum · `v` verificar · `R` re-descargar · `D` limpiar lista · `o` abrir carpeta |
 | Detalle | `p` pausar/reanudar · `d` eliminar · `f` elegir archivos · `t` trackers · `o` abrir carpeta |
@@ -127,11 +128,13 @@ o añade servidores en el selector (`s` → `+`). La configuración persiste en 
   "dir": "~/Downloads",
   "split": 16,
   "globalDown": "5M",
-  "globalUp": "512K"
+  "globalUp": "512K",
+  "seedRatio": "1.5",
+  "seedTime": "0"
 }
 ```
 
-Un servidor `managed` es el demonio integrado (puerto y secreto se deciden al lanzarlo). Cualquier otro es un endpoint externo; `path` sobreescribe la ruta RPC para demonios tras un reverse proxy. `globalDown`/`globalUp` son los límites de velocidad globales guardados (se vuelven a aplicar al demonio al conectar; omítelos o usa `""` para sin límite). Los campos omitidos conservan sus valores por defecto.
+Un servidor `managed` es el demonio integrado (puerto y secreto se deciden al lanzarlo). Cualquier otro es un endpoint externo; `path` sobreescribe la ruta RPC para demonios tras un reverse proxy. `globalDown`/`globalUp` son los límites de velocidad globales guardados (se vuelven a aplicar al demonio al conectar; omítelos o usa `""` para sin límite). `seedRatio`/`seedTime` son los valores de seeding globales guardados por defecto (también se vuelven a aplicar al conectar, independientes del planificador). Los campos omitidos conservan sus valores por defecto.
 
 ## Desarrollo
 

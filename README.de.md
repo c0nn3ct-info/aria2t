@@ -18,10 +18,11 @@ aria2t ist eine Terminal-Oberfläche für den Download-Manager [aria2](https://a
 - Filtern (`/`), Warteschlange umsortieren (`J`/`K` — greifen und ablegen), Drosselung pro Download oder nach Tageszeit.
 - Fertige Downloads gegen eine eingefügte sha-256 prüfen und bei Abweichung neu laden.
 - Erklärt Fehler in Klartext (z. B. „Datei auf dem Server nicht gefunden (404)", „nicht genug Speicherplatz", „Host konnte nicht aufgelöst werden") statt roher Fehlercodes.
-- BitTorrent-Seeding steuern: Stop-Ratio, Seed-Zeit, Tracker-Liste.
+- Seedet fertige Torrents (bis zu einer Stop-Ratio, standardmäßig 1.0) und steuert das pro Download oder als gespeicherten globalen Standard — Stop-Ratio, Seed-Zeit, Tracker-Liste.
 - Zwischen Servern wechseln, mit Latenz-Messung; Terminal-Glocke und Download-Name bei Abschluss oder Fehler.
 - Freundlicher Startbildschirm beim ersten Lauf mit Ein-Tasten-Hinzufügen eines Links aus der Zwischenablage; warnt vor dem Beenden, solange noch Downloads laufen.
-- Volle Mausunterstützung ohne Doppelklicks: Ein einfacher Klick auf einen Download öffnet seine Details, und jeder Hinweis in der Tastenleiste ist klickbar (pausieren, entfernen, Dateien wählen, einen Server verbinden…) — alles ist mit der Maus **und** der Tastatur erreichbar. Das Mausrad scrollt.
+- Volle Mausunterstützung ohne Doppelklicks: Ein einfacher Klick auf einen Download öffnet seine Details, und jeder Hinweis in der Tastenleiste ist klickbar (pausieren, entfernen, Dateien wählen, einen Server verbinden…). Jeder Dialog hat einheitliche gefüllte **Cancel**-/Bestätigen-Buttons (ein rotes Bestätigen für alles Destruktive) — alles ist mit der Maus **und** der Tastatur erreichbar. Das Mausrad scrollt.
+- **Nichts geht beim Beenden verloren**: Fertige Downloads bleiben über Neustarts hinweg in der Liste, unfertige Übertragungen werden fortgesetzt, und eine Dateiauswahl, die du ohne Antwort geschlossen hast, öffnet sich beim nächsten Start erneut.
 
 ## Bildschirme
 
@@ -52,7 +53,7 @@ flowchart LR
     UI -. "ws:// oder http(s)://" .-> R
 ```
 
-Standardmäßig findet aria2t `aria2c` im `PATH`, startet einen privaten Daemon auf einem freien Port mit zufälligem Secret und verwaltet dessen kompletten Lebenszyklus: Die Sitzung wird beim Beenden gespeichert und beim nächsten Start fortgesetzt, der Kindprozess wird sauber gestoppt (saveSession- + shutdown-RPC, Signale nur als Eskalation). Falls ein Absturz einmal einen Daemon am Laufen lässt, räumt der nächste Start ihn ab, bevor er einen frischen startet. Nichts zu konfigurieren, nichts bleibt laufen.
+Standardmäßig findet aria2t `aria2c` im `PATH`, startet einen privaten Daemon auf einem freien Port mit zufälligem Secret und verwaltet dessen kompletten Lebenszyklus: Die komplette Sitzung — fertige Downloads wie auch laufende Übertragungen — wird beim Beenden gespeichert und beim nächsten Start wiederhergestellt (fertige erscheinen wieder als abgeschlossen, sie werden nicht neu geladen), der Kindprozess wird sauber gestoppt (saveSession- + shutdown-RPC, Signale nur als Eskalation). Falls ein Absturz einmal einen Daemon am Laufen lässt, räumt der nächste Start ihn ab, bevor er einen frischen startet. Nichts zu konfigurieren, nichts bleibt laufen.
 
 Zeigt man stattdessen auf einen externen Server, startet der eingebaute Daemon gar nicht erst: aria2t ist dann ein reiner RPC-Client, und alles — inklusive der Prüfsummen-Verifikation, die die Datei von der lokalen Platte liest — degradiert sauber, wenn die Dateien woanders liegen.
 
@@ -100,7 +101,7 @@ oder Server im Umschalter hinzufügen (`s` → `+`). Die Konfiguration liegt in 
 | Kontext | Tasten |
 |---|---|
 | Liste | `a` hinzufügen · `space` Pause/weiter · `P`/`U` alles pausieren/fortsetzen · `d` entfernen · `f` Dateien wählen · `y` Quelle kopieren · `/` filtern · `↵` Details · `g` Statistik · `l` Limit · `s` Server · `S` Zeitplaner · `t` Seeding · `,` Einstellungen · `T` Thema · `tab`/`1‑4` Tabs · `?` Hilfe · `q` beenden |
-| Maus | Klick auf eine Zeile → Details · Klick auf jeden Hinweis der Tastenleiste (Pause, Dateien, verbinden…) · Klick auf das FILES-Panel → Dateiauswahl · Rad scrollt · kein Doppelklick nötig |
+| Maus | Klick auf eine Zeile → Details · Klick auf jeden Hinweis der Tastenleiste (Pause, Dateien, verbinden…) · Klick auf den Cancel-/Bestätigen-Button eines Dialogs · Klick auf das FILES-Panel → Dateiauswahl · Rad scrollt · kein Doppelklick nötig |
 | Waiting-Tab | `J`/`K` greifen + verschieben · `gg`/`G` Anfang/Ende · `↵` ablegen · `esc` abbrechen |
 | Stopped-Tab | `c` Prüfsumme einfügen · `v` prüfen · `R` neu laden · `D` Liste leeren · `o` Ordner öffnen |
 | Dateiauswahl | `space` umschalten · `a`/`n` alle/keine · `h`/`l` ein-/ausklappen · `↵` bestätigen · `esc` abbrechen · `^o` (in Hinzufügen) Datei suchen |
@@ -127,11 +128,13 @@ oder Server im Umschalter hinzufügen (`s` → `+`). Die Konfiguration liegt in 
   "dir": "~/Downloads",
   "split": 16,
   "globalDown": "5M",
-  "globalUp": "512K"
+  "globalUp": "512K",
+  "seedRatio": "1.5",
+  "seedTime": "0"
 }
 ```
 
-Ein Server mit `managed` ist der eingebaute Daemon (Port und Secret werden beim Start gewählt). Alles andere sind externe Endpunkte; `path` überschreibt den RPC-Pfad für Daemons hinter einem Reverse-Proxy. `globalDown`/`globalUp` sind die gespeicherten globalen Geschwindigkeitslimits (beim Verbinden erneut auf den Daemon angewendet; weglassen oder `""` für unbegrenzt). Ausgelassene Felder behalten ihre Defaults.
+Ein Server mit `managed` ist der eingebaute Daemon (Port und Secret werden beim Start gewählt). Alles andere sind externe Endpunkte; `path` überschreibt den RPC-Pfad für Daemons hinter einem Reverse-Proxy. `globalDown`/`globalUp` sind die gespeicherten globalen Geschwindigkeitslimits (beim Verbinden erneut auf den Daemon angewendet; weglassen oder `""` für unbegrenzt). `seedRatio`/`seedTime` sind die gespeicherten globalen Seeding-Standards (ebenfalls beim Verbinden erneut angewendet, unabhängig vom Zeitplaner). Ausgelassene Felder behalten ihre Defaults.
 
 ## Entwicklung
 
