@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Was aria2t speichert und wohin sein Netzwerkverkehr geht: Alles bleibt lokal, keine Analytik oder Telemetrie in der Anwendung, Verbindungen nur zu den von Ihnen konfigurierten aria2-Servern."
+    />
+    <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fcfcfd" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://github.com" />
+    <title>Datenschutz — aria2t</title>
+    <script>
+      (function () {
+        try {
+          document.documentElement.classList.add(
+            window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          );
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="../../../src/entries/privacy.tsx"></script>
+  </body>
+</html>

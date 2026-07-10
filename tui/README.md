@@ -1,0 +1,37 @@
+# aria2t (application)
+
+Terminal client for the [aria2](https://aria2.github.io/) download manager — a Bubble Tea TUI that manages downloads, torrents, magnet links, and Metalink from the terminal. See the [root README](../README.md) for the full feature tour and the site at <https://aria2t.c0nn3ct.info>.
+
+This is the application source, published under `tui/` in the public [c0nn3ct-info/aria2t](https://github.com/c0nn3ct-info/aria2t) repo — a snapshot synced from the private development repo. Issues and pull requests welcome on the public repo.
+
+## Layout
+
+- `cmd/aria2t` — entry point and flag handling.
+- `internal/rpc` — typed aria2 JSON-RPC client (HTTP and WebSocket transports).
+- `internal/ui` — the Bubble Tea application: screens, overlays, mouse hitmap, themes.
+- `internal/daemon` — the managed `aria2c` child: spawn, session persistence, clean shutdown, stale-daemon reap.
+- `internal/config` — JSON config under `~/.config/aria2t/`.
+- `internal/sched` — speed-limit schedule resolution.
+- `internal/checksum` — streaming sha-256 verification.
+
+## Build
+
+```bash
+go build -o aria2t ./cmd/aria2t
+```
+
+Go 1.25 or newer. Stamp a version with `-ldflags "-X main.appVersion=v1.2.3"`. The managed daemon needs `aria2c` on `PATH` at runtime; connecting to an external aria2 does not.
+
+## Test
+
+```bash
+go vet ./... && gofmt -l .
+go test ./... -count=1 -coverprofile=cover.out -coverpkg=./...
+go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
+```
+
+The module holds 100% statement coverage; any new statement needs a test in the same change.
+
+## License
+
+Apache-2.0 — see [`LICENSE`](../LICENSE). aria2 (GPL-2.0) runs as a separate process and is only spoken to over JSON-RPC.

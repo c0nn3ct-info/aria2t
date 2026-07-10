@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: YandexBot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+Sitemap: https://aria2t.c0nn3ct.info/sitemap_index.xml
+Sitemap: https://aria2t.c0nn3ct.info/sitemap.xml
+Sitemap: https://aria2t.c0nn3ct.info/site.xml

@@ -10,10 +10,11 @@
   <a href="https://aria2.github.io/"><img src="https://img.shields.io/badge/engine-aria2-5c7cfa" alt="Engine: aria2"></a>
   <a href="https://github.com/charmbracelet/bubbletea"><img src="https://img.shields.io/badge/TUI-Bubble%20Tea-ff69b4" alt="TUI: Bubble Tea"></a>
   <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage: 100%">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
 </p>
 
 <p align="center">
-  <img alt="aria2t 演示" src="./docs/media/demo.gif" width="720">
+  <img alt="aria2t 演示" src="./tui/docs/media/demo.gif" width="720">
 </p>
 
 > [!IMPORTANT]
@@ -68,7 +69,8 @@ aria2 接受的一切都可以添加到 aria2t 中：普通 URL（多行视为�
 ### 构建并运行
 
 ```sh
-go build -o aria2t ./cmd/aria2t     # or: go install aria2t/cmd/aria2t
+git clone https://github.com/c0nn3ct-info/aria2t.git
+cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 ./aria2t
 ```
 
@@ -157,6 +159,7 @@ go build -o aria2t ./cmd/aria2t     # or: go install aria2t/cmd/aria2t
 模块的语句覆盖率为 **100%**，且由自动检查保证：
 
 ```sh
+cd tui
 go vet ./... && gofmt -l .
 go test ./... -count=1 -coverprofile=cover.out -coverpkg=./...
 go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing

@@ -1,0 +1,47 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const pagesDir = path.resolve(here, 'pages');
+
+// Keep in sync with LOCALES in src/i18n/index.ts (config is plain, can't import the .ts type list).
+const LOCALES = ['en', 'ru', 'zh-CN', 'es', 'de', 'ja'] as const;
+const PAGES: Record<string, string> = {
+  home: 'index.html',
+  install: 'install/index.html',
+  privacy: 'privacy/index.html',
+  license: 'license/index.html',
+};
+
+// Route HTML live under pages/ (the Vite root); output mirrors them into dist/ at the same URLs.
+const input: Record<string, string> = {};
+for (const locale of LOCALES) {
+  for (const [page, rel] of Object.entries(PAGES)) {
+    const key = locale === 'en' ? page : `${locale}-${page}`;
+    const file = locale === 'en' ? rel : `${locale}/${rel}`;
+    input[key] = path.resolve(pagesDir, file);
+  }
+}
+
+export default defineConfig({
+  base: '/',
+  root: pagesDir,
+  publicDir: path.resolve(here, 'public'),
+  plugins: [react()],
+  resolve: {
+    alias: { '@': path.resolve(here, 'src') },
+  },
+  build: {
+    outDir: path.resolve(here, 'dist'),
+    emptyOutDir: true,
+    rollupOptions: { input },
+  },
+  server: {
+    port: 5181,
+    strictPort: true,
+    // Route HTML reference the sibling ../src via relative module scripts.
+    fs: { allow: [here] },
+  },
+});

@@ -10,10 +10,11 @@
   <a href="https://aria2.github.io/"><img src="https://img.shields.io/badge/engine-aria2-5c7cfa" alt="Engine: aria2"></a>
   <a href="https://github.com/charmbracelet/bubbletea"><img src="https://img.shields.io/badge/TUI-Bubble%20Tea-ff69b4" alt="TUI: Bubble Tea"></a>
   <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage: 100%">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
 </p>
 
 <p align="center">
-  <img alt="aria2t demo" src="./docs/media/demo.gif" width="720">
+  <img alt="aria2t demo" src="./tui/docs/media/demo.gif" width="720">
 </p>
 
 > [!IMPORTANT]
@@ -68,7 +69,8 @@ By default aria2t finds `aria2c` on your `PATH` and starts a private daemon on a
 ### Build and run
 
 ```sh
-go build -o aria2t ./cmd/aria2t     # or: go install aria2t/cmd/aria2t
+git clone https://github.com/c0nn3ct-info/aria2t.git
+cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 ./aria2t
 ```
 
@@ -157,6 +159,7 @@ No. The program collects no analytics or telemetry, fetches no remote configurat
 Statement coverage in the module is **100%**, and this is checked automatically:
 
 ```sh
+cd tui
 go vet ./... && gofmt -l .
 go test ./... -count=1 -coverprofile=cover.out -coverpkg=./...
 go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
