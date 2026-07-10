@@ -2,8 +2,8 @@
 
 <h1 align="center">aria2t</h1>
 
-<p align="center"><strong>Terminal-Oberfläche für den Download-Manager aria2</strong></p>
-<p align="center"><em>Downloads, Torrents, Magnets und Metalinks — eine TUI für Tastatur und Maus, null Konfiguration.</em></p>
+<p align="center"><strong>Terminal-Client für den Download-Manager aria2</strong></p>
+<p align="center"><em>Downloads, Torrents, Magnet-Links und Metalink direkt im Terminal verwalten.</em></p>
 
 <p align="center">
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
@@ -17,37 +17,28 @@
 </p>
 
 > [!IMPORTANT]
-> aria2t ist eine Steueroberfläche — das Herunterladen erledigt [aria2](https://aria2.github.io/). Standardmäßig startet und verwaltet es für dich einen privaten `aria2c`-Daemon (null Konfiguration); auf ein bereits laufendes aria2 gezeigt, wird es zu einem reinen RPC-Client. Keine Analytik, keine Telemetrie — es spricht nur mit dem aria2-Endpunkt, den du konfigurierst.
+> Die Downloads erledigt [aria2](https://aria2.github.io/); aria2t ist sein Bedienpanel. Standardmäßig startet und verwaltet aria2t einen eigenen `aria2c`-Daemon, sodass keine Einrichtung nötig ist. Verweist man es auf ein bereits laufendes aria2, verbindet es sich damit als gewöhnlicher RPC-Client. aria2t sammelt weder Analytik noch Telemetrie und kommuniziert über das Netzwerk ausschließlich mit dem konfigurierten aria2-Server.
 
-aria2t ist eine Terminal-Oberfläche für den Download-Manager aria2 in der Tokyo-Night-Palette. Sie spricht mit aria2 über JSON-RPC — mit einem privaten Daemon, den sie selbst startet und für dich verwaltet, oder mit jedem aria2, das du bereits auf einer Seedbox, einem NAS oder einem entfernten Rechner betreibst — und jede Aktion funktioniert per Tastatur **und** Maus. Ein einziges statisches Go-Binary.
+aria2t ist ein Terminal-Client für den Download-Manager aria2 in der Tokyo-Night-Palette. Es kommuniziert mit aria2 über JSON-RPC: entweder mit einem privaten Daemon, den es selbst startet und verwaltet, oder mit jedem aria2, das bereits auf einer Seedbox, einem NAS oder einem entfernten Rechner läuft. Alle Aktionen sind sowohl über die Tastatur als auch mit der Maus erreichbar, und die Anwendung wird zu einem einzigen statischen Go-Binary gebaut.
 
 ## ✨ Funktionen
 
-- **Fügt alles hinzu, was aria2 annimmt** — URL-Spiegel, `.torrent`, `.metalink`, Magnet-Links, aria2-Eingabedateien — und lässt dich **vor dem Start auswählen, welche Dateien geladen werden**.
-- **Null Konfiguration** — findet `aria2c`, startet einen privaten Daemon und verwaltet dessen kompletten Lebenszyklus. Oder zeige mit `--url` auf ein externes aria2.
-- **Steuert jeden Download** — einzeln oder alle pausieren/fortsetzen, entfernen, die Warteschlange umsortieren, pro Download oder nach Tageszeit drosseln.
-- **Zeigt das Innere eines Downloads** — Piece-Karte, Peers und Spiegel-Geschwindigkeiten, Fortschritt pro Datei, Upload-Ratio und BitTorrent-Seeding-Steuerung.
-- **Hält dich ehrlich** — prüft eine fertige Datei gegen eine sha-256 und lädt bei Abweichung neu; erklärt Fehler in Klartext statt in Fehlercodes.
-- **Übersteht Neustarts** — fertige und laufende Downloads kommen zurück, und eine Dateiauswahl, die du ohne Antwort geschlossen hast, öffnet sich erneut.
-- **Bleibt aus dem Weg** — läutet die Glocke, wenn etwas fertig wird, filtert beim Tippen, wechselt Server mit Latenz-Messung und schaltet zwischen hellem und dunklem Thema um.
+- **Unterstützung aller aria2-Quellen** — URL-Spiegel, `.torrent`, `.metalink`, Magnet-Links und aria2-Eingabedateien.
+- **Start ohne Einrichtung** — aria2t findet `aria2c`, startet einen privaten Daemon und verwaltet dessen gesamten Lebenszyklus; ein externes aria2 wird über die Option `--url` angebunden.
+- **Download-Verwaltung** — Pausieren und Fortsetzen einzeln oder für alle, Entfernen, Umsortieren der Warteschlange, Geschwindigkeitslimits pro Download oder nach Zeitplan.
+- **Details zu jedem Download** — Piece-Karte, Peers und Spiegel-Geschwindigkeiten, Fortschritt pro Datei, Ratio und Steuerung des BitTorrent-Seedings.
+- **Integritätsprüfung** — eine fertige Datei wird gegen eine sha-256-Prüfsumme abgeglichen und bei Abweichung neu geladen; Fehler werden in Klartext statt mit Codes beschrieben.
+- **Erhalt des Zustands über Neustarts** — fertige und laufende Downloads werden wiederhergestellt, ebenso ein ohne Antwort geschlossenes Dateiauswahl-Fenster.
 
 ## 📦 Unterstützte Quellen
 
 `HTTP(S)` · `FTP` · `SFTP` · `BitTorrent` · `magnet:` · `.torrent` · `Metalink` · `aria2-Eingabedatei`
 
-Alles, was aria2 annimmt, fügt aria2t hinzu: einfache URLs — eine pro Zeile bedeutet Spiegel derselben Datei —, Magnet-Links und `.torrent`-Dateien mit DHT und Seeding, `.metalink` sowie aria2s eigenes `--input-file`-Batch-Format mit Optionen pro Download. Mehrdatei-Torrents, Magnets und Metalinks öffnen einen Kästchen-Baum, **bevor** der Download startet — nie wird etwas Ungewolltes geladen.
-
-## 🖥️ Bildschirme
-
-| | |
-|---|---|
-| ![Download-Liste](./docs/media/list-active.png) Die Liste — Live-Fortschritt, Geschwindigkeiten, eine farbige STATUS-Spalte | ![Dateiauswahl](./docs/media/files-picker.png) Dateien auswählen, bevor etwas lädt |
-| ![Detail](./docs/media/detail.png) Detail — Piece-Karte, Peers/Spiegel, Fortschritt pro Datei | ![Hinzufügen](./docs/media/add-overlay.png) Hinzufügen — aus der Zwischenablage vorausgefüllt, grüne/rote Buttons |
-| ![Integrität](./docs/media/stopped-integrity.png) sha-256-Prüfung + Klartext-Fehler | ![Zeitplaner](./docs/media/scheduler.png) Bandbreiten-Zeitplaner nach Tageszeit |
+In aria2t lässt sich alles hinzufügen, was aria2 annimmt: gewöhnliche URLs (mehrere Zeilen gelten als Spiegel derselben Datei), Magnet-Links und `.torrent`-Dateien mit DHT- und Seeding-Unterstützung, `.metalink` sowie das Batch-Format `--input-file` von aria2 mit eigenen Optionen je Eintrag.
 
 ## 🧩 Wie es funktioniert
 
-Die TUI lädt selbst nie etwas herunter — das tut ein aria2-Daemon, und zwischen beiden fließt nur JSON-RPC.
+Die Dateien lädt der aria2-Daemon; die Oberfläche steuert ihn über JSON-RPC.
 
 ```
   Terminal                                  Your machine
@@ -64,15 +55,15 @@ Die TUI lädt selbst nie etwas herunter — das tut ein aria2-Daemon, und zwisch
   └──────────────────┘                      └──────────────────┘
 ```
 
-Standardmäßig findet aria2t `aria2c` in deinem `PATH` und betreibt einen privaten Daemon auf einem zufälligen Port mit zufälligem Secret: Die komplette Sitzung wird beim Beenden gespeichert und beim nächsten Start wiederhergestellt, und der Kindprozess wird beim Beenden sauber gestoppt (ein durch Absturz verwaister Daemon wird beim nächsten Start abgeräumt). Zeigt man stattdessen auf einen externen Server, startet der eingebaute Daemon gar nicht erst — aria2t wird zu einem reinen RPC-Client.
+Standardmäßig findet aria2t `aria2c` im `PATH` und startet einen privaten Daemon auf einem zufälligen Port mit einem zufälligen Secret. Die Sitzung wird beim Beenden gespeichert und beim nächsten Start wiederhergestellt, und der Kindprozess wird zusammen mit dem Programm sauber gestoppt; ein nach einem Absturz zurückgebliebener Daemon wird beim nächsten Start beendet. Ist ein externer Server konfiguriert, wird der eingebaute Daemon nicht gestartet, und aria2t arbeitet als gewöhnlicher RPC-Client.
 
 ## 📥 Installation
 
-### Bevor du anfängst
+### Bevor Sie anfangen
 
-- [aria2](https://aria2.github.io/) (`brew install aria2` / `apt install aria2`) — nur für den Null-Konfigurations-Modus; für die Verbindung zu einem externen Server nicht nötig.
-- Ein Terminal mit 256-Farben- oder Truecolor-Unterstützung. Maus ist optional; jede Aktion hat eine Taste.
-- Go 1.25+ für den Build aus den Quellen.
+- [aria2](https://aria2.github.io/) (`brew install aria2` / `apt install aria2`) — nur für den eingebauten Daemon; für die Verbindung zu einem externen Server nicht nötig.
+- Ein Terminal mit 256-Farben- oder Truecolor-Unterstützung. Eine Maus ist optional: Alle Aktionen sind über die Tastatur erreichbar.
+- Go 1.25 oder neuer für den Build aus den Quellen.
 
 ### Bauen und starten
 
@@ -81,42 +72,42 @@ go build -o aria2t ./cmd/aria2t     # or: go install aria2t/cmd/aria2t
 ./aria2t
 ```
 
-Der erste Start bringt den privaten Daemon hoch und lässt dich in einer leeren Liste landen, bereit für `a` — oder für `↵`, das direkt einen Link aus der Zwischenablage hinzufügt.
+Beim ersten Start bringt aria2t den privaten Daemon hoch und öffnet eine leere Download-Liste. Die Taste `a` öffnet das Hinzufügen-Formular, und `↵` fügt einen Link aus der Zwischenablage hinzu.
 
-### Mit einem externen aria2 verbinden
+### Verbindung zu einem externen aria2
 
 ```sh
 ./aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
 ```
 
-Die Konfiguration liegt in `~/.config/aria2t/config.json` (`--config` überschreibt); der verwaltete Daemon hält seine Sitzung unter `~/.config/aria2t/daemon/`.
+Die Konfiguration liegt in `~/.config/aria2t/config.json` (der Pfad lässt sich mit `--config` ändern); der verwaltete Daemon hält seine Sitzung unter `~/.config/aria2t/daemon/`.
 
 ### Aktualisieren
 
-Neu bauen und das Binary ersetzen — Konfiguration, Zeitplaner-Regeln und die Daemon-Sitzung liegen alle unter `~/.config/aria2t/` und überstehen den Tausch.
+Bauen Sie das Binary neu und ersetzen Sie das alte. Konfiguration, Zeitplaner-Regeln und die Daemon-Sitzung liegen unter `~/.config/aria2t/` und überstehen den Austausch.
 
 ### Deinstallieren
 
-1. Lösche das Binary.
-2. Lösche das Datenverzeichnis: `~/.config/aria2t/` (Konfiguration, Daemon-Sitzung, Logs).
+1. Löschen Sie das Binary.
+2. Löschen Sie das Datenverzeichnis `~/.config/aria2t/` (Konfiguration, Daemon-Sitzung, Logs).
 
 ## ⌨️ Bedienung
 
-**Hinzufügen.** `a` öffnet das Formular, aus deiner Zwischenablage vorausgefüllt. Ein URI pro Zeile bedeutet Spiegel derselben Datei; `^t` wechselt durch die Tabs (URL · `.torrent` · `.metalink` · Eingabedatei), `^o` durchsucht die Platte nach einer Datei, `^s` schaltet Start-pausiert um. Auf dem leeren Startbildschirm des ersten Laufs fügt `↵` direkt einen Link aus der Zwischenablage hinzu.
+**Hinzufügen.** `a` öffnet das Hinzufügen-Formular, aus der Zwischenablage vorausgefüllt. Mehrere URIs, eine pro Zeile, gelten als Spiegel derselben Datei. `^t` wechselt die Tabs (URL · `.torrent` · `.metalink` · Eingabedatei), `^o` öffnet einen Dateibrowser, und `^s` fügt den Download pausiert hinzu. Auf dem leeren Bildschirm des ersten Starts fügt `↵` einen Link aus der Zwischenablage hinzu.
 
-**Dateien auswählen.** Mehrdatei-Torrents, Metalinks und Magnets öffnen einen Kästchen-Baum, **bevor überhaupt etwas lädt** (ein Magnet bleibt pausiert, bis du wählst): `space` schaltet eine Datei oder einen Ordner um, `a`/`n` wählen alles/nichts, `↵` bestätigt. Mit `f` änderst du die Auswahl später. Beendest du, bevor du wählst, öffnet sich die Auswahl beim nächsten Start erneut — nie wird etwas Ungewolltes geladen.
+**Dateien auswählen.** Mehrdatei-Torrents, Metalink und Magnet-Links öffnen einen Dateibaum mit Kontrollkästchen; ein Magnet-Link bleibt pausiert, bis die Auswahl bestätigt ist. `space` markiert eine Datei oder einen Ordner, `a` und `n` wählen alles oder nichts, `↵` bestätigt die Auswahl. Später lässt sich die Auswahl mit `f` ändern. Beendet man das Programm vor der Bestätigung, öffnet sich das Fenster beim nächsten Start erneut.
 
-**Die Liste bedienen.** `tab` oder `1`–`4` wechseln zwischen Alle / Active / Waiting / Stopped. `space` pausiert/setzt die gewählte Zeile fort, `P`/`U` betreffen alle, `d` entfernt, `l` limitiert, `/` filtert beim Tippen, `y` kopiert die Quell-URL, `↵` öffnet die Details. Im Waiting-Tab greifen `J`/`K` einen Eintrag und verschieben ihn in der Warteschlange.
+**Die Liste.** `tab` oder die Tasten `1`–`4` wechseln zwischen den Tabs All / Active / Waiting / Stopped. `space` pausiert und setzt den gewählten Download fort, `P` und `U` tun dasselbe für alle, `d` entfernt, `l` begrenzt die Geschwindigkeit, `/` filtert nach Namen, `y` kopiert die Quell-URL, `↵` öffnet die Details. Im Waiting-Tab verschieben `J` und `K` den gewählten Eintrag innerhalb der Warteschlange.
 
-**Bandbreite.** `l` drosselt den gewählten Download mit Preset-Chips. Ein in den Einstellungen (`,`) gesetztes globales Limit wird gespeichert und beim Neustart des Daemons erneut angewendet. `S` plant globale Limits nach Tageszeit („5 MiB/s zur Arbeitszeit, nachts unbegrenzt").
+**Geschwindigkeit.** `l` begrenzt die Geschwindigkeit des gewählten Downloads; die Werte werden aus Voreinstellungen gewählt. Ein globales Limit wird in den Einstellungen (`,`) gesetzt, gespeichert und nach einem Neustart des Daemons erneut angewendet. `S` öffnet den Zeitplaner, in dem globale Limits nach Tageszeit festgelegt werden, etwa 5 MiB/s während der Arbeitszeit und unbegrenzt nachts.
 
-**Integrität.** Im Stopped-Tab: `c` speichert eine erwartete sha-256, `v` prüft die lokale Datei, `R` lädt bei Abweichung neu, `X` leert die Liste.
+**Integrität.** Im Stopped-Tab speichert `c` die erwartete sha-256-Prüfsumme, `v` gleicht die lokale Datei damit ab, `R` lädt die Datei bei Abweichung neu, und `X` leert die Liste.
 
-Drücke jederzeit **`?`** für die vollständige Tastenbelegung. Jeder Hinweis in der Tastenleiste ist außerdem klickbar, und Dialoge nutzen grüne (fortfahren) / rote (abbrechen) Buttons.
+Die vollständige Liste der Tastenkombinationen öffnet sich mit **`?`**. Jeder Hinweis in der unteren Leiste reagiert auch auf Mausklick; in Dialogen bestätigt der grüne Knopf die Aktion, der rote bricht ab.
 
 ## ⚙️ Konfiguration
 
-`~/.config/aria2t/config.json` (ausgelassene Felder behalten ihre Defaults):
+`~/.config/aria2t/config.json` (ausgelassene Felder behalten ihre Standardwerte):
 
 ```json
 {
@@ -133,45 +124,46 @@ Drücke jederzeit **`?`** für die vollständige Tastenbelegung. Jeder Hinweis i
 }
 ```
 
-Ein `managed`-Server ist der eingebaute Daemon (Port und Secret werden beim Start gewählt); alles andere ist ein externer Endpunkt. `globalDown`/`globalUp` sind gespeicherte globale Geschwindigkeitslimits und `seedRatio`/`seedTime` die Seeding-Standards — alle werden beim Verbinden erneut auf den Daemon angewendet. Zeitplaner-Regeln (`S`) werden ebenfalls hier gespeichert.
+Ein Server mit dem Feld `managed` ist der eingebaute Daemon; Port und Secret werden bei seinem Start gewählt. Die übrigen Einträge beschreiben externe Server. `globalDown` und `globalUp` legen die gespeicherten globalen Geschwindigkeitslimits fest, `seedRatio` und `seedTime` die Standard-Seeding-Parameter; beim Verbinden werden alle diese Werte erneut auf den Daemon angewendet. Zeitplaner-Regeln (`S`) werden ebenfalls in dieser Datei gespeichert.
 
 ## ❓ FAQ
 
-**Was ist aria2, und warum eine TUI dafür?**
-[aria2](https://aria2.github.io/) ist eine schnelle Multi-Protokoll-Download-Engine — HTTP(S), FTP, SFTP, BitTorrent, Metalink —, die headless läuft und JSON-RPC spricht. Eine eigene Oberfläche jenseits von Einmal-Kommandos hat sie nicht. aria2t ist diese Oberfläche: Live-Liste, Dateiauswahl, Umsortieren der Warteschlange, Drosselung und Integritätsprüfungen in einer Vollbild-TUI.
+**Was ist aria2, und warum braucht es eine eigene Oberfläche?**
+[aria2](https://aria2.github.io/) ist eine schnelle Download-Engine mit Unterstützung für HTTP(S), FTP, SFTP, BitTorrent und Metalink. Sie läuft im Hintergrund, wird über JSON-RPC gesteuert und hat außer Einmal-Kommandos keine eigene Oberfläche. aria2t ergänzt sie um eine Download-Liste in Echtzeit, Dateiauswahl, Verwaltung der Warteschlange, Geschwindigkeitslimits und Integritätsprüfung.
 
 **Was ist der Unterschied zum direkten Aufruf von `aria2c`?**
-`aria2c` lädt entweder eine URL und beendet sich, oder es läuft als Daemon, gegen den man Skripte schreibt. aria2t verwaltet diesen Daemon für dich — Start, Sitzung speichern/wiederherstellen, sauberes Herunterfahren, Abräumen eines durch Absturz verwaisten Daemons — und legt alles Interaktive obendrauf.
+`aria2c` lädt entweder eine Datei und beendet sich, oder es läuft als Daemon, der über Skripte gesteuert wird. aria2t übernimmt die Verwaltung dieses Daemons: Es startet ihn, speichert und restauriert die Sitzung, stoppt ihn beim Beenden sauber und beendet einen nach einem Absturz zurückgebliebenen Daemon. Darauf aufbauend stellt aria2t eine interaktive Oberfläche bereit.
 
-**Funktioniert es mit einem aria2, das ich schon betreibe?**
-Ja. `--url ws://host:6800/jsonrpc --secret …` (oder der eingebaute Server-Umschalter mit Latenz-Messung) verbindet sich mit jedem aria2 über WebSocket oder HTTP(S) — Seedbox, NAS, Docker-Container. Der eingebaute Daemon startet dann nie.
+**Funktioniert es mit einem aria2, das bereits läuft?**
+Ja. Die Option `--url ws://host:6800/jsonrpc --secret …` oder der eingebaute Server-Umschalter mit Latenzmessung verbindet aria2t mit jedem aria2 über WebSocket oder HTTP(S), etwa auf einer Seedbox, einem NAS oder in einem Docker-Container. Der eingebaute Daemon wird in diesem Fall nicht gestartet.
 
-**Überleben Downloads das Beenden?**
-Ja. Der verwaltete Daemon speichert seine komplette Sitzung beim Beenden und stellt sie beim nächsten Start wieder her — aktive, wartende, fertige und seedende Downloads kommen alle zurück, und fertige Dateien werden erkannt statt neu geladen. Selbst eine Dateiauswahl, die du ohne Antwort geschlossen hast, öffnet sich erneut.
+**Bleiben Downloads nach dem Beenden erhalten?**
+Ja. Der verwaltete Daemon speichert die Sitzung beim Beenden und stellt sie beim nächsten Start wieder her: Aktive, wartende, fertige und seedende Downloads werden wiederhergestellt, und bereits geladene Dateien werden erkannt statt erneut geladen. Auch ein ohne Antwort geschlossenes Dateiauswahl-Fenster öffnet sich wieder.
 
-**Kann ich Dateien in einem Torrent auswählen, bevor er lädt?**
-Ja — Torrents, Magnets und Metalinks werden pausiert hinzugefügt, und zuerst öffnet sich ein Kästchen-Baum (ein Magnet wartet auf seine Metadaten und pausiert dann). Nichts wird übertragen, bis du bestätigst, und `f` öffnet die Auswahl später erneut.
+**Kann man auswählen, welche Dateien eines Torrents geladen werden?**
+Ja. Torrents, Magnet-Links und Metalink werden pausiert hinzugefügt, und zuerst öffnet sich ein Dateibaum; ein Magnet-Link wird nach dem Eintreffen seiner Metadaten pausiert. Die Datenübertragung beginnt erst nach Bestätigung der Auswahl, und mit `f` lässt sie sich später ändern.
 
-**Seedet es?**
-Ja. Ein fertiger Torrent lädt weiter hoch, und sein Status wechselt zu einem eigenen *seeding*; globale Ratio-/Zeit-Standards liegen in den Einstellungen und werden bei jedem Daemon-Neustart erneut angewendet.
+**Seedet es Torrents?**
+Ja. Ein fertiger Torrent wird weiter verteilt, und sein Status wechselt zu seeding. Die globalen Seeding-Parameter — Ratio und Zeit — werden in den Einstellungen festgelegt und bei jedem Neustart des Daemons erneut angewendet.
 
 **Tastatur oder Maus?**
-Beides, vollständig: Jeder Hinweis in der Tastenleiste ist klickbar, und jeder Klick hat ein Tasten-Äquivalent. `?` zeigt die ganze Belegung.
+Beides wird vollständig unterstützt. Jeder Hinweis in der Tastenleiste reagiert auf Klick, jede Mausaktion hat ein Tastatur-Äquivalent, und die vollständige Liste der Kombinationen öffnet sich mit `?`.
 
-**Sendet aria2t irgendetwas irgendwohin?**
-Nein. Keine Analytik, keine Telemetrie, keine Fernkonfiguration — der einzige Netzwerk-Gesprächspartner ist der aria2-Endpunkt, den du konfigurierst.
+**Sendet aria2t irgendwelche Daten nach außen?**
+Nein. Das Programm sammelt weder Analytik noch Telemetrie, bezieht keine Fernkonfiguration und kommuniziert über das Netzwerk ausschließlich mit dem konfigurierten aria2-Server.
 
 ## 🛠️ Entwicklung
 
-Das Modul hält **100 % Statement-Coverage**, durchgesetzt:
+Die Statement-Coverage des Moduls liegt bei **100 %**, und das wird automatisch geprüft:
 
 ```sh
 go vet ./... && gofmt -l .
 go test ./... -count=1 -coverprofile=cover.out -coverpkg=./...
 go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
 ```
+
 ## 🙏 Danksagungen
 
-- **[aria2](https://github.com/aria2/aria2)** (GPL-2.0) — die Download-Engine, die die gesamte eigentliche Transfer-, BitTorrent- und Metalink-Arbeit erledigt. aria2t ist eine Steueroberfläche; die Arbeit macht aria2.
+- **[aria2](https://github.com/aria2/aria2)** (GPL-2.0) — die Download-Engine, die die gesamte Transfer-, BitTorrent- und Metalink-Arbeit leistet; aria2t ist ihr Bedienpanel.
 - **[Bubble Tea](https://github.com/charmbracelet/bubbletea)**, **[Bubbles](https://github.com/charmbracelet/bubbles)** und **[Lip Gloss](https://github.com/charmbracelet/lipgloss)** (MIT) — der Charm-TUI-Stack, auf dem aria2t gebaut ist.
-- **[Tokyo Night](https://github.com/folke/tokyonight.nvim)** — beide Paletten sind wörtlich aus Tokyo Night / Tokyo Night Day übernommen.
+- **[Tokyo Night](https://github.com/folke/tokyonight.nvim)** — beide Paletten sind unverändert aus den Themes Tokyo Night und Tokyo Night Day übernommen.

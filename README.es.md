@@ -2,8 +2,8 @@
 
 <h1 align="center">aria2t</h1>
 
-<p align="center"><strong>Interfaz de terminal para el gestor de descargas aria2</strong></p>
-<p align="center"><em>Descargas, torrents, magnets y metalinks — una sola TUI de teclado y ratón, cero configuración.</em></p>
+<p align="center"><strong>Cliente de terminal para el gestor de descargas aria2</strong></p>
+<p align="center"><em>Gestión de descargas, torrents, enlaces magnet y Metalink desde el terminal.</em></p>
 
 <p align="center">
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
@@ -17,37 +17,28 @@
 </p>
 
 > [!IMPORTANT]
-> aria2t es una superficie de control — [aria2](https://aria2.github.io/) es quien descarga. Por defecto lanza y gestiona por ti un demonio `aria2c` privado (cero configuración); apuntado a un aria2 que ya tengas corriendo, se convierte en un cliente RPC puro. Sin analíticas, sin telemetría — solo habla con el endpoint de aria2 que tú configures.
+> Las descargas las realiza [aria2](https://aria2.github.io/); aria2t es su panel de control. Por defecto aria2t lanza y gestiona su propio demonio `aria2c`, así que no hace falta configurar nada. Si se le indica un aria2 que ya está en marcha, se conecta a él como un cliente RPC normal. aria2t no recopila analíticas ni telemetría y solo se comunica por red con el servidor aria2 configurado.
 
-aria2t es una interfaz de terminal para el gestor de descargas aria2, con la paleta Tokyo Night. Habla con aria2 por JSON-RPC — con un demonio privado que él mismo lanza y gestiona por ti, o con cualquier aria2 que ya tengas corriendo en un seedbox, un NAS o una máquina remota — y cada acción funciona con teclado **y** ratón. Un único binario estático de Go.
+aria2t es un cliente de terminal para el gestor de descargas aria2, con la paleta Tokyo Night. Se comunica con aria2 por JSON-RPC: bien con un demonio privado que él mismo lanza y gestiona, bien con cualquier aria2 que ya esté corriendo en un seedbox, un NAS o una máquina remota. Todas las acciones están disponibles tanto con el teclado como con el ratón, y la aplicación se compila en un único binario estático de Go.
 
 ## ✨ Características
 
-- **Añade todo lo que aria2 acepta** — espejos de URL, `.torrent`, `.metalink`, enlaces magnet, archivos de entrada de aria2 — y te deja **elegir qué archivos descargar antes de que nada empiece**.
-- **Cero configuración** — encuentra `aria2c`, lanza un demonio privado y gestiona todo su ciclo de vida. O apúntalo a un aria2 externo con `--url`.
-- **Maneja cada descarga** — pausar/reanudar una o todas, eliminar, reordenar la cola, limitar la velocidad por descarga o según un horario del día.
-- **Muestra el interior de una descarga** — mapa por piezas, peers y velocidades de los espejos, progreso por archivo, ratio de subida y controles de seeding de BitTorrent.
-- **Te mantiene honesto** — verifica un archivo terminado contra un sha-256 y lo vuelve a descargar si no coincide; explica los fallos en lenguaje claro en lugar de códigos de error.
-- **Sobrevive a los reinicios** — las descargas terminadas y en curso reaparecen, y un selector de archivos que cerraste sin responder se vuelve a abrir.
-- **No te estorba** — hace sonar la campana cuando algo termina, filtra mientras escribes, cambia de servidor con sondas de latencia y alterna entre tema claro y oscuro.
+- **Compatibilidad con todas las fuentes de aria2** — espejos de URL, `.torrent`, `.metalink`, enlaces magnet y archivos de entrada de aria2.
+- **Arranque sin configuración** — aria2t encuentra `aria2c`, lanza un demonio privado y gestiona todo su ciclo de vida; un aria2 externo se conecta con la opción `--url`.
+- **Gestión de descargas** — pausa y reanudación de una o de todas, eliminación, reordenación de la cola, límites de velocidad por descarga o según un horario.
+- **Detalles de cada descarga** — mapa de piezas, peers y velocidad de los espejos, progreso por archivo, ratio y control del seeding de BitTorrent.
+- **Comprobación de integridad** — el archivo terminado se coteja con una suma sha-256 y se vuelve a descargar si no coincide; los errores se describen en lenguaje claro, no con códigos.
+- **Conservación del estado entre sesiones** — las descargas terminadas y en curso se restauran, igual que una ventana de selección de archivos cerrada sin responder.
 
 ## 📦 Fuentes compatibles
 
 `HTTP(S)` · `FTP` · `SFTP` · `BitTorrent` · `magnet:` · `.torrent` · `Metalink` · `archivo de entrada de aria2`
 
-Todo lo que aria2 acepta, aria2t lo añade: URLs planas — una por línea significa espejos del mismo archivo —, enlaces magnet y archivos `.torrent` con DHT y seeding, `.metalink`, y el propio formato por lotes `--input-file` de aria2 con opciones por descarga. Los torrents multiarchivo, los magnets y los metalinks abren un árbol de casillas **antes** de que empiece la descarga — nunca se descarga nada no deseado.
-
-## 🖥️ Pantallas
-
-| | |
-|---|---|
-| ![Lista de descargas](./docs/media/list-active.png) La lista — progreso y velocidades en vivo, una columna STATUS coloreada | ![Selector de archivos](./docs/media/files-picker.png) Elige archivos antes de que nada se descargue |
-| ![Detalle](./docs/media/detail.png) Detalle — mapa de piezas, peers/espejos, progreso por archivo | ![Añadir](./docs/media/add-overlay.png) Añadir — prellenado desde el portapapeles, botones verde/rojo |
-| ![Integridad](./docs/media/stopped-integrity.png) Verificación sha-256 + errores en lenguaje claro | ![Planificador](./docs/media/scheduler.png) Planificador de ancho de banda por horario |
+En aria2t se puede añadir todo lo que aria2 acepta: URLs normales (varias líneas se tratan como espejos del mismo archivo), enlaces magnet y archivos `.torrent` con soporte de DHT y seeding, `.metalink`, y el formato por lotes `--input-file` de aria2 con opciones separadas para cada entrada.
 
 ## 🧩 Cómo funciona
 
-La TUI nunca descarga nada por sí misma — lo hace un demonio de aria2, y entre ambos solo fluye JSON-RPC.
+El demonio aria2 descarga los archivos; la interfaz lo controla por JSON-RPC.
 
 ```
   Terminal                                  Your machine
@@ -64,15 +55,15 @@ La TUI nunca descarga nada por sí misma — lo hace un demonio de aria2, y entr
   └──────────────────┘                      └──────────────────┘
 ```
 
-Por defecto aria2t encuentra `aria2c` en tu `PATH` y ejecuta un demonio privado en un puerto aleatorio con un secreto aleatorio: la sesión completa se guarda al salir y se restaura en el siguiente arranque, y el proceso hijo se detiene limpiamente cuando sales (un demonio huérfano por un fallo se recoge en el siguiente arranque). Apúntalo en cambio a un servidor externo y el demonio integrado nunca arranca — aria2t pasa a ser un cliente RPC puro.
+Por defecto aria2t encuentra `aria2c` en el `PATH` y arranca un demonio privado en un puerto aleatorio con un secreto aleatorio. La sesión se guarda al salir y se restaura en el siguiente arranque, y el proceso hijo se detiene limpiamente junto con el programa; un demonio que quedó huérfano tras un fallo se apaga en el siguiente arranque. Si se ha configurado un servidor externo, el demonio integrado no se arranca y aria2t funciona como un cliente RPC normal.
 
 ## 📥 Instalación
 
 ### Antes de empezar
 
-- [aria2](https://aria2.github.io/) (`brew install aria2` / `apt install aria2`) — solo para el modo cero-configuración; no hace falta para conectar con un servidor externo.
-- Un terminal con soporte de 256 colores o truecolor. El ratón es opcional; toda acción tiene su tecla.
-- Go 1.25+ para compilar desde el código fuente.
+- [aria2](https://aria2.github.io/) (`brew install aria2` / `apt install aria2`) — solo para el demonio integrado; no hace falta para conectar con un servidor externo.
+- Un terminal con soporte de 256 colores o truecolor. El ratón es opcional: todas las acciones están disponibles desde el teclado.
+- Go 1.25 o más reciente para compilar desde el código fuente.
 
 ### Compilar y ejecutar
 
@@ -81,7 +72,7 @@ go build -o aria2t ./cmd/aria2t     # or: go install aria2t/cmd/aria2t
 ./aria2t
 ```
 
-El primer arranque lanza el demonio privado y te deja en una lista vacía, lista para `a` — o para `↵`, que añade un enlace directamente desde el portapapeles.
+En el primer arranque aria2t lanza el demonio privado y abre una lista de descargas vacía. La tecla `a` abre el formulario de añadir y `↵` añade un enlace desde el portapapeles.
 
 ### Conectar con un aria2 externo
 
@@ -89,34 +80,34 @@ El primer arranque lanza el demonio privado y te deja en una lista vacía, lista
 ./aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
 ```
 
-La configuración persiste en `~/.config/aria2t/config.json` (`--config` la sobreescribe); el demonio gestionado guarda su sesión bajo `~/.config/aria2t/daemon/`.
+La configuración se guarda en `~/.config/aria2t/config.json` (la ruta puede cambiarse con `--config`); el demonio gestionado mantiene su sesión bajo `~/.config/aria2t/daemon/`.
 
 ### Actualizar
 
-Recompila y sustituye el binario — la configuración, las reglas del planificador y la sesión del demonio viven bajo `~/.config/aria2t/` y sobreviven al cambio.
+Recompile el binario y sustituya el antiguo. La configuración, las reglas del planificador y la sesión del demonio se guardan bajo `~/.config/aria2t/` y sobreviven a la sustitución.
 
 ### Desinstalar
 
-1. Borra el binario.
-2. Borra el directorio de datos: `~/.config/aria2t/` (configuración, sesión del demonio, registros).
+1. Borre el binario.
+2. Borre el directorio de datos `~/.config/aria2t/` (configuración, sesión del demonio, registros).
 
 ## ⌨️ Uso
 
-**Añadir.** `a` abre el formulario de añadir, prellenado desde tu portapapeles. Un URI por línea significa espejos del mismo archivo; `^t` recorre las pestañas (URL · `.torrent` · `.metalink` · archivo de entrada), `^o` explora el disco en busca de un archivo, `^s` alterna empezar en pausa. En la pantalla vacía del primer arranque, `↵` añade un enlace directamente desde el portapapeles.
+**Añadir.** `a` abre el formulario de añadir, prellenado desde el portapapeles. Varias URIs, una por línea, se tratan como espejos del mismo archivo. `^t` cambia de pestaña (URL · `.torrent` · `.metalink` · archivo de entrada), `^o` abre un explorador de archivos y `^s` añade la descarga en pausa. En la pantalla vacía del primer arranque, `↵` añade un enlace desde el portapapeles.
 
-**Elegir archivos.** Los torrents multiarchivo, los metalinks y los magnets abren un árbol de casillas **antes de que nada se descargue** (un magnet queda en pausa hasta que elijas): `space` alterna un archivo o una carpeta, `a`/`n` seleccionan todo/nada, `↵` confirma. Pulsa `f` para cambiar la selección más tarde. Sal antes de elegir y el selector se vuelve a abrir en el siguiente arranque — nunca se descarga nada no deseado.
+**Elegir archivos.** Los torrents multiarchivo, Metalink y los enlaces magnet abren un árbol de archivos con casillas; un enlace magnet permanece en pausa hasta que se confirma la selección. `space` marca un archivo o una carpeta, `a` y `n` seleccionan todo o nada, `↵` confirma la selección. La selección puede cambiarse más tarde con `f`. Si se sale antes de confirmar, la ventana se abre de nuevo en el siguiente arranque.
 
-**Maneja la lista.** `tab` o `1`–`4` alternan entre All / Active / Waiting / Stopped. `space` pausa/reanuda la fila seleccionada, `P`/`U` lo hacen con todas, `d` elimina, `l` limita, `/` filtra mientras escribes, `y` copia la URL de origen, `↵` abre los detalles. En la pestaña Waiting, `J`/`K` agarran y mueven un elemento de la cola.
+**La lista.** `tab` o las teclas `1`–`4` cambian entre las pestañas All / Active / Waiting / Stopped. `space` pausa y reanuda la descarga seleccionada, `P` y `U` hacen lo mismo con todas, `d` elimina, `l` limita la velocidad, `/` filtra por nombre, `y` copia la URL de origen, `↵` abre los detalles. En la pestaña Waiting, `J` y `K` mueven el elemento seleccionado dentro de la cola.
 
-**Ancho de banda.** `l` limita la descarga seleccionada con chips predefinidos. Un límite global fijado en los ajustes (`,`) se guarda y se vuelve a aplicar cuando el demonio se reinicia. `S` planifica los límites globales por hora del día («5 MiB/s en el trabajo, sin límite de noche»).
+**Velocidad.** `l` limita la velocidad de la descarga seleccionada; los valores se eligen entre preajustes. El límite global se fija en los ajustes (`,`), se guarda y se vuelve a aplicar tras el reinicio del demonio. `S` abre el planificador, donde los límites globales se definen por hora del día, por ejemplo 5 MiB/s en horario laboral y sin límite por la noche.
 
-**Integridad.** En la pestaña Stopped: `c` guarda un sha-256 esperado, `v` verifica el archivo local, `R` vuelve a descargar si no coincide, `X` limpia la lista.
+**Integridad.** En la pestaña Stopped, `c` guarda la suma sha-256 esperada, `v` coteja el archivo local con ella, `R` vuelve a descargar el archivo si no coincide y `X` limpia la lista.
 
-Pulsa **`?`** en cualquier momento para el mapa completo de teclas. Cada indicación de la barra de teclas es también clicable, y los diálogos usan botones verdes (continuar) / rojos (cancelar).
+La lista completa de atajos de teclado se abre con **`?`**. Todas las indicaciones de la barra inferior también responden al clic; en los diálogos el botón verde confirma la acción y el rojo la cancela.
 
 ## ⚙️ Configuración
 
-`~/.config/aria2t/config.json` (los campos que omitas conservan sus valores por defecto):
+`~/.config/aria2t/config.json` (los campos omitidos conservan sus valores por defecto):
 
 ```json
 {
@@ -133,45 +124,46 @@ Pulsa **`?`** en cualquier momento para el mapa completo de teclas. Cada indicac
 }
 ```
 
-Un servidor `managed` es el demonio integrado (el puerto y el secreto se deciden al lanzarlo); cualquier otra cosa es un endpoint externo. `globalDown`/`globalUp` son los límites de velocidad globales guardados y `seedRatio`/`seedTime` los valores de seeding por defecto — todos se vuelven a aplicar al demonio al conectar. Las reglas del planificador (`S`) también se guardan aquí.
+Un servidor con el campo `managed` es el demonio integrado; su puerto y su secreto se eligen al arrancarlo. El resto de entradas describe servidores externos. `globalDown` y `globalUp` definen los límites de velocidad globales guardados, y `seedRatio` y `seedTime` los parámetros de seeding por defecto; al conectar, todos estos valores se vuelven a aplicar al demonio. Las reglas del planificador (`S`) también se guardan en este archivo.
 
 ## ❓ Preguntas frecuentes
 
-**¿Qué es aria2 y por qué ponerle una TUI?**
-[aria2](https://aria2.github.io/) es un motor de descargas rápido y multiprotocolo — HTTP(S), FTP, SFTP, BitTorrent, Metalink — que corre sin interfaz y habla JSON-RPC. No tiene interfaz propia más allá de comandos de un solo uso. aria2t es esa interfaz: lista en vivo, selección de archivos, reordenación de la cola, límites de velocidad y comprobaciones de integridad en una sola TUI a pantalla completa.
+**¿Qué es aria2 y por qué necesita una interfaz aparte?**
+[aria2](https://aria2.github.io/) es un motor de descargas rápido compatible con HTTP(S), FTP, SFTP, BitTorrent y Metalink. Funciona en segundo plano, se controla por JSON-RPC y no tiene interfaz propia más allá de comandos puntuales. aria2t le añade una lista de descargas en tiempo real, selección de archivos, gestión de la cola, límites de velocidad y comprobación de integridad.
 
-**¿En qué se diferencia de ejecutar `aria2c` a secas?**
-`aria2c` o bien descarga una URL y termina, o bien corre como un demonio contra el que escribes scripts. aria2t gestiona ese demonio por ti — lanzamiento, guardado/restauración de sesión, apagado limpio, recogida de un demonio huérfano tras un fallo — y pone encima toda la parte interactiva.
+**¿En qué se diferencia de ejecutar `aria2c` directamente?**
+`aria2c` o bien descarga un archivo y termina, o bien funciona como un demonio controlado por scripts. aria2t asume la gestión de ese demonio: lo arranca, guarda y restaura la sesión, lo detiene limpiamente al salir y apaga un demonio que quedó huérfano tras un fallo. Sobre esa base, aria2t ofrece una interfaz interactiva.
 
-**¿Funciona con un aria2 que ya tengo corriendo?**
-Sí. `--url ws://host:6800/jsonrpc --secret …` (o el selector de servidores integrado, con sondas de latencia) conecta con cualquier aria2 por WebSocket o HTTP(S) — seedbox, NAS, contenedor Docker. El demonio integrado nunca arranca.
+**¿Funciona con un aria2 que ya tengo en marcha?**
+Sí. La opción `--url ws://host:6800/jsonrpc --secret …` o el selector de servidores integrado con sondas de latencia conectan aria2t con cualquier aria2 por WebSocket o HTTP(S), por ejemplo en un seedbox, un NAS o un contenedor Docker. En ese caso el demonio integrado no se arranca.
 
-**¿Sobreviven las descargas al salir?**
-Sí. El demonio gestionado guarda su sesión completa al salir y la restaura en el siguiente arranque — las descargas activas, en cola, terminadas y en seeding vuelven todas, y los archivos terminados se reconocen en lugar de volver a descargarse. Incluso un selector de archivos que cerraste sin responder se vuelve a abrir.
+**¿Se conservan las descargas al salir del programa?**
+Sí. El demonio gestionado guarda la sesión al salir y la restaura en el siguiente arranque: las descargas activas, en espera, terminadas y en seeding se restauran, y los archivos ya descargados se reconocen en lugar de descargarse de nuevo. Una ventana de selección de archivos cerrada sin responder también se abre otra vez.
 
-**¿Puedo elegir archivos dentro de un torrent antes de que se descargue?**
-Sí — los torrents, magnets y metalinks se añaden en pausa y primero se abre un árbol de casillas (un magnet espera sus metadatos y luego se pausa). Nada se transfiere hasta que confirmes, y `f` reabre la selección más tarde.
+**¿Se puede elegir qué archivos de un torrent descargar?**
+Sí. Los torrents, los enlaces magnet y Metalink se añaden en pausa y primero se abre un árbol de archivos; un enlace magnet se pausa tras recibir sus metadatos. La transferencia de datos empieza solo después de confirmar la selección, y esta puede cambiarse más tarde con `f`.
 
-**¿Hace seeding?**
-Sí. Un torrent terminado sigue subiendo y su estado cambia a un *seeding* diferenciado; los valores globales de ratio/tiempo viven en los ajustes y se vuelven a aplicar cada vez que el demonio se reinicia.
+**¿Hace seeding de torrents?**
+Sí. Un torrent terminado sigue compartiéndose y su estado cambia a seeding. Los parámetros globales de seeding — ratio y tiempo — se definen en los ajustes y se vuelven a aplicar en cada reinicio del demonio.
 
 **¿Teclado o ratón?**
-Ambos, del todo: cada indicación de la barra de teclas es clicable y cada clic tiene su tecla equivalente. `?` muestra el mapa completo.
+Ambos están plenamente soportados. Todas las indicaciones de la barra de teclas responden al clic, cada acción del ratón tiene su equivalente de teclado y la lista completa de atajos se abre con `?`.
 
-**¿aria2t envía algo a alguna parte?**
-No. Sin analíticas, sin telemetría, sin configuración remota — el único interlocutor de red es el endpoint de aria2 que tú configures.
+**¿aria2t envía datos a alguna parte?**
+No. El programa no recopila analíticas ni telemetría, no obtiene configuración remota y solo se comunica por red con el servidor aria2 configurado.
 
 ## 🛠️ Desarrollo
 
-El módulo mantiene **cobertura de sentencias del 100 %**, aplicada:
+La cobertura de sentencias del módulo es del **100 %**, y se comprueba automáticamente:
 
 ```sh
 go vet ./... && gofmt -l .
 go test ./... -count=1 -coverprofile=cover.out -coverpkg=./...
 go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
 ```
+
 ## 🙏 Agradecimientos
 
-- **[aria2](https://github.com/aria2/aria2)** (GPL-2.0) — el motor de descargas que hace todo el trabajo real de transferencia, BitTorrent y Metalink. aria2t es una superficie de control; aria2 hace el trabajo.
+- **[aria2](https://github.com/aria2/aria2)** (GPL-2.0) — el motor de descargas que realiza todo el trabajo de transferencia, BitTorrent y Metalink; aria2t es su panel de control.
 - **[Bubble Tea](https://github.com/charmbracelet/bubbletea)**, **[Bubbles](https://github.com/charmbracelet/bubbles)** y **[Lip Gloss](https://github.com/charmbracelet/lipgloss)** (MIT) — la pila TUI de Charm sobre la que está construido aria2t.
-- **[Tokyo Night](https://github.com/folke/tokyonight.nvim)** — ambas paletas están tomadas literalmente de Tokyo Night / Tokyo Night Day.
+- **[Tokyo Night](https://github.com/folke/tokyonight.nvim)** — ambas paletas están tomadas sin cambios de los temas Tokyo Night y Tokyo Night Day.
