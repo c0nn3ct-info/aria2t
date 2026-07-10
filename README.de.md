@@ -170,8 +170,6 @@ go vet ./... && gofmt -l .
 go test ./... -count=1 -coverprofile=cover.out -coverpkg=./...
 go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
 ```
-
-
 ## 🙏 Danksagungen
 
 - **[aria2](https://github.com/aria2/aria2)** (GPL-2.0) — die Download-Engine, die die gesamte eigentliche Transfer-, BitTorrent- und Metalink-Arbeit erledigt. aria2t ist eine Steueroberfläche; die Arbeit macht aria2.

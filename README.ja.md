@@ -170,8 +170,6 @@ go vet ./... && gofmt -l .
 go test ./... -count=1 -coverprofile=cover.out -coverpkg=./...
 go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
 ```
-
-
 ## 🙏 謝辞
 
 - **[aria2](https://github.com/aria2/aria2)**（GPL-2.0）— 転送・BitTorrent・Metalink の実際の仕事をすべて担うダウンロードエンジン。aria2t は操作パネルであり、働くのは aria2 です。

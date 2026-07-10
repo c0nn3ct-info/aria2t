@@ -170,8 +170,6 @@ go vet ./... && gofmt -l .
 go test ./... -count=1 -coverprofile=cover.out -coverpkg=./...
 go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
 ```
-
-
 ## 🙏 致谢
 
 - **[aria2](https://github.com/aria2/aria2)**（GPL-2.0）— 完成全部实际传输、BitTorrent 和 Metalink 工作的下载引擎。aria2t 是操控面板；干活的是 aria2。
