@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Apple,
+  AppWindow,
   Check,
   Copy,
   Download,
@@ -110,12 +111,36 @@ export function InstallPage() {
               </h3>
               <CodeBlock>sudo apt install aria2</CodeBlock>
             </div>
+
+            <div className="space-y-2">
+              <h3 className="flex items-center gap-2 text-title-small text-on-surface">
+                <AppWindow className="h-4 w-4" />
+                Windows
+              </h3>
+              <CodeBlock>winget install aria2.aria2</CodeBlock>
+            </div>
           </div>
         </Section>
 
         <Section header={t('install.step2.title')} icon={Terminal}>
           <div className="space-y-5 px-2 pb-3 pt-2 text-body-large text-on-surface-variant">
             <p>{t('install.step2.body1')}</p>
+
+            <div className="space-y-2">
+              <h3 className="flex items-center gap-2 text-title-small text-on-surface">
+                <Terminal className="h-4 w-4" />
+                macOS / Linux
+              </h3>
+              <CodeBlock>curl -fsSL https://aria2t.c0nn3ct.info/install.sh | bash</CodeBlock>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="flex items-center gap-2 text-title-small text-on-surface">
+                <AppWindow className="h-4 w-4" />
+                Windows (PowerShell)
+              </h3>
+              <CodeBlock>iwr -useb https://aria2t.c0nn3ct.info/windows.ps1 | iex</CodeBlock>
+            </div>
 
             <div>
               <Button asChild variant="outlined" size="s">

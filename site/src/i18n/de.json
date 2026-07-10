@@ -4,14 +4,12 @@
   "nav.license": "Lizenz",
   "nav.home_aria": "aria2t-Startseite",
   "nav.lang_switch_aria": "Sprache wechseln",
-
   "footer.by": "von c0nn3ct.info",
   "footer.pages": "Seiten",
   "footer.sources": "Quellen",
   "footer.home": "Startseite",
   "footer.app": "aria2t",
   "footer.engine": "aria2",
-
   "home.title": "aria2t — Terminal-Client für den Download-Manager aria2",
   "home.description": "Eine Terminal-Oberfläche für aria2: Downloads, Torrents, Magnet-Links und Metalink mit verwaltetem Daemon, Dateiauswahl, Geschwindigkeits-Zeitplaner und sha-256-Integritätsprüfung.",
   "home.hero.h1": "Terminal-Client",
@@ -21,7 +19,6 @@
   "home.hero.cta_github": "GitHub",
   "home.works_with": "Funktioniert mit",
   "home.what_you_get": "Funktionen",
-
   "home.feat.sources.title": "Unterstützung aller aria2-Quellen",
   "home.feat.sources.body": "URL-Spiegel, .torrent, .metalink, Magnet-Links und aria2-Eingabedateien.",
   "home.feat.nosetup.title": "Start ohne Einrichtung",
@@ -38,20 +35,15 @@
   "home.feat.persist.body": "Fertige und laufende Downloads werden wiederhergestellt, ebenso ein ohne Antwort geschlossenes Dateiauswahl-Fenster.",
   "home.feat.mouse.title": "Tastatur und Maus",
   "home.feat.mouse.body": "Jede Aktion ist auf beiden Wegen erreichbar: Die Hinweise in der Tastenleiste reagieren auf Klick, und die vollständige Liste der Kombinationen öffnet sich mit ?.",
-
   "home.sources.h2": "Unterstützte Quellen",
   "home.sources.body": "In aria2t lässt sich alles hinzufügen, was aria2 annimmt: gewöhnliche URLs (mehrere Zeilen gelten als Spiegel derselben Datei), Magnet-Links und .torrent-Dateien mit DHT- und Seeding-Unterstützung, .metalink sowie das Batch-Format --input-file von aria2 mit eigenen Optionen je Eintrag.",
-
   "home.how.h2": "Wie es funktioniert",
   "home.how.body": "Die Dateien lädt der aria2-Daemon; die Oberfläche steuert ihn über JSON-RPC. Standardmäßig findet aria2t aria2c im PATH und startet einen privaten Daemon auf einem zufälligen Port mit einem zufälligen Secret. Die Sitzung wird beim Beenden gespeichert und beim nächsten Start wiederhergestellt; der Kindprozess wird zusammen mit dem Programm sauber gestoppt, und ein nach einem Absturz zurückgebliebener Daemon wird beim nächsten Start beendet.",
-
   "home.engine.h2": "Die Downloads erledigt aria2",
   "home.engine.body": "aria2t ist ein Bedienpanel für aria2. Verweist man es auf ein bereits laufendes aria2 — auf einer Seedbox, einem NAS oder in einem Docker-Container —, verbindet es sich damit als gewöhnlicher RPC-Client, und der eingebaute Daemon wird nicht gestartet. Die Anwendung sammelt weder Analytik noch Telemetrie und kommuniziert über das Netzwerk ausschließlich mit dem konfigurierten aria2-Server.",
-
   "home.start.h2": "Start",
   "home.start.body": "Installieren Sie aria2, holen Sie sich das aria2t-Binary und fügen Sie Ihren ersten Download hinzu — oder verbinden Sie sich mit einem Server, den Sie bereits betreiben.",
   "home.start.cta": "Installationsanleitung",
-
   "home.faq.h2": "FAQ",
   "home.faq.what.q": "Was ist aria2, und warum braucht es eine eigene Oberfläche?",
   "home.faq.what.a": "aria2 ist eine schnelle Download-Engine mit Unterstützung für HTTP(S), FTP, SFTP, BitTorrent und Metalink. Sie läuft im Hintergrund, wird über JSON-RPC gesteuert und hat außer Einmal-Kommandos keine eigene Oberfläche. aria2t ergänzt sie um eine Download-Liste in Echtzeit, Dateiauswahl, Verwaltung der Warteschlange, Geschwindigkeitslimits und Integritätsprüfung.",
@@ -69,9 +61,8 @@
   "home.faq.mouse.a": "Beides wird vollständig unterstützt. Jeder Hinweis in der Tastenleiste reagiert auf Klick, jede Mausaktion hat ein Tastatur-Äquivalent, und die vollständige Liste der Kombinationen öffnet sich mit ?.",
   "home.faq.telemetry.q": "Sendet aria2t irgendwelche Daten nach außen?",
   "home.faq.telemetry.a": "Nein. Das Programm sammelt weder Analytik noch Telemetrie, bezieht keine Fernkonfiguration und kommuniziert über das Netzwerk ausschließlich mit dem konfigurierten aria2-Server.",
-
-  "install.title": "aria2t installieren — Terminal-Client für aria2 (macOS, Linux)",
-  "install.description": "Installationsanleitung für den Terminal-Client aria2t: aria2 installieren, ein Release-Binary herunterladen oder mit Go aus den Quellen bauen und mit einem lokalen oder entfernten aria2 verbinden.",
+  "install.title": "aria2t installieren — Terminal-Client für aria2 (macOS, Linux, Windows)",
+  "install.description": "Installationsanleitung für den Terminal-Client aria2t: Ein Befehl installiert das neueste Release; aria2-Installation, Bauen aus dem Quellcode mit Go und Verbindung zu einem entfernten aria2.",
   "install.h1": "Installation",
   "install.lede": "aria2t ist ein einziges statisches Binary; aria2 liefert die Download-Engine. Drei Schritte, und der erste Download läuft.",
   "install.before.title": "Bevor Sie anfangen",
@@ -81,7 +72,7 @@
   "install.step1.title": "Schritt 1 — aria2 installieren",
   "install.step1.body": "Der verwaltete Daemon verwendet das aria2c Ihres Systems. Jede aktuelle Version funktioniert.",
   "install.step2.title": "Schritt 2 — aria2t beziehen",
-  "install.step2.body1": "Laden Sie das Archiv für Ihre Plattform von GitHub Releases herunter und legen Sie das Binary in Ihren PATH.",
+  "install.step2.body1": "Ein Befehl lädt das neueste Release für Ihre Plattform herunter und installiert die Binärdatei:",
   "install.step2.releases_cta": "GitHub Releases",
   "install.step2.body2": "Oder bauen Sie es aus den Quellen:",
   "install.step3.title": "Schritt 3 — Erster Start",
@@ -93,7 +84,6 @@
   "install.uninstalling.title": "Deinstallieren",
   "install.uninstalling.step1": "Löschen Sie das Binary.",
   "install.uninstalling.step2": "Löschen Sie das Datenverzeichnis",
-
   "privacy.title": "Datenschutz — aria2t",
   "privacy.description": "Was aria2t speichert und wohin sein Netzwerkverkehr geht: Alles bleibt lokal, keine Analytik oder Telemetrie in der Anwendung, Verbindungen nur zu den von Ihnen konfigurierten aria2-Servern.",
   "privacy.h1": "Datenschutz",
@@ -129,7 +119,6 @@
   "privacy.contact.body_after": ".",
   "privacy.changes.h2": "Änderungen",
   "privacy.changes.body": "Wesentliche Änderungen an dieser Richtlinie werden auf dieser Seite mit aktualisiertem Datum veröffentlicht.",
-
   "license.title": "aria2t-Lizenz — Apache-2.0",
   "license.description": "aria2t ist Open-Source-Software unter der Apache License 2.0. aria2 (GPL-2.0) läuft als separater Prozess; die Charm-TUI-Bibliotheken stehen unter der MIT-Lizenz.",
   "license.h1": "Lizenz",

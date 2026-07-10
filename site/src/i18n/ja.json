@@ -4,14 +4,12 @@
   "nav.license": "ライセンス",
   "nav.home_aria": "aria2t ホーム",
   "nav.lang_switch_aria": "言語を変更",
-
   "footer.by": "by c0nn3ct.info",
   "footer.pages": "ページ",
   "footer.sources": "ソースコード",
   "footer.home": "ホーム",
   "footer.app": "aria2t",
   "footer.engine": "aria2",
-
   "home.title": "aria2t — ダウンロードマネージャー aria2 のターミナルクライアント",
   "home.description": "aria2 のターミナル UI。ダウンロード、トレント、マグネットリンク、Metalink に対応し、管理されるデーモン、ファイル選択、速度スケジューラ、sha-256 整合性検証を備えます。",
   "home.hero.h1": "ダウンロードマネージャー aria2 の",
@@ -21,7 +19,6 @@
   "home.hero.cta_github": "GitHub",
   "home.works_with": "対応形式",
   "home.what_you_get": "機能",
-
   "home.feat.sources.title": "aria2 の全ソースに対応",
   "home.feat.sources.body": "URL ミラー、.torrent、.metalink、マグネットリンク、aria2 入力ファイル。",
   "home.feat.nosetup.title": "設定不要の起動",
@@ -38,20 +35,15 @@
   "home.feat.persist.body": "完了・進行中のダウンロードが復元され、未回答のまま閉じたファイル選択ウィンドウも再び開きます。",
   "home.feat.mouse.title": "キーボードとマウス",
   "home.feat.mouse.body": "すべての操作はどちらからも行えます。キーバーのヒントはクリックでき、キー割り当ての全一覧は ? で開きます。",
-
   "home.sources.h2": "対応ソース",
   "home.sources.body": "aria2t には aria2 が受け付けるものをすべて追加できます。通常の URL（複数行は同じファイルのミラーとして扱われます）、DHT とシードに対応したマグネットリンクと .torrent、.metalink、そしてエントリごとに個別オプションを持つ aria2 の --input-file バッチ形式です。",
-
   "home.how.h2": "仕組み",
   "home.how.body": "ファイルをダウンロードするのは aria2 デーモンで、インターフェースはそれを JSON-RPC で制御します。デフォルトでは、aria2t は PATH から aria2c を見つけ、ランダムなポートとランダムな secret で専用デーモンを起動します。セッションは終了時に保存され、次回起動時に復元されます。子プロセスはプログラムとともにクリーンに停止し、クラッシュで残ったデーモンは次回起動時に終了されます。",
-
   "home.engine.h2": "ダウンロードを実行するのは aria2",
   "home.engine.body": "aria2t は aria2 の操作パネルです。シードボックス・NAS・Docker コンテナなどで既に稼働中の aria2 を指定すれば、通常の RPC クライアントとして接続し、内蔵デーモンは起動しません。アプリケーションはアナリティクスもテレメトリも収集せず、ネットワーク通信の相手は設定された aria2 サーバーのみです。",
-
   "home.start.h2": "はじめる",
   "home.start.body": "aria2 をインストールし、aria2t のバイナリを入手して、最初のダウンロードを追加します。あるいは、既に運用しているサーバーに接続します。",
   "home.start.cta": "インストールガイド",
-
   "home.faq.h2": "FAQ",
   "home.faq.what.q": "aria2 とは何ですか。なぜ別のインターフェースが必要なのですか。",
   "home.faq.what.a": "aria2 は HTTP(S)、FTP、SFTP、BitTorrent、Metalink に対応した高速なダウンロードエンジンです。バックグラウンドで動作し、JSON-RPC で制御され、単発コマンド以外に独自のインターフェースを持ちません。aria2t はそこに、リアルタイムのダウンロード一覧、ファイル選択、キュー管理、速度制限、整合性検証を加えます。",
@@ -69,9 +61,8 @@
   "home.faq.mouse.a": "どちらも完全に対応しています。キーバーのヒントはすべてクリックでき、マウスの各操作にはキーボードの等価操作があり、キー割り当ての全一覧は ? で開きます。",
   "home.faq.telemetry.q": "aria2t は外部にデータを送信しますか。",
   "home.faq.telemetry.a": "いいえ。プログラムはアナリティクスもテレメトリも収集せず、リモート設定も取得せず、ネットワーク通信の相手は設定された aria2 サーバーのみです。",
-
-  "install.title": "aria2t のインストール — aria2 のターミナルクライアント（macOS・Linux）",
-  "install.description": "ターミナルクライアント aria2t のインストールガイド。aria2 のインストール、リリースバイナリの取得または Go によるソースからのビルド、ローカルやリモートの aria2 への接続を説明します。",
+  "install.title": "aria2t のインストール — aria2 ターミナルクライアント（macOS・Linux・Windows）",
+  "install.description": "aria2t ターミナルクライアントのインストールガイド: 1 つのコマンドで最新リリースをインストール。aria2 の導入、Go によるソースからのビルド、リモート aria2 への接続。",
   "install.h1": "インストール",
   "install.lede": "aria2t は単一の静的バイナリで、ダウンロードエンジンは aria2 が担います。3 つのステップで最初のダウンロードが動き出します。",
   "install.before.title": "はじめに",
@@ -81,7 +72,7 @@
   "install.step1.title": "ステップ 1 — aria2 のインストール",
   "install.step1.body": "管理されるデーモンはシステムの aria2c を実行します。最近のバージョンであればどれでも動作します。",
   "install.step2.title": "ステップ 2 — aria2t の入手",
-  "install.step2.body1": "GitHub Releases からお使いのプラットフォーム向けのアーカイブをダウンロードし、バイナリを PATH の通った場所に置きます。",
+  "install.step2.body1": "1 つのコマンドで、プラットフォームに合った最新リリースをダウンロードしてインストールできます:",
   "install.step2.releases_cta": "GitHub Releases",
   "install.step2.body2": "または、ソースからビルドします:",
   "install.step3.title": "ステップ 3 — 初回起動",
@@ -93,7 +84,6 @@
   "install.uninstalling.title": "アンインストール",
   "install.uninstalling.step1": "バイナリを削除します。",
   "install.uninstalling.step2": "次のデータディレクトリを削除します:",
-
   "privacy.title": "プライバシー — aria2t",
   "privacy.description": "aria2t が保存するものとネットワーク通信の行き先。すべてローカルで完結し、アプリケーションにアナリティクスやテレメトリはなく、接続先は設定された aria2 サーバーのみです。",
   "privacy.h1": "プライバシー",
@@ -129,7 +119,6 @@
   "privacy.contact.body_after": " までお願いします。",
   "privacy.changes.h2": "変更",
   "privacy.changes.body": "本ポリシーの重要な変更は、更新日とともに本ページで公開されます。",
-
   "license.title": "aria2t のライセンス — Apache-2.0",
   "license.description": "aria2t は Apache License 2.0 のオープンソースソフトウェアです。aria2（GPL-2.0）は別プロセスとして動作し、Charm の TUI ライブラリは MIT ライセンスです。",
   "license.h1": "ライセンス",

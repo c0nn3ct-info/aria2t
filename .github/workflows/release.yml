@@ -43,10 +43,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: darwin, arch: arm64 }
-          - { os: darwin, arch: amd64 }
-          - { os: linux,  arch: amd64 }
-          - { os: linux,  arch: arm64 }
+          - { os: darwin,  arch: arm64, ext: '',     archive: tar.gz }
+          - { os: darwin,  arch: amd64, ext: '',     archive: tar.gz }
+          - { os: linux,   arch: amd64, ext: '',     archive: tar.gz }
+          - { os: linux,   arch: arm64, ext: '',     archive: tar.gz }
+          - { os: windows, arch: amd64, ext: '.exe', archive: zip }
+          - { os: windows, arch: arm64, ext: '.exe', archive: zip }
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -67,7 +69,7 @@ jobs:
           mkdir -p dist
           go build -trimpath \
             -ldflags="-s -w -X main.appVersion=${{ needs.resolve-version.outputs.version }}" \
-            -o dist/aria2t ./cmd/aria2t
+            -o "dist/aria2t${{ matrix.ext }}" ./cmd/aria2t
 
       - name: Stage license and readme
         run: |
@@ -84,8 +86,13 @@ jobs:
           mkdir -p "$STAGE"
           cp -r dist/* "$STAGE/"
           cd "$(dirname "$STAGE")"
-          tar -czf "$GITHUB_WORKSPACE/$PKG_NAME.tar.gz" "$PKG_NAME"
-          echo "asset=$PKG_NAME.tar.gz" >> "$GITHUB_OUTPUT"
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            zip -qr "$GITHUB_WORKSPACE/$PKG_NAME.zip" "$PKG_NAME"
+            echo "asset=$PKG_NAME.zip" >> "$GITHUB_OUTPUT"
+          else
+            tar -czf "$GITHUB_WORKSPACE/$PKG_NAME.tar.gz" "$PKG_NAME"
+            echo "asset=$PKG_NAME.tar.gz" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Checksum
         working-directory: ${{ github.workspace }}
@@ -132,7 +139,7 @@ jobs:
       - name: Flatten + combined checksums
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.tar.gz' -o -name '*.sha256' \) -exec mv {} release/ \;
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.sha256' \) -exec mv {} release/ \;
           cd release
           cat *.sha256 > SHA256SUMS
           rm -f *.sha256
@@ -157,4 +164,5 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             release/*.tar.gz
+            release/*.zip
             release/SHA256SUMS

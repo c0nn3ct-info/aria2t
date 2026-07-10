@@ -4,14 +4,12 @@
   "nav.license": "License",
   "nav.home_aria": "aria2t home",
   "nav.lang_switch_aria": "Change language",
-
   "footer.by": "by c0nn3ct.info",
   "footer.pages": "Pages",
   "footer.sources": "Sources",
   "footer.home": "Home",
   "footer.app": "aria2t",
   "footer.engine": "aria2",
-
   "home.title": "aria2t — Terminal Client for the aria2 Download Manager",
   "home.description": "A terminal UI for aria2: downloads, torrents, magnet links, and Metalink with a managed daemon, file selection, speed scheduling, and sha-256 integrity checks.",
   "home.hero.h1": "Terminal client",
@@ -21,7 +19,6 @@
   "home.hero.cta_github": "GitHub",
   "home.works_with": "Works with",
   "home.what_you_get": "What you get",
-
   "home.feat.sources.title": "Support for every aria2 source",
   "home.feat.sources.body": "URL mirrors, .torrent, .metalink, magnet links, and aria2 input files.",
   "home.feat.nosetup.title": "No-setup start",
@@ -38,20 +35,15 @@
   "home.feat.persist.body": "Finished and in-progress downloads are restored, and a file-selection window closed without an answer opens again.",
   "home.feat.mouse.title": "Keyboard and mouse",
   "home.feat.mouse.body": "Every action is reachable both ways: the key-bar hints are clickable, and the full list of bindings opens with ?.",
-
   "home.sources.h2": "Supported sources",
   "home.sources.body": "Anything aria2 accepts can be added to aria2t: plain URLs (multiple lines are treated as mirrors of the same file), magnet links and .torrent files with DHT and seeding support, .metalink, and aria2's --input-file batch format with per-entry options.",
-
   "home.how.h2": "How it works",
   "home.how.body": "Files are downloaded by an aria2 daemon; the interface controls it over JSON-RPC. By default aria2t finds aria2c on PATH and starts a private daemon on a random port with a random secret. The session is saved on exit and restored on the next launch; the child process stops cleanly with the program, and a daemon left behind by a crash is shut down on the next start.",
-
   "home.engine.h2": "aria2 does the downloading",
   "home.engine.body": "aria2t is a control panel for aria2. Pointed at an aria2 that is already running — on a seedbox, a NAS, or in a Docker container — it connects as a regular RPC client and the built-in daemon never starts. The application collects no analytics or telemetry; its only network traffic goes to the aria2 servers you configure.",
-
   "home.start.h2": "Start",
   "home.start.body": "Install aria2, get the aria2t binary, and add your first download — or connect to a server you already run.",
   "home.start.cta": "Install guide",
-
   "home.faq.h2": "FAQ",
   "home.faq.what.q": "What is aria2 and why does it need a separate interface?",
   "home.faq.what.a": "aria2 is a fast download engine supporting HTTP(S), FTP, SFTP, BitTorrent, and Metalink. It runs in the background, is controlled over JSON-RPC, and has no interface of its own beyond one-off commands. aria2t adds a real-time download list, file selection, queue management, speed limits, and integrity checking.",
@@ -69,9 +61,8 @@
   "home.faq.mouse.a": "Both are fully supported. Every hint in the key bar can be clicked, every mouse action has a keyboard equivalent, and the full list of bindings opens with ?.",
   "home.faq.telemetry.q": "Does aria2t send any data anywhere?",
   "home.faq.telemetry.a": "No. The program collects no analytics or telemetry, fetches no remote configuration, and talks over the network only to the aria2 server you configure.",
-
-  "install.title": "Install aria2t — Terminal Client for aria2 (macOS, Linux)",
-  "install.description": "Install guide for the aria2t terminal client: install aria2, download a release binary or build from source with Go, and connect to a local or remote aria2.",
+  "install.title": "Install aria2t — Terminal Client for aria2 (macOS, Linux, Windows)",
+  "install.description": "Install guide for the aria2t terminal client: one command installs the latest release binary; aria2 setup, building from source with Go, and connecting to a remote aria2.",
   "install.h1": "Install",
   "install.lede": "aria2t is a single static binary; aria2 supplies the download engine. Three steps and the first download is running.",
   "install.before.title": "Before you start",
@@ -81,7 +72,7 @@
   "install.step1.title": "Step 1 — Install aria2",
   "install.step1.body": "The managed daemon runs your system's aria2c. Any recent version works.",
   "install.step2.title": "Step 2 — Get aria2t",
-  "install.step2.body1": "Download the archive for your platform from GitHub Releases and put the binary on your PATH.",
+  "install.step2.body1": "One command downloads the latest release for your platform and installs the binary:",
   "install.step2.releases_cta": "GitHub Releases",
   "install.step2.body2": "Or build it from source:",
   "install.step3.title": "Step 3 — First run",
@@ -93,7 +84,6 @@
   "install.uninstalling.title": "Uninstalling",
   "install.uninstalling.step1": "Delete the binary.",
   "install.uninstalling.step2": "Delete the data directory",
-
   "privacy.title": "Privacy — aria2t",
   "privacy.description": "What aria2t stores and where its network traffic goes: everything is local, no analytics or telemetry in the application, connections only to the aria2 servers you configure.",
   "privacy.h1": "Privacy",
@@ -129,7 +119,6 @@
   "privacy.contact.body_after": ".",
   "privacy.changes.h2": "Changes",
   "privacy.changes.body": "Material changes to this policy are published on this page with an updated date.",
-
   "license.title": "aria2t License — Apache-2.0",
   "license.description": "aria2t is open-source software under the Apache License 2.0. aria2 (GPL-2.0) runs as a separate process; the Charm TUI libraries are MIT-licensed.",
   "license.h1": "License",
