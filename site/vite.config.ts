@@ -25,11 +25,25 @@ for (const locale of LOCALES) {
   }
 }
 
+// Dev-only: the route shells reference ../src/… relative to their depth; the
+// browser normalizes those URLs to /src/… which lives outside the Vite root
+// (pages/), so the dev server would fall back to HTML. Resolve them to the
+// real src/ dir. Build is unaffected (Rollup resolves the HTML imports on
+// the filesystem).
+const srcOutsideRoot = {
+  name: 'src-outside-root',
+  apply: 'serve' as const,
+  resolveId(id: string) {
+    if (id.startsWith('/src/')) return path.resolve(here, id.slice(1));
+    return null;
+  },
+};
+
 export default defineConfig({
   base: '/',
   root: pagesDir,
   publicDir: path.resolve(here, 'public'),
-  plugins: [react()],
+  plugins: [srcOutsideRoot, react()],
   resolve: {
     alias: { '@': path.resolve(here, 'src') },
   },
