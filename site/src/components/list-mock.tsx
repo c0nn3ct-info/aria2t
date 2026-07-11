@@ -13,6 +13,7 @@ const C = {
   sel: '#2a2f45',
   green: '#9ece6a',
   yellow: '#e0af68',
+  red: '#f7768e',
   cyan: '#7dcfee',
   magenta: '#bb9af7',
 } as const;
@@ -80,32 +81,34 @@ function stepSpeed(prev: number, target: number, rnd: () => number): number {
   return Math.max(target * 0.4, Math.min(target * 1.6, next));
 }
 
-interface Live {
-  d0: number; // row 0 download speed
-  d2: number; // row 2 download speed
-  up: number; // seeding upload (top-right ▲ aggregate)
-  p0: number; // row 0 percent
-  p2: number; // row 2 percent
-}
+// The five downloading rows: target speed, size, starting percent.
+const LIVE_TARGETS = [4_000_000, 2_500_000, 6_100_000, 1_500_000, 930_000] as const;
+const LIVE_BYTES = [
+  5.4 * 1073741824,
+  2.3 * 1073741824,
+  1.2 * 1073741824,
+  4.1 * 1073741824,
+  1.4 * 1073741824,
+] as const;
+const LIVE_P0 = [35.2, 68.4, 19.1, 55.6, 81.3] as const;
 
-const P0 = 62.4;
-const P2 = 18.2;
-const BYTES0 = 680 * 1048576;
-const BYTES2 = 1.2 * 1073741824;
+interface Live {
+  speeds: number[];
+  pcts: number[];
+  up: number;
+}
 
 // Seed by running the walk forward deterministically, so the opening frame is
 // already settled (same distribution as the live tick).
 function seedLive(): Live {
   const rnd = mulberry32(0x61726961); // 'aria'
-  let d0 = 5_400_000;
-  let d2 = 2_100_000;
+  const speeds = [...LIVE_TARGETS] as number[];
   let up = 900_000;
   for (let i = 0; i < 16; i++) {
-    d0 = stepSpeed(d0, 5_400_000, rnd);
-    d2 = stepSpeed(d2, 2_100_000, rnd);
+    for (let j = 0; j < speeds.length; j++) speeds[j] = stepSpeed(speeds[j], LIVE_TARGETS[j], rnd);
     up = stepSpeed(up, 900_000, rnd);
   }
-  return { d0, d2, up, p0: P0, p2: P2 };
+  return { speeds, pcts: [...LIVE_P0], up };
 }
 
 function useLiveList(): Live {
@@ -117,14 +120,13 @@ function useLiveList(): Live {
     const rnd = () => Math.random();
     const id = setInterval(() => {
       setLive((l) => {
-        const d0 = stepSpeed(l.d0, 5_400_000, rnd);
-        const d2 = stepSpeed(l.d2, 2_100_000, rnd);
-        const up = stepSpeed(l.up, 900_000, rnd);
+        const speeds = l.speeds.map((s, j) => stepSpeed(s, LIVE_TARGETS[j], rnd));
         // Visual pace, slower than real time so the bars creep rather than race;
         // wrap near the end so the demo never freezes at 100%.
-        const p0 = l.p0 >= 99 ? 12 : l.p0 + (d0 / BYTES0) * 100 * 0.18;
-        const p2 = l.p2 >= 99 ? 4 : l.p2 + (d2 / BYTES2) * 100 * 0.18;
-        return { d0, d2, up, p0, p2 };
+        const pcts = l.pcts.map((p, j) =>
+          p >= 99 ? LIVE_P0[j] * 0.2 : p + (speeds[j] / LIVE_BYTES[j]) * 100 * 0.35,
+        );
+        return { speeds, pcts, up: stepSpeed(l.up, 900_000, rnd) };
       });
     }, 1000);
     return () => clearInterval(id);
@@ -132,12 +134,14 @@ function useLiveList(): Live {
   return live;
 }
 
-type Status = 'active' | 'seeding' | 'paused' | 'done';
+type Status = 'active' | 'seeding' | 'waiting' | 'paused' | 'error' | 'done';
 
 const STATUS_COLOR: Record<Status, string> = {
   active: C.green,
   seeding: C.magenta,
+  waiting: C.yellow,
   paused: C.yellow,
+  error: C.red,
   done: C.green,
 };
 
@@ -157,7 +161,14 @@ function Row({ name, status, pct, size, speed, conn, eta, selected }: RowData) {
   let progress: JSX.Element;
   if (status === 'done') {
     progress = <span style={{ color: C.green }}>{'━'.repeat(BAR_W) + '     '}</span>;
-  } else if (status === 'paused') {
+  } else if (status === 'seeding') {
+    progress = (
+      <>
+        <span style={{ color: C.accent }}>{'━'.repeat(BAR_W)}</span>
+        <span style={{ color: C.dim }}>{' 100%'}</span>
+      </>
+    );
+  } else if (status === 'waiting' || status === 'paused' || status === 'error') {
     progress = <span style={{ color: C.faint }}>{'─'.repeat(BAR_W) + '     '}</span>;
   } else {
     const b = bar(pct / 100);
@@ -184,43 +195,61 @@ function Row({ name, status, pct, size, speed, conn, eta, selected }: RowData) {
   );
 }
 
+const LIVE_NAMES = [
+  'ubuntu-24.04.2-desktop-amd64.iso',
+  'fedora-workstation-42-x86_64.iso',
+  'archlinux-2026.07.01-x86_64.iso',
+  'kali-linux-2026.2-installer.iso',
+  'tails-amd64-6.15.img',
+] as const;
+const LIVE_SIZES = ['5.4 GiB', '2.3 GiB', '1.2 GiB', '4.1 GiB', '1.4 GiB'] as const;
+
 export function ListMock({ className }: { className?: string }) {
   const live = useLiveList();
 
   // Header line: brand │ endpoint ▪ connected … ▼ down ▲ up (app.go header()).
-  const down = `▼ ${fmtSpeed(live.d0 + live.d2)}`;
+  const down = `▼ ${fmtSpeed(live.speeds.reduce((a, b) => a + b, 0))}`;
   const up = `▲ ${fmtSpeed(live.up)}`;
   const headerLeft = 'aria2t │ localhost:6800 (built-in) ▪ connected';
   const headerGap = Math.max(1, COLS - 1 - headerLeft.length - down.length - 1 - up.length);
 
   const rows: RowData[] = [
+    ...LIVE_NAMES.map((name, j) => ({
+      name,
+      status: 'active' as Status,
+      pct: live.pcts[j],
+      size: LIVE_SIZES[j],
+      speed: fmtSpeed(live.speeds[j]),
+      conn: '1',
+      eta: fmtEta(LIVE_BYTES[j] * (1 - live.pcts[j] / 100), live.speeds[j]),
+      selected: j === 0,
+    })),
     {
       name: 'debian-13.1.0-amd64-netinst.iso',
-      status: 'active',
-      pct: live.p0,
-      size: '680 MiB',
-      speed: fmtSpeed(live.d0),
-      conn: '1',
-      eta: fmtEta(BYTES0 * (1 - live.p0 / 100), live.d0),
-      selected: true,
-    },
-    {
-      name: 'ubuntu-24.04.2-live-server-arm64.iso',
       status: 'seeding',
       pct: 100,
-      size: '3.1 GiB',
+      size: '680 MiB',
       speed: '-',
       conn: '0:34',
       eta: '-',
     },
     {
-      name: 'archlinux-2026.07.01-x86_64.iso',
-      status: 'active',
-      pct: live.p2,
-      size: '1.2 GiB',
-      speed: fmtSpeed(live.d2),
-      conn: '1',
-      eta: fmtEta(BYTES2 * (1 - live.p2 / 100), live.d2),
+      name: 'raspios-bookworm-arm64-full.img.xz',
+      status: 'waiting',
+      pct: 0,
+      size: '0 B',
+      speed: '-',
+      conn: '-',
+      eta: '-',
+    },
+    {
+      name: 'libreoffice-25.8.1-macos-aarch64.dmg',
+      status: 'waiting',
+      pct: 0,
+      size: '0 B',
+      speed: '-',
+      conn: '-',
+      eta: '-',
     },
     {
       name: 'linuxmint-22.1-cinnamon-64bit.iso',
@@ -232,10 +261,28 @@ export function ListMock({ className }: { className?: string }) {
       eta: '-',
     },
     {
-      name: 'tails-amd64-6.15.img',
+      name: 'freebsd-14.3-memstick-amd64.img',
+      status: 'paused',
+      pct: 0,
+      size: '0 B',
+      speed: '-',
+      conn: '-',
+      eta: '-',
+    },
+    {
+      name: 'mirrorlist-nope.iso',
+      status: 'error',
+      pct: 0,
+      size: '0 B',
+      speed: '-',
+      conn: '-',
+      eta: '-',
+    },
+    {
+      name: 'gparted-live-1.7.0-amd64.iso',
       status: 'done',
       pct: 100,
-      size: '1.4 GiB',
+      size: '527 MiB',
       speed: '-',
       conn: '-',
       eta: '-',
@@ -263,12 +310,12 @@ export function ListMock({ className }: { className?: string }) {
     ['?', 'help'],
   ];
   const hintsLen = hints.reduce((n, [k, l]) => n + k.length + 1 + l.length, 0) + (hints.length - 1) * 2;
-  const keybarGap = Math.max(1, COLS - 1 - hintsLen - 3);
+  const keybarGap = Math.max(1, COLS - 1 - hintsLen - 4);
 
   return (
     <div dir="ltr" className={cn('select-none [container-type:inline-size]', className)}>
       <div
-        className="whitespace-pre font-mono text-[length:min(12px,2.05cqw)] leading-[1.5]"
+        className="whitespace-pre font-mono text-[length:min(12px,2.05cqw)] leading-[1.65]"
         style={{ color: C.fg }}
       >
         {/* app header: brand │ endpoint ▪ connected … global speeds */}
@@ -287,17 +334,17 @@ export function ListMock({ className }: { className?: string }) {
         </div>
 
         {/* tabs line */}
-        <div className="mt-[0.2em]">
+        <div className="mt-[0.25em]">
           <span> </span>
           <span className="font-bold" style={{ backgroundColor: C.accent, color: C.bg }}>
-            {' All 5 '}
+            {' All 12 '}
           </span>
-          <span style={{ color: C.dim }}>{' [ Active 3 ] [ Waiting 1 ] [ Stopped 1 ]'}</span>
+          <span style={{ color: C.dim }}>{' [ Active 6 ] [ Waiting 4 ] [ Stopped 2 ]'}</span>
         </div>
 
         {/* the list panel */}
         <div
-          className="mt-[0.35em] rounded-md border px-[1ch] py-[0.15em]"
+          className="mt-[0.45em] rounded-md border px-[1ch] py-[0.3em]"
           style={{ borderColor: C.border }}
         >
           <div style={{ color: C.dim }}>{colHead}</div>
@@ -307,7 +354,7 @@ export function ListMock({ className }: { className?: string }) {
         </div>
 
         {/* key bar */}
-        <div className="mt-[0.35em]">
+        <div className="mt-[0.45em]">
           <span> </span>
           {hints.map(([k, label], i) => (
             <span key={k}>
@@ -318,7 +365,7 @@ export function ListMock({ className }: { className?: string }) {
             </span>
           ))}
           <span>{' '.repeat(keybarGap)}</span>
-          <span style={{ color: C.dim }}>1/5</span>
+          <span style={{ color: C.dim }}>1/12</span>
         </div>
       </div>
     </div>
