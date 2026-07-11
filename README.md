@@ -1,5 +1,12 @@
 [English](./README.md) · [Русский](./README.ru.md) · [简体中文](./README.zh-CN.md) · [Español](./README.es.md) · [Deutsch](./README.de.md) · [日本語](./README.ja.md)
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./tui/docs/media/logo-dark.svg">
+    <img alt="" src="./tui/docs/media/logo-light.svg" width="128">
+  </picture>
+</p>
+
 <h1 align="center">aria2t</h1>
 
 <p align="center"><strong>Terminal client for the aria2 download manager</strong></p>
@@ -14,7 +21,10 @@
 </p>
 
 <p align="center">
-  <img alt="aria2t demo" src="./tui/docs/media/demo.gif" width="720">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./tui/docs/media/demo.gif">
+    <img alt="aria2t demo" src="./tui/docs/media/demo-light.gif" width="720">
+  </picture>
 </p>
 
 > [!IMPORTANT]

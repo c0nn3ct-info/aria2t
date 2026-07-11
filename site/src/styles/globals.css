@@ -163,6 +163,72 @@
 }
 
 @layer base {
+  /* aria2t TUI mock palette — the app's own themes from tui/internal/ui/theme.go,
+   * verbatim: Tokyo Night Day in light mode, Tokyo Night in dark. The mock
+   * follows the site theme the way the real app follows its theme setting.
+   * --tui-frame-border is the terminal chrome border (palette Border at 60%). */
+  :root {
+    --tui-accent: #2e7de9;
+    --tui-bg: #e1e2e7;
+    --tui-surface: #e9eaf0;
+    --tui-fg: #343b58;
+    --tui-fg-bright: #1a1f39;
+    --tui-fg-dim: #8990b3;
+    --tui-fg-faint: #a8aecb;
+    --tui-border: #a8aecb;
+    --tui-border-dim: #c4c8da;
+    --tui-sel: #c4c8da;
+    --tui-green: #587539;
+    --tui-red: #f52a65;
+    --tui-yellow: #8c6c3e;
+    --tui-cyan: #007197;
+    --tui-magenta: #9854f1;
+    --tui-frame-border: rgb(168 174 203 / 0.6);
+  }
+
+  [data-theme='dark'],
+  :root.dark {
+    --tui-accent: #7aa2f7;
+    --tui-bg: #16161e;
+    --tui-surface: #1f2335;
+    --tui-fg: #c0caf5;
+    --tui-fg-bright: #e6e9f2;
+    --tui-fg-dim: #565f89;
+    --tui-fg-faint: #3b4261;
+    --tui-border: #3b4261;
+    --tui-border-dim: #24283b;
+    --tui-sel: #2a2f45;
+    --tui-green: #9ece6a;
+    --tui-red: #f7768e;
+    --tui-yellow: #e0af68;
+    --tui-cyan: #7dcfee;
+    --tui-magenta: #bb9af7;
+    --tui-frame-border: rgb(59 66 97 / 0.6);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --tui-accent: #7aa2f7;
+      --tui-bg: #16161e;
+      --tui-surface: #1f2335;
+      --tui-fg: #c0caf5;
+      --tui-fg-bright: #e6e9f2;
+      --tui-fg-dim: #565f89;
+      --tui-fg-faint: #3b4261;
+      --tui-border: #3b4261;
+      --tui-border-dim: #24283b;
+      --tui-sel: #2a2f45;
+      --tui-green: #9ece6a;
+      --tui-red: #f7768e;
+      --tui-yellow: #e0af68;
+      --tui-cyan: #7dcfee;
+      --tui-magenta: #bb9af7;
+      --tui-frame-border: rgb(59 66 97 / 0.6);
+    }
+  }
+}
+
+@layer base {
   /* Accent overrides — applied when html[data-accent] is set.
    * Full M3 source-color sweep: primary + secondary + tertiary palettes +
    * surface-tint on elevated containers. Status colors (success/warning/error)

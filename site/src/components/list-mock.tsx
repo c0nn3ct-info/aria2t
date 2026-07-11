@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
-// Tokyo Night — the app's own palette (tui/internal/ui/theme.go), verbatim.
+// The app's own palettes (tui/internal/ui/theme.go): Tokyo Night Day in light
+// mode, Tokyo Night in dark. Values live as --tui-* vars in globals.css so the
+// mock switches with the site theme in pure CSS (no hydration dependency).
 const C = {
-  accent: '#7aa2f7',
-  bg: '#16161e',
-  fg: '#c0caf5',
-  bright: '#e6e9f2',
-  dim: '#565f89',
-  faint: '#3b4261',
-  border: '#3b4261',
-  sel: '#2a2f45',
-  green: '#9ece6a',
-  yellow: '#e0af68',
-  red: '#f7768e',
-  cyan: '#7dcfee',
-  magenta: '#bb9af7',
+  accent: 'var(--tui-accent)',
+  bg: 'var(--tui-bg)',
+  fg: 'var(--tui-fg)',
+  bright: 'var(--tui-fg-bright)',
+  dim: 'var(--tui-fg-dim)',
+  faint: 'var(--tui-fg-faint)',
+  border: 'var(--tui-border)',
+  sel: 'var(--tui-sel)',
+  green: 'var(--tui-green)',
+  yellow: 'var(--tui-yellow)',
+  red: 'var(--tui-red)',
+  cyan: 'var(--tui-cyan)',
+  magenta: 'var(--tui-magenta)',
 } as const;
 
 // Character grid mirroring the real list screen (tui/internal/ui/list.go):
