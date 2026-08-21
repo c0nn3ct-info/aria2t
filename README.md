@@ -175,6 +175,13 @@ go test ./... -count=1 -coverprofile=cover.out -coverpkg=./...
 go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
 ```
 
+Nothing is excluded from that number, and nothing is silenced: there are no
+coverage-ignore directives in the tree. Where a construct turned out to be
+unreachable — a platform-gated statement invisible to the other platform's
+profile, or a fallback that an invariant already ruled out — it was restructured
+rather than skipped. The website in `site/` holds 100% on statements, branches,
+functions and lines the same way (`cd site && npm run test:coverage`).
+
 ## 🙏 Acknowledgments
 
 - **[aria2](https://github.com/aria2/aria2)** (GPL-2.0) — the download engine that does all the transfer, BitTorrent, and Metalink work; aria2t is its control panel.

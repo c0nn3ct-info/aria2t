@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"aria2t/internal/control"
 	"aria2t/internal/rpc"
 )
 
@@ -29,6 +30,10 @@ type Options struct {
 	Port        int                                 // RPC port; free ephemeral port when 0
 	ReadyProbe  func(port int, secret string) error // test hook; default polls RPC getVersion
 	ReadyWithin time.Duration                       // default 10s
+	// Detach runs the child in its own session/process group so it survives
+	// this process's exit (used by the native-messaging host, which exits
+	// whenever the browser disconnects while the daemon keeps downloading).
+	Detach bool
 }
 
 // Daemon is a running aria2c child process.
@@ -76,6 +81,9 @@ func FindBinary() (string, error) {
 var (
 	netListen = net.Listen
 	randRead  = rand.Read
+	// filterSession drops session entries whose control file was cleaned; see
+	// internal/control.
+	filterSession = control.FilterSession
 )
 
 // daemonState* are indirections for tests over the reap state file.
@@ -95,21 +103,33 @@ type daemonState struct {
 
 func stateFilePath(dataDir string) string { return filepath.Join(dataDir, "daemon.json") }
 
+// State reports the daemon coordinates recorded in dataDir's state file
+// (daemon.json), if any. ok is false when no state is recorded or the file
+// is unreadable/malformed. It does not check that the process is alive —
+// probe the RPC port for that.
+func State(dataDir string) (pid, port int, secret string, ok bool) {
+	raw, err := daemonStateRead(stateFilePath(dataDir))
+	if err != nil {
+		return 0, 0, "", false
+	}
+	var st daemonState
+	if json.Unmarshal(raw, &st) != nil || st.Port == 0 {
+		return 0, 0, "", false
+	}
+	return st.PID, st.Port, st.Secret, true
+}
+
 // reapStale cleanly shuts down a daemon left running by a previous aria2t. It
 // only targets a process still answering on the recorded port with the recorded
 // secret — unambiguously our own aria2c — so it can never hit an unrelated
 // program that happens to have inherited a recycled PID. Best effort: a dead
 // port simply fails the RPC and is ignored.
 func reapStale(dataDir string) {
-	raw, err := daemonStateRead(stateFilePath(dataDir))
-	if err != nil {
+	_, port, secret, ok := State(dataDir)
+	if !ok {
 		return
 	}
-	var st daemonState
-	if json.Unmarshal(raw, &st) != nil || st.Port == 0 {
-		return
-	}
-	c := rpc.New(fmt.Sprintf("http://localhost:%d/jsonrpc", st.Port), st.Secret)
+	c := rpc.New(fmt.Sprintf("http://localhost:%d/jsonrpc", port), secret)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_ = c.SaveSession(ctx)
@@ -158,6 +178,13 @@ func buildArgs(dir, sessionFile, logFile, confFile string, port int) []string {
 		// restart. Reloaded completes are recognised via their control file and
 		// are not re-downloaded.
 		"--force-save=true",
+		// Save a magnet's resolved metadata as <infohash>.torrent and reload it
+		// on the next launch. Without this, --save-session persists the magnet
+		// URI (not the resolved torrent), so a restart re-downloads metadata
+		// before the actual transfer resumes. With both, the saved .torrent is
+		// read at startup and the download resumes straight away.
+		"--bt-save-metadata=true",
+		"--bt-load-saved-metadata=true",
 		"--log=" + logFile,
 		"--log-level=warn",
 		"--quiet=true",
@@ -212,6 +239,11 @@ func Start(opts Options) (*Daemon, error) {
 	}
 	reapStale(dataDir) // clean up a daemon a previous crash left running
 	sessionFile := filepath.Join(dataDir, "session.txt")
+	// Downloads whose control file was deleted on completion must not be
+	// reloaded — without it aria2 would download them again. This is the one
+	// moment nothing else is writing the session. Best effort: a failure here
+	// only means a stale entry, never a failed launch.
+	_ = filterSession(sessionFile, dataDir)
 	logFile := filepath.Join(dataDir, "aria2.log")
 	confFile := filepath.Join(dataDir, "aria2t.conf")
 	if err := os.WriteFile(confFile, []byte("rpc-secret="+secret+"\n"), 0o600); err != nil {
@@ -220,7 +252,17 @@ func Start(opts Options) (*Daemon, error) {
 
 	cmd := exec.Command(bin, buildArgs(opts.Dir, sessionFile, logFile, confFile, port)...)
 	var stderr strings.Builder
-	cmd.Stderr = &stderr
+	if opts.Detach {
+		// The child must outlive this process: give it its own
+		// session/process group so signals aimed at us (terminal ^C, group
+		// kills) never reach it, and capture no stderr — an in-process pipe
+		// dies with us and a later aria2c write to it would SIGPIPE-kill
+		// the daemon. Startup errors go to the log file instead.
+		attr := detachTemplate // copy: one attr value per spawn
+		cmd.SysProcAttr = &attr
+	} else {
+		cmd.Stderr = &stderr
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s: %w", bin, err)
 	}

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,22 +18,23 @@ type fakeAPI struct {
 		Pos int
 		How string
 	}
-	changedOptions map[string]map[string]string // gid → opts
-	globalOpts     map[string]string            // last ChangeGlobalOption
-	paused         []string
-	unpaused       []string
-	removed        []string
-	removedResults []string
-	removeErr      error            // when set, Remove returns it (exercises the purge early-return)
-	waiting        []rpc.Status     // returned by TellWaiting
-	status         rpc.Status       // returned by TellStatus
-	servers        []rpc.ServerStat // returned by GetServers
-	addTorrentOpts map[string]string
-	addedURIs      [][]string
-	metalinkGids   []string
-	pausedAll      bool
-	unpausedAll    bool
-	purged         bool
+	changedOptions     map[string]map[string]string // gid → opts
+	globalOpts         map[string]string            // last ChangeGlobalOption
+	paused             []string
+	unpaused           []string
+	removed            []string
+	removedResults     []string
+	removeErr          error            // when set, Remove returns it (exercises the purge early-return)
+	removeResultFailsN int              // leading RemoveDownloadResult calls that fail (mimics aria2's async remove)
+	waiting            []rpc.Status     // returned by TellWaiting
+	status             rpc.Status       // returned by TellStatus
+	servers            []rpc.ServerStat // returned by GetServers
+	addTorrentOpts     map[string]string
+	addedURIs          [][]string
+	metalinkGids       []string
+	pausedAll          bool
+	unpausedAll        bool
+	purged             bool
 }
 
 func newFakeAPI() *fakeAPI { return &fakeAPI{changedOptions: map[string]map[string]string{}} }
@@ -83,6 +85,10 @@ func (f *fakeAPI) Remove(_ context.Context, gid string) error {
 	return f.removeErr
 }
 func (f *fakeAPI) RemoveDownloadResult(_ context.Context, gid string) error {
+	if f.removeResultFailsN > 0 {
+		f.removeResultFailsN-- // download not yet a result (still tearing down)
+		return errors.New("GID not found")
+	}
 	f.removedResults = append(f.removedResults, gid)
 	return nil
 }

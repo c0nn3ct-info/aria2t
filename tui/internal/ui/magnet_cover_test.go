@@ -102,6 +102,39 @@ func TestResolveMagnets(t *testing.T) {
 	}
 }
 
+// TestResolveMagnetDirect covers the --bt-load-saved-metadata resume/re-add
+// case: the pending magnet's own gid becomes the paused torrent directly (no
+// followedBy child), so the picker must open on that gid rather than wait
+// forever for a child that never appears.
+func TestResolveMagnetDirect(t *testing.T) {
+	a, _ := testApp(t)
+	a.pendingMagnets["m3"] = true
+	// Resolved torrent under the magnet's own gid: has an info hash and real
+	// files (not the [METADATA] placeholder), paused, no followedBy.
+	a.resolveMagnets(snapshot{Waiting: []rpc.Status{{
+		GID: "m3", Status: "paused", InfoHash: "abcd",
+		Files: []rpc.File{{Index: "1", Path: "/dl/movie.mkv"}},
+	}}})
+	if _, ok := a.pendingMagnets["m3"]; ok {
+		t.Fatalf("directly-resolved magnet must leave the pending set: %v", a.pendingMagnets)
+	}
+	if len(a.magnetQueue) != 1 || a.magnetQueue[0].gid != "m3" ||
+		a.magnetQueue[0].parent != "m3" || !a.magnetQueue[0].unpause {
+		t.Fatalf("must queue the picker on the magnet's own gid: %+v", a.magnetQueue)
+	}
+	// A magnet whose gid is still the [METADATA] placeholder must NOT hit the
+	// direct branch — it waits for the followedBy child as before.
+	a.magnetQueue = nil
+	a.pendingMagnets["m4"] = false
+	a.resolveMagnets(snapshot{Active: []rpc.Status{{
+		GID: "m4", Status: "active", InfoHash: "beef",
+		Files: []rpc.File{{Path: "[METADATA]m4"}},
+	}}})
+	if _, ok := a.pendingMagnets["m4"]; !ok || len(a.magnetQueue) != 0 {
+		t.Fatalf("metadata placeholder must stay pending: pending=%v queue=%v", a.pendingMagnets, a.magnetQueue)
+	}
+}
+
 // TestMagnetsPresentedSequentially is the reported scenario: several magnets
 // finish while the first picker is unanswered — they queue and appear one by one.
 func TestMagnetsPresentedSequentially(t *testing.T) {

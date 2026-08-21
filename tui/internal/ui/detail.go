@@ -85,22 +85,10 @@ func (m detailModel) update(msg tea.KeyMsg) (detailModel, tea.Cmd) {
 			return c.Pause(ctx, gid)
 		})
 	case "d":
-		gid, name := m.gid, m.s.Name()
-		// Stopped downloads live in the result list; aria2.remove only
-		// works on active/waiting ones.
-		stopped := isStopped(m.s.Status)
+		gid, name, s := m.gid, m.s.Name(), m.s
 		return m, a.confirmRemove(name, func() tea.Cmd {
 			a.screen = screenList
-			return a.rpcCmd("removed "+name, func(ctx context.Context, c api) error {
-				if stopped {
-					return c.RemoveDownloadResult(ctx, gid)
-				}
-				if err := c.Remove(ctx, gid); err != nil {
-					return err
-				}
-				_ = c.RemoveDownloadResult(ctx, gid) // purge so --force-save can't resurrect it
-				return nil
-			})
+			return a.rpcCmd("removed "+name, a.removeFn(gid, s))
 		})
 	case "t":
 		if m.s.IsTorrent() {

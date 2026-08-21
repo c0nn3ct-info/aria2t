@@ -15,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"aria2t/internal/config"
+	"aria2t/internal/nmhost"
 	"aria2t/internal/ui"
 )
 
@@ -23,8 +24,8 @@ import (
 //	go build -ldflags "-X main.appVersion=v1.2.3" ./cmd/aria2t
 var appVersion = "dev"
 
-// osExit, programOpts and runProgram are indirections so run() and main()
-// are testable.
+// osExit, programOpts, runProgram and runHost are indirections so run(),
+// main() and the native-host path are testable.
 var (
 	osExit      = os.Exit
 	programOpts = []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseCellMotion()}
@@ -32,9 +33,44 @@ var (
 		_, err := tea.NewProgram(m, programOpts...).Run()
 		return err
 	}
+	runHost = nmhost.Run
 )
 
-func main() { osExit(run(os.Args[1:], os.Stderr)) }
+func main() {
+	// Chrome launches a native-messaging host by running the binary named in
+	// the host manifest and passing the calling extension's origin as an
+	// argument. The same aria2t binary that runs the TUI serves the browser
+	// extension: when that origin arg is present, run the native-messaging
+	// loop over stdin/stdout instead of starting the terminal UI.
+	if isNativeHost(os.Args[1:]) {
+		osExit(hostMain(os.Stdin, os.Stdout, os.Stderr))
+		return
+	}
+	osExit(run(os.Args[1:], os.Stderr))
+}
+
+// isNativeHost reports whether Chrome launched us as a native-messaging host,
+// detected by the extension-origin argument it always passes
+// (chrome-extension://<id>/). On Windows it also passes --parent-window; the
+// origin is the reliable, cross-platform signal.
+func isNativeHost(args []string) bool {
+	for _, a := range args {
+		if strings.HasPrefix(a, "chrome-extension://") {
+			return true
+		}
+	}
+	return false
+}
+
+// hostMain runs the native-messaging loop until the browser disconnects.
+// stdout carries the framed protocol, so nothing else may be written there.
+func hostMain(stdin io.Reader, stdout, stderr io.Writer) int {
+	if err := runHost(stdin, stdout, appVersion); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	return 0
+}
 
 func run(args []string, stderr io.Writer) int {
 	fs := flag.NewFlagSet("aria2t", flag.ContinueOnError)

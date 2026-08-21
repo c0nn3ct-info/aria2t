@@ -294,18 +294,9 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 		}
 	case "d":
 		if s, ok := m.selected(); ok {
-			gid, stopped, name := s.GID, isStopped(s.Status), s.Name()
+			gid, name := s.GID, s.Name()
 			return m, a.confirmRemove(name, func() tea.Cmd {
-				return a.rpcCmd("removed "+name, func(ctx context.Context, c api) error {
-					if stopped {
-						return c.RemoveDownloadResult(ctx, gid)
-					}
-					if err := c.Remove(ctx, gid); err != nil {
-						return err
-					}
-					_ = c.RemoveDownloadResult(ctx, gid) // purge so --force-save can't resurrect it
-					return nil
-				})
+				return a.rpcCmd("removed "+name, a.removeFn(gid, s))
 			})
 		}
 	case "enter":

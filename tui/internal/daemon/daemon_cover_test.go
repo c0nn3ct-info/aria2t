@@ -140,20 +140,38 @@ func TestStartMkdirAllError(t *testing.T) {
 }
 
 func TestStopEscalatesToKill(t *testing.T) {
-	bin := fakeBin(t, `trap '' TERM
+	// The child ignores every catchable shutdown signal, so Stop must walk
+	// the whole escalation and SIGKILL it. Two deterministic guards:
+	//   - The ready file makes Start block until the trap is actually
+	//     installed. Without it, macOS can stall the exec of a freshly
+	//     written script for seconds (syspolicyd assessment of new
+	//     executables), SIGTERM then lands on the default handler and the
+	//     child dies before the escalation this test exists to cover.
+	//   - The duration check fails loudly if the child still died early,
+	//     instead of silently passing with the SIGKILL path unexercised.
+	ready := filepath.Join(t.TempDir(), "ready")
+	bin := fakeBin(t, `trap '' TERM INT HUP
+touch "`+ready+`"
 while true; do sleep 0.1; done`)
 	d, err := Start(Options{
-		Bin:        bin,
-		DataDir:    t.TempDir(),
-		ReadyProbe: func(int, string) error { return nil },
+		Bin:     bin,
+		DataDir: t.TempDir(),
+		ReadyProbe: func(int, string) error {
+			_, err := os.Stat(ready)
+			return err
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+	start := time.Now()
 	if err := d.Stop(ctx); err != nil {
 		t.Fatalf("stop: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed < 4*time.Second {
+		t.Fatalf("Stop returned after %v — child died before the SIGKILL escalation", elapsed)
 	}
 }
 

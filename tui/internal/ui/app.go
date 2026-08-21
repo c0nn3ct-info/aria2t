@@ -16,6 +16,7 @@ import (
 
 	"aria2t/internal/checksum"
 	"aria2t/internal/config"
+	"aria2t/internal/control"
 	"aria2t/internal/daemon"
 	"aria2t/internal/rpc"
 	"aria2t/internal/sched"
@@ -545,6 +546,62 @@ func (a *App) rpcCmd(okText string, fn func(ctx context.Context, c api) error) t
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return actionDoneMsg{text: okText, err: fn(ctx, c)}
+	}
+}
+
+// removePurgeInterval is how long removeFn waits between purge retries.
+var removePurgeInterval = 200 * time.Millisecond
+
+// removeFn builds the rpcCmd body that removes a download, purges its result so
+// --force-save cannot resurrect it on the next launch, and takes aria2's
+// leftovers off the disk with it.
+//
+// A stopped download is already a result, so a single purge deletes it. An
+// active/seeding one must first be stopped by aria2.remove — which is
+// asynchronous: aria2 only moves the group to the results list after it has
+// torn down peer connections and told the tracker it stopped, which for a
+// seeding torrent with live peers takes a beat. The immediate purge therefore
+// often runs before the result exists and fails silently, leaving the download
+// parked as a "complete" result instead of being deleted. Retry the purge until
+// it lands (bounded by the caller's context), so a seeding torrent is actually
+// removed the moment its teardown completes.
+//
+// The leftover paths are worked out here rather than in the body: this runs on
+// the update goroutine, the body does not, and s is gone from aria2 by the time
+// it would be asked for them.
+func (a *App) removeFn(gid string, s rpc.Status) func(context.Context, api) error {
+	stopped := isStopped(s.Status)
+	leftovers := a.leftovers(s)
+	dataDir := a.daemonDir()
+	clean := func() {
+		if len(leftovers) > 0 {
+			_ = cleanControlFiles(dataDir, gid, leftovers)
+		}
+	}
+	return func(ctx context.Context, c api) error {
+		if stopped {
+			if err := c.RemoveDownloadResult(ctx, gid); err != nil {
+				return err
+			}
+			clean()
+			return nil
+		}
+		if err := c.Remove(ctx, gid); err != nil {
+			return err
+		}
+		// Deferred, so a purge that never lands still leaves nothing behind:
+		// the download is stopped either way, and its bookkeeping is dead.
+		defer clean()
+		for {
+			if err := c.RemoveDownloadResult(ctx, gid); err == nil {
+				return nil
+			}
+			select {
+			case <-ctx.Done():
+				return nil // best effort; give up rather than block forever
+			case <-time.After(removePurgeInterval):
+			}
+		}
 	}
 }
 
@@ -1080,6 +1137,15 @@ func (a *App) resolveMagnets(snap snapshot) tea.Cmd {
 			cmds = append(cmds, a.flash("magnet metadata failed", true))
 			continue
 		}
+		// Metadata already resolved into this very download rather than a
+		// followedBy child: aria2 loaded a saved .torrent (--bt-load-saved-metadata)
+		// at startup or on a re-add, so the pending gid *is* the paused torrent
+		// now, with no child to wait for. Present the picker on it directly.
+		if len(s.FollowedBy) == 0 && s.IsTorrent() && !s.IsMetadata() && s.Status == "paused" {
+			delete(a.pendingMagnets, gid)
+			a.magnetQueue = append(a.magnetQueue, magnetReady{gid: gid, unpause: unpause, parent: gid})
+			continue
+		}
 		if len(s.FollowedBy) == 0 {
 			continue // metadata still downloading
 		}
@@ -1171,6 +1237,7 @@ func (a *App) noticeStopped(stopped []rpc.Status) tea.Cmd {
 		switch s.Status {
 		case "complete":
 			done = append(done, s)
+			a.cleanControl(s)
 		case "error":
 			failed = append(failed, s)
 		}
@@ -1189,6 +1256,48 @@ func (a *App) noticeStopped(stopped []rpc.Status) tea.Cmd {
 		return a.flash(text+more, true)
 	}
 	return a.flash("✓ "+done[0].Name()+" finished"+more, false)
+}
+
+// cleanControlFiles is an indirection for tests over the disk deletion.
+var cleanControlFiles = control.Clean
+
+// daemonDir is where the managed daemon keeps its session, conf and the record
+// of gids whose control file was deleted.
+func (a *App) daemonDir() string {
+	return filepath.Join(filepath.Dir(a.cfgPath), "daemon")
+}
+
+// leftovers is what aria2 keeps beside a download without ever listing it as a
+// file of one: the .aria2 control file, and the <infohash>.torrent saved because
+// the daemon runs with --bt-save-metadata. Nothing that acts on the download's
+// files touches either, so they outlive it in the download folder. Empty when
+// the user opted out of control-file cleanup.
+func (a *App) leftovers(s rpc.Status) []string {
+	if !a.cfg.CleanControl() {
+		return nil
+	}
+	paths := make([]string, 0, len(s.Files))
+	for _, f := range s.Files {
+		paths = append(paths, f.Path)
+	}
+	name := ""
+	if s.BitTorrent != nil {
+		name = s.BitTorrent.Info.Name
+	}
+	return control.Leftovers(s.Dir, name, s.InfoHash, paths)
+}
+
+// cleanControl removes what a finished download left behind, unless the user
+// opted out. A torrent only reaches the stopped list once it has also finished
+// seeding, so this never strips a seeding torrent's piece state. Failures are
+// silent: a leftover control file is not worth interrupting the completion
+// flash with.
+func (a *App) cleanControl(s rpc.Status) {
+	paths := a.leftovers(s)
+	if len(paths) == 0 {
+		return
+	}
+	_ = cleanControlFiles(a.daemonDir(), s.GID, paths)
 }
 
 // openDirBin is the file-manager launcher; a var so tests can substitute a

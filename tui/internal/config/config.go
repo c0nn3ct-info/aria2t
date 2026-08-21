@@ -76,7 +76,17 @@ type Config struct {
 	// the speed caps these are independent of the scheduler.
 	SeedRatio string `json:"seedRatio,omitempty"`
 	SeedTime  string `json:"seedTime,omitempty"`
+	// KeepControl turns OFF the removal of a finished download's .aria2
+	// control file. The setting users see is the positive one ("remove the
+	// control file", on by default), so the stored field is the opt-out — that
+	// way the zero value is the default and Load needs no fill for it.
+	// See CleanControl and internal/control.
+	KeepControl bool `json:"keepControl,omitempty"`
 }
+
+// CleanControl reports whether a finished download's .aria2 control file
+// should be deleted. On unless the user opted out.
+func (c Config) CleanControl() bool { return !c.KeepControl }
 
 // Default returns the out-of-the-box configuration: a managed built-in
 // daemon, so the app works without the user running aria2c themselves.
