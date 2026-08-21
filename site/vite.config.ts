@@ -11,6 +11,7 @@ const LOCALES = ['en', 'ru', 'zh-CN', 'es', 'de', 'ja'] as const;
 const PAGES: Record<string, string> = {
   home: 'index.html',
   install: 'install/index.html',
+  extension: 'extension/index.html',
   privacy: 'privacy/index.html',
   license: 'license/index.html',
 };

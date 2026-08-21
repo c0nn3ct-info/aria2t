@@ -8,6 +8,7 @@ The aria2t site (Vite + React + Tailwind, Material 3), served at <https://aria2t
 npm ci
 npm run dev        # dev server on http://localhost:5181
 npm run build      # tsc + vite build + prerender → dist/
+npm run lint       # eslint — must be clean, warnings fail too
 npm run preview
 ```
 

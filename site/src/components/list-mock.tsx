@@ -32,33 +32,36 @@ const CONN_W = 5;
 const ETA_W = 8;
 const COLS = 80; // header/tabs/key-bar lines; panel rows are 78 + 1ch padding
 
-function pad(s: string, w: number): string {
+export function pad(s: string, w: number): string {
   return s.length >= w ? s.slice(0, w) : s + ' '.repeat(w - s.length);
 }
 
-function lpad(s: string, w: number): string {
+export function lpad(s: string, w: number): string {
   return s.length >= w ? s.slice(0, w) : ' '.repeat(w - s.length) + s;
 }
 
-function trunc(s: string, w: number): string {
+export function trunc(s: string, w: number): string {
   return s.length <= w ? pad(s, w) : s.slice(0, w - 1) + '…';
 }
 
+// Exported for their own tests: these mirror the TUI's own formatters, and
+// their edges (over-width names, an empty or full bar, sub-minute ETAs) are not
+// reachable through the mock's fixed data.
 // The TUI's Bar(): '━'-filled with a '╸' cap over a '─' track.
-function bar(frac: number): { filled: string; empty: string } {
+export function bar(frac: number): { filled: string; empty: string } {
   const cells = Math.round(Math.min(1, Math.max(0, frac)) * BAR_W);
   if (cells <= 0) return { filled: '', empty: '─'.repeat(BAR_W) };
   if (cells >= BAR_W) return { filled: '━'.repeat(BAR_W), empty: '' };
   return { filled: '━'.repeat(cells - 1) + '╸', empty: '─'.repeat(BAR_W - cells) };
 }
 
-function fmtSpeed(bps: number): string {
+export function fmtSpeed(bps: number): string {
   if (bps <= 0) return '-';
   if (bps >= 1048576) return `${(bps / 1048576).toFixed(1)} MiB/s`;
   return `${Math.round(bps / 1024)} KiB/s`;
 }
 
-function fmtEta(remainBytes: number, bps: number): string {
+export function fmtEta(remainBytes: number, bps: number): string {
   if (bps <= 0) return '-';
   const s = Math.round(remainBytes / bps);
   if (s >= 3600) return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;

@@ -42,10 +42,9 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
     };
   }, [open]);
 
-  const hrefFor = (target: Locale) =>
-    typeof window === 'undefined'
-      ? withLocale('/', target)
-      : pairPath(window.location.pathname, target);
+  // Rendered in a browser (and prerendered in a real one), so there is always a
+  // location to pair the current path against.
+  const hrefFor = (target: Locale) => pairPath(window.location.pathname, target);
 
   const onSelect = (target: Locale) => {
     try {

@@ -1,19 +1,21 @@
 import type { ReactNode } from 'react';
-import { Download, FileText, Github, Home, ShieldCheck } from 'lucide-react';
+import { Download, FileText, Github, Home, Puzzle, ShieldCheck } from 'lucide-react';
 import { Aria2tLogo } from '@/components/aria2t-logo';
 import { GITHUB_URL } from '@/constants';
 import { localePath, t } from './i18n';
 import { LanguageSwitcher } from './components/language-switcher';
 import { GithubLink } from './components/github-link';
 
-type PageKey = 'home' | 'install' | 'privacy' | 'license';
+type PageKey = 'home' | 'install' | 'extension' | 'privacy' | 'license';
 
 interface LayoutProps {
   current: PageKey;
   children: ReactNode;
 }
 
-export function Layout({ current: _current, children }: LayoutProps) {
+// `current` stays in the props so callers keep naming the page they render,
+// but the layout itself has no use for it — the nav marks nothing active.
+export function Layout({ children }: LayoutProps) {
   const homeHref = localePath('/');
   return (
     <div className="flex min-h-screen flex-col bg-background text-on-surface">
@@ -56,6 +58,12 @@ export function Layout({ current: _current, children }: LayoutProps) {
                 <a className="inline-flex items-center gap-2 underline-offset-4 hover:underline" href={localePath('/install/')}>
                   <Download className="h-3.5 w-3.5" />
                   {t('nav.install')}
+                </a>
+              </li>
+              <li>
+                <a className="inline-flex items-center gap-2 underline-offset-4 hover:underline" href={localePath('/extension/')}>
+                  <Puzzle className="h-3.5 w-3.5" />
+                  {t('nav.extension')}
                 </a>
               </li>
               <li>

@@ -15,7 +15,8 @@ interface AmplitudeWindow {
 // the prerender from firing events.
 export function initAmplitude(): void {
   if (initialized) return;
-  if (typeof window === 'undefined') return;
+  // Browser-only by construction: the prerender runs in a real Chrome, where the
+  // webdriver flag below is what keeps it from firing events.
   if (navigator.webdriver) return;
   initialized = true;
   const s = document.createElement('script');
