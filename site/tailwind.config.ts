@@ -75,17 +75,24 @@ export default {
         },
         success: {
           DEFAULT: 'hsl(var(--success))',
+          text: 'hsl(var(--success-text))',
           foreground: 'hsl(var(--on-success))',
           container: 'hsl(var(--success-container))',
           'on-container': 'hsl(var(--on-success-container))',
         },
         warning: {
           DEFAULT: 'hsl(var(--warning))',
+          text: 'hsl(var(--warning-text))',
           container: 'hsl(var(--warning-container))',
           'on-container': 'hsl(var(--on-warning-container))',
         },
+        info: {
+          container: 'hsl(var(--info-container))',
+          'on-container': 'hsl(var(--on-info-container))',
+        },
         error: {
           DEFAULT: 'hsl(var(--error))',
+          text: 'hsl(var(--error-text))',
           foreground: 'hsl(var(--on-error))',
           container: 'hsl(var(--error-container))',
           'on-container': 'hsl(var(--on-error-container))',

@@ -9,8 +9,8 @@
 
 <h1 align="center">aria2t</h1>
 
-<p align="center"><strong>Terminal-Client für den Download-Manager aria2</strong></p>
-<p align="center"><em>Downloads, Torrents, Magnet-Links und Metalink direkt im Terminal verwalten.</em></p>
+<p align="center"><strong>Download-Manager für aria2</strong></p>
+<p align="center"><em>Verwalte aria2 im Terminal oder Browser.</em></p>
 
 <p align="center">
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
@@ -30,7 +30,7 @@
 > [!IMPORTANT]
 > Die Downloads erledigt [aria2](https://aria2.github.io/); aria2t ist sein Bedienpanel. Standardmäßig startet und verwaltet aria2t einen eigenen `aria2c`-Daemon, sodass keine Einrichtung nötig ist. Verweist man es auf ein bereits laufendes aria2, verbindet es sich damit als gewöhnlicher RPC-Client. aria2t sammelt weder Analytik noch Telemetrie und kommuniziert über das Netzwerk ausschließlich mit dem konfigurierten aria2-Server.
 
-aria2t ist ein Terminal-Client für den Download-Manager aria2 in der Tokyo-Night-Palette. Es kommuniziert mit aria2 über JSON-RPC: entweder mit einem privaten Daemon, den es selbst startet und verwaltet, oder mit jedem aria2, das bereits auf einer Seedbox, einem NAS oder einem entfernten Rechner läuft. Alle Aktionen sind sowohl über die Tastatur als auch mit der Maus erreichbar, und die Anwendung wird zu einem einzigen statischen Go-Binary gebaut.
+aria2t ist ein Download-Manager für aria2 mit Oberflächen für Terminal und Browser. Es startet einen privaten Daemon oder verbindet sich per JSON-RPC mit aria2 auf einer Seedbox, einem NAS oder einem entfernten Rechner.
 
 ## ✨ Funktionen
 

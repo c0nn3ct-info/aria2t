@@ -12,7 +12,7 @@ const badgeVariants = cva(
         outline: 'border border-outline-variant text-on-surface-variant',
         success: 'bg-success-container text-success-on-container',
         warning: 'bg-warning-container text-warning-on-container',
-        info: 'bg-[hsl(210_55%_88%)] text-[hsl(210_70%_22%)] dark:bg-[hsl(210_45%_22%)] dark:text-[hsl(210_70%_88%)]',
+        info: 'bg-info-container text-info-on-container',
         destructive: 'bg-error-container text-error-on-container',
         mono: 'bg-surface-container-highest text-on-surface-variant font-mono tracking-tight',
       },

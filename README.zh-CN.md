@@ -9,8 +9,8 @@
 
 <h1 align="center">aria2t</h1>
 
-<p align="center"><strong>aria2 下载管理器的终端客户端</strong></p>
-<p align="center"><em>在终端中管理下载、种子、磁力链接和 Metalink。</em></p>
+<p align="center"><strong>aria2 下载管理器</strong></p>
+<p align="center"><em>从终端或浏览器管理 aria2。</em></p>
 
 <p align="center">
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
@@ -30,7 +30,7 @@
 > [!IMPORTANT]
 > 下载由 [aria2](https://aria2.github.io/) 执行；aria2t 是它的控制面板。默认情况下，aria2t 会启动并管理自己的 `aria2c` 守护进程，因此无需任何配置。若指定一个已在运行的 aria2，它将作为普通 RPC 客户端接入。aria2t 不收集数据分析和遥测，网络通信对象仅限于所配置的 aria2 服务器。
 
-aria2t 是 aria2 下载管理器的终端客户端，采用 Tokyo Night 配色。它通过 JSON-RPC 与 aria2 通信：既可以连接由它自己启动并管理的私有守护进程，也可以连接已运行在盒子、NAS 或远程机器上的任意 aria2。所有操作均可通过键盘和鼠标完成，应用程序编译为单个静态 Go 二进制文件。
+aria2t 是支持终端和浏览器界面的 aria2 下载管理器。它可以启动专用守护进程，也能通过 JSON-RPC 连接运行在盒子、NAS 或远程机器上的 aria2。
 
 ## ✨ 功能
 

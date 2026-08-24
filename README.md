@@ -9,8 +9,8 @@
 
 <h1 align="center">aria2t</h1>
 
-<p align="center"><strong>Terminal client for the aria2 download manager</strong></p>
-<p align="center"><em>Manage downloads, torrents, magnet links, and Metalink from the terminal.</em></p>
+<p align="center"><strong>Download manager for aria2</strong></p>
+<p align="center"><em>Manage aria2 from the terminal or browser.</em></p>
 
 <p align="center">
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
@@ -30,16 +30,16 @@
 > [!IMPORTANT]
 > Downloads are performed by [aria2](https://aria2.github.io/); aria2t is its control panel. By default aria2t spawns and manages its own `aria2c` daemon, so no setup is required. Point it at an aria2 you already run and it connects as a regular RPC client. aria2t collects no analytics or telemetry and talks over the network only to the aria2 server you configure.
 
-aria2t is a terminal client for the aria2 download manager, styled with the Tokyo Night palette. It talks to aria2 over JSON-RPC: either to a private daemon it spawns and manages itself, or to any aria2 already running on a seedbox, NAS, or remote machine. Every action is available from both the keyboard and the mouse, and the application builds into a single static Go binary.
+aria2t is a download manager for aria2 with terminal and browser interfaces. It controls a private daemon that it starts for you or connects over JSON-RPC to aria2 on a seedbox, NAS, or remote machine.
 
 ## ✨ Features
 
-- **Support for every aria2 source** — URL mirrors, `.torrent`, `.metalink`, magnet links, and aria2 input files.
-- **No-setup start** — aria2t finds `aria2c`, spawns a private daemon, and manages its entire lifecycle; an external aria2 connects via the `--url` flag.
-- **Download management** — pause and resume one or all, removal, queue reordering, speed limits per download or on a schedule.
-- **Details for every download** — piece map, peers and mirror speeds, per-file progress, ratio, and BitTorrent seeding controls.
-- **Integrity checking** — a finished file is checked against a sha-256 checksum and re-downloaded on mismatch; errors are described in plain language rather than codes.
-- **State preserved across restarts** — finished and in-progress downloads are restored, as is a file-selection window closed without an answer.
+- **All aria2 sources:** URL mirrors, `.torrent`, `.metalink`, magnet links, and aria2 input files.
+- **Managed daemon:** aria2t finds `aria2c`, starts a private daemon, and handles its lifecycle. Use `--url` to connect to an existing server.
+- **Download controls:** pause, resume, remove, reorder, and set speed limits per download or by schedule.
+- **Download details:** piece map, peers, mirror speeds, per-file progress, ratio, and BitTorrent seeding controls.
+- **Integrity checks:** compare a completed file with a SHA-256 checksum and download it again on mismatch.
+- **Session restore:** recover active and completed downloads after a restart, including unanswered file selections.
 
 ## 📦 Supported sources
 
@@ -159,7 +159,7 @@ Yes. Torrents, magnet links, and Metalink are added paused, and a file tree open
 Yes. A finished torrent keeps seeding and its status changes to seeding. The global seeding parameters — ratio and time — are set in the settings and re-applied on every daemon restart.
 
 **Keyboard or mouse?**
-Both are fully supported. Every hint in the key bar can be clicked, every mouse action has a keyboard equivalent, and the full list of bindings opens with `?`.
+Use either. You can click every action in the key bar, and each mouse action has a keyboard shortcut. Press `?` to see all shortcuts.
 
 **Does aria2t send any data anywhere?**
 No. The program collects no analytics or telemetry, fetches no remote configuration, and talks over the network only to the aria2 server you configure.

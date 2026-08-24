@@ -51,7 +51,18 @@ export default defineConfig({
   build: {
     outDir: path.resolve(here, 'dist'),
     emptyOutDir: true,
-    rollupOptions: { input },
+    rollupOptions: {
+      input,
+      output: {
+        // Split the framework out of the per-route layout chunk. Every page is
+        // prerendered, so this bundle exists only to hydrate — keeping React in
+        // its own chunk lets it stay cached across routes and across deploys
+        // that only touch page code.
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-dom/client'],
+        },
+      },
+    },
   },
   server: {
     port: 5181,

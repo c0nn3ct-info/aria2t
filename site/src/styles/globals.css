@@ -62,6 +62,16 @@
     --on-error: 0 0% 100%;
     --error-container: 0 80% 94%;
     --on-error-container: 0 70% 22%;
+    /* Status text roles. The saturated --success/--warning/--error above are
+       fill and icon colours; at their light-theme lightness they sit at 2.5-4.4:1
+       as text on an elevated surface, under the 4.5:1 AA floor. These are the
+       same hues taken dark enough to read as body text on every surface in the
+       set (worst case 4.94:1 on --surface-container-high). */
+    --success-text: 142 72% 25%;
+    --warning-text: 38 92% 27%;
+    --error-text: 0 75% 42%;
+    --info-container: 210 55% 88%;
+    --on-info-container: 210 70% 22%;
 
     --foreground: var(--on-surface);
     --card: var(--surface-container-low);
@@ -119,6 +129,14 @@
     --on-error: 0 0% 8%;
     --error-container: 0 50% 22%;
     --on-error-container: 0 90% 90%;
+    /* Status text roles — see :root. Dark already had headroom for success and
+       warning, so those match their fill; error is lightened from 65% to clear
+       AA on --surface-container-highest (4.66:1). */
+    --success-text: 142 60% 55%;
+    --warning-text: 38 90% 65%;
+    --error-text: 0 80% 72%;
+    --info-container: 210 45% 22%;
+    --on-info-container: 210 70% 88%;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -158,6 +176,14 @@
       --on-error: 0 0% 8%;
       --error-container: 0 50% 22%;
       --on-error-container: 0 90% 90%;
+      /* Status text roles — see :root. Dark already had headroom for success and
+         warning, so those match their fill; error is lightened from 65% to clear
+         AA on --surface-container-highest (4.66:1). */
+      --success-text: 142 60% 55%;
+      --warning-text: 38 90% 65%;
+      --error-text: 0 80% 72%;
+      --info-container: 210 45% 22%;
+      --on-info-container: 210 70% 88%;
     }
   }
 }
@@ -365,7 +391,10 @@
   html,
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    /* System UI on purpose — a browser surface should match its browser.
+       'Inter' used to lead this stack but was never loaded, so it rendered only
+       for people who happened to have it installed. */
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
       'Noto Sans Arabic', 'Geeza Pro', 'PingFang SC', 'Microsoft YaHei',
       'Noto Sans CJK SC', sans-serif;
     font-feature-settings: 'cv11', 'ss01';
@@ -490,4 +519,29 @@
   40% { transform: translateX(70%); width: 50%; }
   60% { transform: translateX(110%); width: 30%; }
   100% { transform: translateX(170%); width: 30%; }
+}
+
+@layer base {
+  /* Reduced motion: stop what loops, keep what informs.
+     The three infinite decorations (pulse-ring, breathe, status-dot) are ambient
+     and run forever, which is exactly what WCAG 2.2.2 asks to be stoppable — they
+     are held on their first frame. Everything else keeps its transition, only
+     short enough not to read as movement: a blanket `animation: 0.01ms` would
+     also erase the state changes these transitions exist to communicate, and a
+     switch that snaps with no feedback is worse than one that eases. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-pulse-ring,
+    .animate-breathe,
+    .animate-status-dot {
+      animation-play-state: paused !important;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 60ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }

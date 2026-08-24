@@ -48,12 +48,17 @@ function CodeBlock({ children }: { children: string }) {
         variant="standard"
         size="xs"
         onClick={() => void copy()}
-        aria-label={copied ? 'Copied' : 'Copy command'}
-        title={copied ? 'Copied' : 'Copy'}
+        aria-label={copied ? t('code.copied') : t('code.copy')}
+        title={copied ? t('code.copied') : t('code.copy_short')}
         className="absolute end-1.5 top-1.5 text-on-surface-variant"
       >
         {copied ? <Check /> : <Copy />}
       </IconButton>
+      {/* Swapping the button's aria-label does not announce anything; a live
+          region is the only thing a screen reader reports on copy. */}
+      <span role="status" aria-live="polite" className="sr-only">
+        {copied ? t('code.copied') : ''}
+      </span>
     </div>
   );
 }

@@ -6,10 +6,17 @@ interface Props {
   icon: LucideIcon;
   count?: number;
   action?: React.ReactNode;
+  /**
+   * Heading level for the section title. Defaults to 2: a section sits directly
+   * under the page h1, and hard-coding h3 skipped a level on every page that
+   * used one (WCAG 1.3.1). Pass 3 for a genuinely nested section.
+   */
+  headingLevel?: 2 | 3;
   children: React.ReactNode;
 }
 
-export function Section({ header, icon: Icon, count, action, children }: Props) {
+export function Section({ header, icon: Icon, count, action, headingLevel = 2, children }: Props) {
+  const Heading = `h${headingLevel}` as const;
   return (
     <section className="overflow-hidden rounded-xl bg-surface-container-low">
       <header className="flex items-center gap-3 px-4 pb-3 pt-4">
@@ -17,7 +24,7 @@ export function Section({ header, icon: Icon, count, action, children }: Props) 
           <Icon className="h-4 w-4" />
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <h3 className="truncate text-title-medium tracking-tight">{header}</h3>
+          <Heading className="text-title-medium leading-tight tracking-tight">{header}</Heading>
           {typeof count === 'number' && (
             <span className="inline-flex items-center rounded-pill bg-surface-container-highest px-2 py-0.5 text-label-medium text-on-surface-variant">
               {count}

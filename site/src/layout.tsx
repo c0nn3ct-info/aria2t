@@ -19,6 +19,14 @@ export function Layout({ children }: LayoutProps) {
   const homeHref = localePath('/');
   return (
     <div className="flex min-h-screen flex-col bg-background text-on-surface">
+      {/* First focusable thing on the page: seven header/footer links otherwise
+          stand between a keyboard user and the content, on every page. */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      >
+        {t('nav.skip_to_content')}
+      </a>
       <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-outline-variant bg-surface-container-low/95 px-4 backdrop-blur-md sm:px-6">
         <a
           href={homeHref}
@@ -28,13 +36,13 @@ export function Layout({ children }: LayoutProps) {
           <Aria2tLogo className="h-6 w-6 text-primary" />
           <span className="text-title-medium tracking-tight">aria2t</span>
         </a>
-        <div className="ms-auto flex items-center gap-1">
+        <nav aria-label={t('nav.site_nav_aria')} className="ms-auto flex items-center gap-1">
           <GithubLink />
           <LanguageSwitcher />
-        </div>
+        </nav>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10 sm:px-6 sm:py-12 lg:max-w-5xl">
+      <main id="main" className="mx-auto w-full max-w-3xl flex-1 px-4 py-10 sm:px-6 sm:py-12 lg:max-w-5xl">
         {children}
       </main>
 
@@ -43,51 +51,51 @@ export function Layout({ children }: LayoutProps) {
           <div className="text-label-small text-on-surface-variant/70">
             {t('footer.by')}
           </div>
-          <div>
+          <nav aria-label={t('footer.pages')}>
             <div className="mb-2 text-label-small uppercase tracking-[0.12em] text-on-surface-variant/70">
               {t('footer.pages')}
             </div>
             <ul className="space-y-1.5">
               <li>
-                <a className="inline-flex items-center gap-2 underline-offset-4 hover:underline" href={homeHref}>
+                <a className="inline-flex min-h-[24px] items-center gap-2 py-1 underline-offset-4 hover:underline" href={homeHref}>
                   <Home className="h-3.5 w-3.5" />
                   {t('footer.home')}
                 </a>
               </li>
               <li>
-                <a className="inline-flex items-center gap-2 underline-offset-4 hover:underline" href={localePath('/install/')}>
+                <a className="inline-flex min-h-[24px] items-center gap-2 py-1 underline-offset-4 hover:underline" href={localePath('/install/')}>
                   <Download className="h-3.5 w-3.5" />
                   {t('nav.install')}
                 </a>
               </li>
               <li>
-                <a className="inline-flex items-center gap-2 underline-offset-4 hover:underline" href={localePath('/extension/')}>
+                <a className="inline-flex min-h-[24px] items-center gap-2 py-1 underline-offset-4 hover:underline" href={localePath('/extension/')}>
                   <Puzzle className="h-3.5 w-3.5" />
                   {t('nav.extension')}
                 </a>
               </li>
               <li>
-                <a className="inline-flex items-center gap-2 underline-offset-4 hover:underline" href={localePath('/privacy/')}>
+                <a className="inline-flex min-h-[24px] items-center gap-2 py-1 underline-offset-4 hover:underline" href={localePath('/privacy/')}>
                   <ShieldCheck className="h-3.5 w-3.5" />
                   {t('nav.privacy')}
                 </a>
               </li>
               <li>
-                <a className="inline-flex items-center gap-2 underline-offset-4 hover:underline" href={localePath('/license/')}>
+                <a className="inline-flex min-h-[24px] items-center gap-2 py-1 underline-offset-4 hover:underline" href={localePath('/license/')}>
                   <FileText className="h-3.5 w-3.5" />
                   {t('nav.license')}
                 </a>
               </li>
             </ul>
-          </div>
-          <div>
+          </nav>
+          <nav aria-label={t('footer.sources')}>
             <div className="mb-2 text-label-small uppercase tracking-[0.12em] text-on-surface-variant/70">
               {t('footer.sources')}
             </div>
             <ul className="space-y-1.5">
               <li>
                 <a
-                  className="inline-flex items-center gap-2 underline-offset-4 hover:underline"
+                  className="inline-flex min-h-[24px] items-center gap-2 py-1 underline-offset-4 hover:underline"
                   href={GITHUB_URL}
                   target="_blank"
                   rel="noreferrer noopener"
@@ -98,7 +106,7 @@ export function Layout({ children }: LayoutProps) {
               </li>
               <li>
                 <a
-                  className="inline-flex items-center gap-2 underline-offset-4 hover:underline"
+                  className="inline-flex min-h-[24px] items-center gap-2 py-1 underline-offset-4 hover:underline"
                   href="https://aria2.github.io/"
                   target="_blank"
                   rel="noreferrer noopener"
@@ -108,7 +116,7 @@ export function Layout({ children }: LayoutProps) {
                 </a>
               </li>
             </ul>
-          </div>
+          </nav>
         </div>
       </footer>
     </div>

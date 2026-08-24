@@ -9,8 +9,8 @@
 
 <h1 align="center">aria2t</h1>
 
-<p align="center"><strong>ダウンロードマネージャー aria2 のターミナルクライアント</strong></p>
-<p align="center"><em>ダウンロード・トレント・マグネットリンク・Metalink をターミナルから管理。</em></p>
+<p align="center"><strong>aria2 ダウンロードマネージャー</strong></p>
+<p align="center"><em>ターミナルやブラウザから aria2 を管理。</em></p>
 
 <p align="center">
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
@@ -30,7 +30,7 @@
 > [!IMPORTANT]
 > ダウンロードを実行するのは [aria2](https://aria2.github.io/) であり、aria2t はその操作パネルです。デフォルトでは aria2t が専用の `aria2c` デーモンを起動・管理するため、設定は不要です。既に稼働中の aria2 を指定すれば、通常の RPC クライアントとして接続します。aria2t はアナリティクスもテレメトリも収集せず、ネットワーク通信の相手は設定された aria2 サーバーのみです。
 
-aria2t は、ダウンロードマネージャー aria2 のターミナルクライアントで、Tokyo Night カラーパレットを採用しています。aria2 とは JSON-RPC で通信します。相手は、自ら起動して管理する専用デーモン、またはシードボックス・NAS・リモートマシンで既に稼働している任意の aria2 です。すべての操作はキーボードとマウスの両方から行え、アプリケーションは単一の静的 Go バイナリにビルドされます。
+aria2t は、ターミナルとブラウザに対応した aria2 ダウンロードマネージャーです。専用デーモンを起動するほか、シードボックス、NAS、リモートマシンの aria2 に JSON-RPC で接続します。
 
 ## ✨ 機能
 
