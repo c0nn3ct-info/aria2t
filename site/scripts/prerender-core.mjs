@@ -89,13 +89,13 @@ export function getMeta(page, locale) {
       type: 'website',
       locale: OG_LOCALE[locale],
       localeAlternate: LOCALES.filter((l) => l !== locale).map((l) => OG_LOCALE[l]),
-      image: `${ORIGIN}/og-preview.jpg?v=4`,
+      image: `${ORIGIN}/og-preview.jpg?v=5`,
       url,
       siteName: 'aria2t',
     },
     twitter: {
       card: 'summary_large_image',
-      image: `${ORIGIN}/og-preview.jpg?v=4`,
+      image: `${ORIGIN}/og-preview.jpg?v=5`,
     },
   };
 }
