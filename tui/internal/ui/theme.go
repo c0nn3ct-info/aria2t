@@ -73,7 +73,7 @@ func PaletteByName(name string) Palette {
 type Styles struct {
 	P Palette
 
-	Brand     lipgloss.Style // "aria2t" wordmark
+	Brand     lipgloss.Style // "Aria2t" wordmark
 	Title     lipgloss.Style // bold bright text
 	Text      lipgloss.Style
 	Dim       lipgloss.Style

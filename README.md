@@ -7,7 +7,7 @@
   </picture>
 </p>
 
-<h1 align="center">aria2t</h1>
+<h1 align="center">Aria2t</h1>
 
 <p align="center"><strong>Download manager for aria2</strong></p>
 <p align="center"><em>Manage aria2 from the terminal or browser.</em></p>
@@ -23,19 +23,20 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./tui/docs/media/demo.gif">
-    <img alt="aria2t demo" src="./tui/docs/media/demo-light.gif" width="720">
+    <img alt="Aria2t demo" src="./tui/docs/media/demo-light.gif" width="720">
   </picture>
 </p>
 
 > [!IMPORTANT]
-> Downloads are performed by [aria2](https://aria2.github.io/); aria2t is its control panel. By default aria2t spawns and manages its own `aria2c` daemon, so no setup is required. Point it at an aria2 you already run and it connects as a regular RPC client. aria2t collects no analytics or telemetry and talks over the network only to the aria2 server you configure.
+> Downloads are performed by [aria2](https://aria2.github.io/); Aria2t is its control panel. By default Aria2t spawns and manages its own `aria2c` daemon, so no setup is required. Point it at an aria2 you already run and it connects as a regular RPC client. Aria2t collects no analytics or telemetry and talks over the network only to the aria2 server you configure.
 
-aria2t is a download manager for aria2 with terminal and browser interfaces. It controls a private daemon that it starts for you or connects over JSON-RPC to aria2 on a seedbox, NAS, or remote machine.
+Aria2t is a download manager for aria2 with terminal and browser interfaces. It controls a private daemon that it starts for you or connects over JSON-RPC to aria2 on a seedbox, NAS, or remote machine.
 
 ## ✨ Features
 
 - **All aria2 sources:** URL mirrors, `.torrent`, `.metalink`, magnet links, and aria2 input files.
-- **Managed daemon:** aria2t finds `aria2c`, starts a private daemon, and handles its lifecycle. Use `--url` to connect to an existing server.
+- **Browser extension:** a Chrome extension sends browser downloads and magnet links to the same daemon, filtered by size, domain, or file type. Install it from <https://aria2t.c0nn3ct.info/extension>.
+- **Managed daemon:** Aria2t finds `aria2c`, starts a private daemon, and handles its lifecycle. Use `--url` to connect to an existing server.
 - **Download controls:** pause, resume, remove, reorder, and set speed limits per download or by schedule.
 - **Download details:** piece map, peers, mirror speeds, per-file progress, ratio, and BitTorrent seeding controls.
 - **Integrity checks:** compare a completed file with a SHA-256 checksum and download it again on mismatch.
@@ -45,28 +46,31 @@ aria2t is a download manager for aria2 with terminal and browser interfaces. It 
 
 `HTTP(S)` · `FTP` · `SFTP` · `BitTorrent` · `magnet:` · `.torrent` · `Metalink` · `aria2 input file`
 
-aria2t can add anything aria2 accepts: plain URLs (multiple lines are treated as mirrors of the same file), magnet links and `.torrent` files with DHT and seeding support, `.metalink`, and aria2's `--input-file` batch format with separate options for each entry.
+Aria2t can add anything aria2 accepts: plain URLs (multiple lines are treated as mirrors of the same file), magnet links and `.torrent` files with DHT and seeding support, `.metalink`, and aria2's `--input-file` batch format with separate options for each entry.
 
 ## 🧩 How it works
 
-The aria2 daemon downloads the files; the interface controls it over JSON-RPC.
+The aria2 daemon downloads the files; a front end controls it over JSON-RPC. The terminal client and the browser extension are two such front ends, and they drive the same daemon.
 
 ```
-  Terminal                                  Your machine
-  ┌──────────────────┐    JSON-RPC ws://    ┌──────────────────┐
-  │      aria2t      │ ◀──────────────────▶ │  managed aria2c  │
-  │  Bubble Tea TUI  │     push + poll      │ spawned · reaped │
-  └────────┬─────────┘                      └────────┬─────────┘
-           │                                         │ downloads · seeds
-           │  ws:// or http(s)://                    ▼
-           ▼                                ┌──────────────────┐
-  ┌──────────────────┐                      │   HTTP mirrors   │
-  │  external aria2  │─────────────────────▶│ BitTorrent · DHT │
-  │  seedbox · NAS   │      downloads       │     Metalink     │
-  └──────────────────┘                      └──────────────────┘
+  Front ends                                Your machine
+  ┌──────────────────┐                      ┌──────────────────┐
+  │ terminal client  │──┐  JSON-RPC ws://   │  managed aria2c  │
+  │  Bubble Tea TUI  │  ├──────────────────▶│ spawned · reaped │
+  └──────────────────┘  │   push + poll     └──────────────────┘
+  ┌──────────────────┐  │                            │ downloads · seeds
+  │ Chrome extension │──┘                            │
+  │ capture · picker │                               ▼
+  └────────┬─────────┘                      ┌──────────────────┐
+           │  ws:// or http(s)://           │   HTTP mirrors   │
+           ▼                                │ BitTorrent · DHT │
+  ┌──────────────────┐      downloads       │     Metalink     │
+  │  external aria2  │─────────────────────▶│                  │
+  │  seedbox · NAS   │                      └──────────────────┘
+  └──────────────────┘
 ```
 
-By default aria2t finds `aria2c` on your `PATH` and starts a private daemon on a random port with a random secret. The session is saved on exit and restored on the next launch, and the child process is stopped cleanly together with the program; a daemon left behind by a crash is shut down on the next start. If an external server is configured, the built-in daemon is not started and aria2t operates as a regular RPC client.
+By default Aria2t finds `aria2c` on your `PATH` and starts a private daemon on a random port with a random secret. The session is saved on exit and restored on the next launch, and the child process is stopped cleanly together with the program; a daemon left behind by a crash is shut down on the next start. If an external server is configured, the built-in daemon is not started and Aria2t operates as a regular RPC client.
 
 ## 📥 Install
 
@@ -84,7 +88,7 @@ cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 ./aria2t
 ```
 
-On first launch aria2t starts the private daemon and opens an empty download list. The `a` key opens the add form, and `↵` adds a link from the clipboard.
+On first launch Aria2t starts the private daemon and opens an empty download list. The `a` key opens the add form, and `↵` adds a link from the clipboard.
 
 ### Connecting to an external aria2
 
@@ -103,7 +107,7 @@ Rebuild the binary and replace the old one. Configuration, scheduler rules, and 
 1. Delete the binary.
 2. Delete the data directory `~/.config/aria2t/` (configuration, daemon session, logs).
 
-## ⌨️ Using aria2t
+## ⌨️ Using Aria2t
 
 **Adding.** `a` opens the add form, prefilled from the clipboard. Several URIs, one per line, are treated as mirrors of the same file. `^t` switches the tabs (URL · `.torrent` · `.metalink` · input file), `^o` opens a file browser, and `^s` adds the download paused. On the empty first-run screen `↵` adds a link from the clipboard.
 
@@ -141,13 +145,13 @@ A server with the `managed` field is the built-in daemon; its port and secret ar
 ## ❓ FAQ
 
 **What is aria2 and why does it need a separate interface?**
-[aria2](https://aria2.github.io/) is a fast download engine supporting HTTP(S), FTP, SFTP, BitTorrent, and Metalink. It runs in the background, is controlled over JSON-RPC, and has no interface of its own beyond one-off commands. aria2t adds a real-time download list, file selection, queue management, speed limits, and integrity checking.
+[aria2](https://aria2.github.io/) is a fast download engine supporting HTTP(S), FTP, SFTP, BitTorrent, and Metalink. It runs in the background, is controlled over JSON-RPC, and has no interface of its own beyond one-off commands. Aria2t adds a real-time download list, file selection, queue management, speed limits, and integrity checking.
 
 **How is this different from running `aria2c` directly?**
-`aria2c` either downloads a file and exits, or runs as a daemon controlled by scripts. aria2t takes over managing that daemon: it starts it, saves and restores the session, stops it cleanly on exit, and shuts down a daemon left behind by a crash. On top of that aria2t provides an interactive interface.
+`aria2c` either downloads a file and exits, or runs as a daemon controlled by scripts. Aria2t takes over managing that daemon: it starts it, saves and restores the session, stops it cleanly on exit, and shuts down a daemon left behind by a crash. On top of that Aria2t provides an interactive interface.
 
 **Does it work with an aria2 I already run?**
-Yes. The `--url ws://host:6800/jsonrpc --secret …` flag or the built-in server switcher with latency probes connects aria2t to any aria2 over WebSocket or HTTP(S) — for example on a seedbox, a NAS, or in a Docker container. The built-in daemon is not started in that case.
+Yes. The `--url ws://host:6800/jsonrpc --secret …` flag or the built-in server switcher with latency probes connects Aria2t to any aria2 over WebSocket or HTTP(S) — for example on a seedbox, a NAS, or in a Docker container. The built-in daemon is not started in that case.
 
 **Are downloads preserved after quitting?**
 Yes. The managed daemon saves its session on exit and restores it on the next launch: active, waiting, finished, and seeding downloads are restored, and already-downloaded files are recognized rather than downloaded again. A file-selection window closed without an answer also opens again.
@@ -161,7 +165,7 @@ Yes. A finished torrent keeps seeding and its status changes to seeding. The glo
 **Keyboard or mouse?**
 Use either. You can click every action in the key bar, and each mouse action has a keyboard shortcut. Press `?` to see all shortcuts.
 
-**Does aria2t send any data anywhere?**
+**Does Aria2t send any data anywhere?**
 No. The program collects no analytics or telemetry, fetches no remote configuration, and talks over the network only to the aria2 server you configure.
 
 ## 🛠️ Development
@@ -184,6 +188,6 @@ functions and lines the same way (`cd site && npm run test:coverage`).
 
 ## 🙏 Acknowledgments
 
-- **[aria2](https://github.com/aria2/aria2)** (GPL-2.0) — the download engine that does all the transfer, BitTorrent, and Metalink work; aria2t is its control panel.
-- **[Bubble Tea](https://github.com/charmbracelet/bubbletea)**, **[Bubbles](https://github.com/charmbracelet/bubbles)**, and **[Lip Gloss](https://github.com/charmbracelet/lipgloss)** (MIT) — the Charm TUI stack aria2t is built on.
+- **[aria2](https://github.com/aria2/aria2)** (GPL-2.0) — the download engine that does all the transfer, BitTorrent, and Metalink work; Aria2t is its control panel.
+- **[Bubble Tea](https://github.com/charmbracelet/bubbletea)**, **[Bubbles](https://github.com/charmbracelet/bubbles)**, and **[Lip Gloss](https://github.com/charmbracelet/lipgloss)** (MIT) — the Charm TUI stack Aria2t is built on.
 - **[Tokyo Night](https://github.com/folke/tokyonight.nvim)** — both palettes are taken unchanged from the Tokyo Night and Tokyo Night Day themes.

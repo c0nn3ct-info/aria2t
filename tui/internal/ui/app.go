@@ -1342,7 +1342,7 @@ func (a *App) header() string {
 		endpoint += " (built-in)"
 	}
 	left := lipgloss.JoinHorizontal(lipgloss.Center,
-		st.Brand.Render("aria2t"), st.Faint.Render(" │ "),
+		st.Brand.Render("Aria2t"), st.Faint.Render(" │ "),
 		st.Dim.Render(endpoint+" "), conn)
 	right := st.Cyan.Render("▼ "+FmtSpeed(a.snap.Stat.DownSpeed())) + " " +
 		st.Magenta.Render("▲ "+FmtSpeed(a.snap.Stat.UpSpeed()))

@@ -7,7 +7,7 @@
   </picture>
 </p>
 
-<h1 align="center">aria2t</h1>
+<h1 align="center">Aria2t</h1>
 
 <p align="center"><strong>aria2 ダウンロードマネージャー</strong></p>
 <p align="center"><em>ターミナルやブラウザから aria2 を管理。</em></p>
@@ -23,19 +23,20 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./tui/docs/media/demo.gif">
-    <img alt="aria2t デモ" src="./tui/docs/media/demo-light.gif" width="720">
+    <img alt="Aria2t デモ" src="./tui/docs/media/demo-light.gif" width="720">
   </picture>
 </p>
 
 > [!IMPORTANT]
-> ダウンロードを実行するのは [aria2](https://aria2.github.io/) であり、aria2t はその操作パネルです。デフォルトでは aria2t が専用の `aria2c` デーモンを起動・管理するため、設定は不要です。既に稼働中の aria2 を指定すれば、通常の RPC クライアントとして接続します。aria2t はアナリティクスもテレメトリも収集せず、ネットワーク通信の相手は設定された aria2 サーバーのみです。
+> ダウンロードを実行するのは [aria2](https://aria2.github.io/) であり、Aria2t はその操作パネルです。デフォルトでは Aria2t が専用の `aria2c` デーモンを起動・管理するため、設定は不要です。既に稼働中の aria2 を指定すれば、通常の RPC クライアントとして接続します。Aria2t はアナリティクスもテレメトリも収集せず、ネットワーク通信の相手は設定された aria2 サーバーのみです。
 
-aria2t は、ターミナルとブラウザに対応した aria2 ダウンロードマネージャーです。専用デーモンを起動するほか、シードボックス、NAS、リモートマシンの aria2 に JSON-RPC で接続します。
+Aria2t は、ターミナルとブラウザに対応した aria2 ダウンロードマネージャーです。専用デーモンを起動するほか、シードボックス、NAS、リモートマシンの aria2 に JSON-RPC で接続します。
 
 ## ✨ 機能
 
 - **aria2 の全ソースに対応** — URL ミラー、`.torrent`、`.metalink`、マグネットリンク、aria2 入力ファイル。
-- **設定不要の起動** — aria2t が `aria2c` を見つけ、専用デーモンを起動してそのライフサイクル全体を管理します。外部の aria2 へは `--url` オプションで接続します。
+- **ブラウザ拡張機能** — Chrome 拡張機能が、ブラウザのダウンロードとマグネットリンクを同じデーモンに送ります。サイズ・ドメイン・ファイル種別で絞り込めます。インストールは <https://aria2t.c0nn3ct.info/extension> から。
+- **設定不要の起動** — Aria2t が `aria2c` を見つけ、専用デーモンを起動してそのライフサイクル全体を管理します。外部の aria2 へは `--url` オプションで接続します。
 - **ダウンロード管理** — 個別または一括の一時停止と再開、削除、キューの並べ替え、ダウンロード単位またはスケジュールによる速度制限。
 - **各ダウンロードの詳細** — ピースマップ、ピアとミラーの速度、ファイルごとの進捗、レシオ、BitTorrent シードの制御。
 - **整合性の検証** — 完了したファイルを sha-256 チェックサムと照合し、不一致なら再ダウンロードします。エラーはコードではなく平易な言葉で説明されます。
@@ -45,28 +46,31 @@ aria2t は、ターミナルとブラウザに対応した aria2 ダウンロー
 
 `HTTP(S)` · `FTP` · `SFTP` · `BitTorrent` · `magnet:` · `.torrent` · `Metalink` · `aria2 入力ファイル`
 
-aria2t には aria2 が受け付けるものをすべて追加できます。通常の URL（複数行は同じファイルのミラーとして扱われます）、DHT とシードに対応したマグネットリンクと `.torrent`、`.metalink`、そしてエントリごとに個別オプションを持つ aria2 の `--input-file` バッチ形式です。
+Aria2t には aria2 が受け付けるものをすべて追加できます。通常の URL（複数行は同じファイルのミラーとして扱われます）、DHT とシードに対応したマグネットリンクと `.torrent`、`.metalink`、そしてエントリごとに個別オプションを持つ aria2 の `--input-file` バッチ形式です。
 
 ## 🧩 仕組み
 
-ファイルをダウンロードするのは aria2 デーモンで、インターフェースはそれを JSON-RPC で制御します。
+ファイルをダウンロードするのは aria2 デーモンで、フロントエンドがそれを JSON-RPC で制御します。ターミナルクライアントとブラウザ拡張機能はそうしたフロントエンドの二つで、同じデーモンを操作します。
 
 ```
-  Terminal                                  Your machine
-  ┌──────────────────┐    JSON-RPC ws://    ┌──────────────────┐
-  │      aria2t      │ ◀──────────────────▶ │  managed aria2c  │
-  │  Bubble Tea TUI  │     push + poll      │ spawned · reaped │
-  └────────┬─────────┘                      └────────┬─────────┘
-           │                                         │ downloads · seeds
-           │  ws:// or http(s)://                    ▼
-           ▼                                ┌──────────────────┐
-  ┌──────────────────┐                      │   HTTP mirrors   │
-  │  external aria2  │─────────────────────▶│ BitTorrent · DHT │
-  │  seedbox · NAS   │      downloads       │     Metalink     │
-  └──────────────────┘                      └──────────────────┘
+  Front ends                                Your machine
+  ┌──────────────────┐                      ┌──────────────────┐
+  │ terminal client  │──┐  JSON-RPC ws://   │  managed aria2c  │
+  │  Bubble Tea TUI  │  ├──────────────────▶│ spawned · reaped │
+  └──────────────────┘  │   push + poll     └──────────────────┘
+  ┌──────────────────┐  │                            │ downloads · seeds
+  │ Chrome extension │──┘                            │
+  │ capture · picker │                               ▼
+  └────────┬─────────┘                      ┌──────────────────┐
+           │  ws:// or http(s)://           │   HTTP mirrors   │
+           ▼                                │ BitTorrent · DHT │
+  ┌──────────────────┐      downloads       │     Metalink     │
+  │  external aria2  │─────────────────────▶│                  │
+  │  seedbox · NAS   │                      └──────────────────┘
+  └──────────────────┘
 ```
 
-デフォルトでは、aria2t は `PATH` から `aria2c` を見つけ、ランダムなポートとランダムな secret で専用デーモンを起動します。セッションは終了時に保存され、次回起動時に復元されます。子プロセスはプログラムとともにクリーンに停止し、クラッシュで残ったデーモンは次回起動時に終了されます。外部サーバーが設定されている場合、内蔵デーモンは起動せず、aria2t は通常の RPC クライアントとして動作します。
+デフォルトでは、Aria2t は `PATH` から `aria2c` を見つけ、ランダムなポートとランダムな secret で専用デーモンを起動します。セッションは終了時に保存され、次回起動時に復元されます。子プロセスはプログラムとともにクリーンに停止し、クラッシュで残ったデーモンは次回起動時に終了されます。外部サーバーが設定されている場合、内蔵デーモンは起動せず、Aria2t は通常の RPC クライアントとして動作します。
 
 ## 📥 インストール
 
@@ -84,7 +88,7 @@ cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 ./aria2t
 ```
 
-初回起動時に aria2t は専用デーモンを起動し、空のダウンロード一覧を開きます。`a` キーで追加フォームが開き、`↵` でクリップボードのリンクが追加されます。
+初回起動時に Aria2t は専用デーモンを起動し、空のダウンロード一覧を開きます。`a` キーで追加フォームが開き、`↵` でクリップボードのリンクが追加されます。
 
 ### 外部の aria2 への接続
 
@@ -141,10 +145,10 @@ cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 ## ❓ FAQ
 
 **aria2 とは何ですか。なぜ別のインターフェースが必要なのですか。**
-[aria2](https://aria2.github.io/) は HTTP(S)、FTP、SFTP、BitTorrent、Metalink に対応した高速なダウンロードエンジンです。バックグラウンドで動作し、JSON-RPC で制御され、単発コマンド以外に独自のインターフェースを持ちません。aria2t はそこに、リアルタイムのダウンロード一覧、ファイル選択、キュー管理、速度制限、整合性検証を加えます。
+[aria2](https://aria2.github.io/) は HTTP(S)、FTP、SFTP、BitTorrent、Metalink に対応した高速なダウンロードエンジンです。バックグラウンドで動作し、JSON-RPC で制御され、単発コマンド以外に独自のインターフェースを持ちません。Aria2t はそこに、リアルタイムのダウンロード一覧、ファイル選択、キュー管理、速度制限、整合性検証を加えます。
 
 **`aria2c` を直接実行するのと何が違いますか。**
-`aria2c` は、ファイルを 1 つダウンロードして終了するか、スクリプトで制御するデーモンとして動作するかのいずれかです。aria2t はそのデーモンの管理を引き受けます。起動し、セッションを保存・復元し、終了時にクリーンに停止し、クラッシュで残ったデーモンを終了します。その上で aria2t は対話的なインターフェースを提供します。
+`aria2c` は、ファイルを 1 つダウンロードして終了するか、スクリプトで制御するデーモンとして動作するかのいずれかです。Aria2t はそのデーモンの管理を引き受けます。起動し、セッションを保存・復元し、終了時にクリーンに停止し、クラッシュで残ったデーモンを終了します。その上で Aria2t は対話的なインターフェースを提供します。
 
 **既に稼働中の aria2 でも使えますか。**
 はい。`--url ws://host:6800/jsonrpc --secret …` オプション、またはレイテンシ計測付きの内蔵サーバー切り替えで、WebSocket や HTTP(S) 経由の任意の aria2 に接続できます。たとえばシードボックス、NAS、Docker コンテナ内の aria2 です。この場合、内蔵デーモンは起動しません。
@@ -161,7 +165,7 @@ cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 **キーボードとマウスのどちらで操作しますか。**
 どちらも完全に対応しています。キーバーのヒントはすべてクリックでき、マウスの各操作にはキーボードの等価操作があり、キー割り当ての全一覧は `?` で開きます。
 
-**aria2t は外部にデータを送信しますか。**
+**Aria2t は外部にデータを送信しますか。**
 いいえ。プログラムはアナリティクスもテレメトリも収集せず、リモート設定も取得せず、ネットワーク通信の相手は設定された aria2 サーバーのみです。
 
 ## 🛠️ 開発
@@ -177,6 +181,6 @@ go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
 
 ## 🙏 謝辞
 
-- **[aria2](https://github.com/aria2/aria2)**（GPL-2.0）— 転送・BitTorrent・Metalink のすべての作業を担うダウンロードエンジン。aria2t はその操作パネルです。
-- **[Bubble Tea](https://github.com/charmbracelet/bubbletea)**、**[Bubbles](https://github.com/charmbracelet/bubbles)**、**[Lip Gloss](https://github.com/charmbracelet/lipgloss)**（MIT）— aria2t の土台である Charm の TUI スタック。
+- **[aria2](https://github.com/aria2/aria2)**（GPL-2.0）— 転送・BitTorrent・Metalink のすべての作業を担うダウンロードエンジン。Aria2t はその操作パネルです。
+- **[Bubble Tea](https://github.com/charmbracelet/bubbletea)**、**[Bubbles](https://github.com/charmbracelet/bubbles)**、**[Lip Gloss](https://github.com/charmbracelet/lipgloss)**（MIT）— Aria2t の土台である Charm の TUI スタック。
 - **[Tokyo Night](https://github.com/folke/tokyonight.nvim)** — 両テーマのパレットは Tokyo Night および Tokyo Night Day から変更なしで採用しています。

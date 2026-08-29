@@ -367,7 +367,7 @@ func (m settingsModel) view() string {
 	rows = append(rows, st.Dim.Render(strings.ToUpper(m.sections[m.section])))
 	if m.section == 0 && a.cfg.ActiveServer().Managed {
 		rows = append(rows,
-			st.Text.Render("Built-in daemon — aria2t spawns and manages aria2c itself."),
+			st.Text.Render("Built-in daemon — Aria2t spawns and manages aria2c itself."),
 			st.Dim.Render("Endpoint and secret are chosen at launch; nothing to configure."),
 			st.Dim.Render("Use the server switcher (s → +) to add an external server."))
 		form := st.Panel.Width(a.width - lipgloss.Width(sidebar) - 4).Render(strings.Join(rows, "\n"))

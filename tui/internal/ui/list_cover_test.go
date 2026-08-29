@@ -403,7 +403,7 @@ func TestListViewEmpty(t *testing.T) {
 	// Connected + no downloads → the onboarding welcome, not a bare table.
 	a, _ := testApp(t)
 	a.snap = snapshot{}
-	if v := a.list.view(); !strings.Contains(v, "Welcome to aria2t") {
+	if v := a.list.view(); !strings.Contains(v, "Welcome to Aria2t") {
 		t.Fatalf("empty connected view must welcome:\n%s", v)
 	}
 	// Disconnected empty → the plain placeholder.

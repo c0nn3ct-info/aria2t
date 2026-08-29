@@ -7,7 +7,7 @@
   </picture>
 </p>
 
-<h1 align="center">aria2t</h1>
+<h1 align="center">Aria2t</h1>
 
 <p align="center"><strong>Gestor de descargas para aria2</strong></p>
 <p align="center"><em>Gestiona aria2 desde el terminal o el navegador.</em></p>
@@ -23,19 +23,20 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./tui/docs/media/demo.gif">
-    <img alt="Demo de aria2t" src="./tui/docs/media/demo-light.gif" width="720">
+    <img alt="Demo de Aria2t" src="./tui/docs/media/demo-light.gif" width="720">
   </picture>
 </p>
 
 > [!IMPORTANT]
-> Las descargas las realiza [aria2](https://aria2.github.io/); aria2t es su panel de control. Por defecto aria2t lanza y gestiona su propio demonio `aria2c`, así que no hace falta configurar nada. Si se le indica un aria2 que ya está en marcha, se conecta a él como un cliente RPC normal. aria2t no recopila analíticas ni telemetría y solo se comunica por red con el servidor aria2 configurado.
+> Las descargas las realiza [aria2](https://aria2.github.io/); Aria2t es su panel de control. Por defecto Aria2t lanza y gestiona su propio demonio `aria2c`, así que no hace falta configurar nada. Si se le indica un aria2 que ya está en marcha, se conecta a él como un cliente RPC normal. Aria2t no recopila analíticas ni telemetría y solo se comunica por red con el servidor aria2 configurado.
 
-aria2t es un gestor de descargas para aria2 con interfaces para el terminal y el navegador. Inicia un demonio privado o se conecta por JSON-RPC a aria2 en un seedbox, NAS o equipo remoto.
+Aria2t es un gestor de descargas para aria2 con interfaces para el terminal y el navegador. Inicia un demonio privado o se conecta por JSON-RPC a aria2 en un seedbox, NAS o equipo remoto.
 
 ## ✨ Características
 
 - **Compatibilidad con todas las fuentes de aria2** — espejos de URL, `.torrent`, `.metalink`, enlaces magnet y archivos de entrada de aria2.
-- **Arranque sin configuración** — aria2t encuentra `aria2c`, lanza un demonio privado y gestiona todo su ciclo de vida; un aria2 externo se conecta con la opción `--url`.
+- **Extensión de navegador** — una extensión de Chrome envía las descargas del navegador y los enlaces magnet al mismo demonio, con filtros por tamaño, dominio o tipo de archivo. Instalación en <https://aria2t.c0nn3ct.info/extension>.
+- **Arranque sin configuración** — Aria2t encuentra `aria2c`, lanza un demonio privado y gestiona todo su ciclo de vida; un aria2 externo se conecta con la opción `--url`.
 - **Gestión de descargas** — pausa y reanudación de una o de todas, eliminación, reordenación de la cola, límites de velocidad por descarga o según un horario.
 - **Detalles de cada descarga** — mapa de piezas, peers y velocidad de los espejos, progreso por archivo, ratio y control del seeding de BitTorrent.
 - **Comprobación de integridad** — el archivo terminado se coteja con una suma sha-256 y se vuelve a descargar si no coincide; los errores se describen en lenguaje claro, no con códigos.
@@ -45,28 +46,31 @@ aria2t es un gestor de descargas para aria2 con interfaces para el terminal y el
 
 `HTTP(S)` · `FTP` · `SFTP` · `BitTorrent` · `magnet:` · `.torrent` · `Metalink` · `archivo de entrada de aria2`
 
-En aria2t se puede añadir todo lo que aria2 acepta: URLs normales (varias líneas se tratan como espejos del mismo archivo), enlaces magnet y archivos `.torrent` con soporte de DHT y seeding, `.metalink`, y el formato por lotes `--input-file` de aria2 con opciones separadas para cada entrada.
+En Aria2t se puede añadir todo lo que aria2 acepta: URLs normales (varias líneas se tratan como espejos del mismo archivo), enlaces magnet y archivos `.torrent` con soporte de DHT y seeding, `.metalink`, y el formato por lotes `--input-file` de aria2 con opciones separadas para cada entrada.
 
 ## 🧩 Cómo funciona
 
-El demonio aria2 descarga los archivos; la interfaz lo controla por JSON-RPC.
+El demonio aria2 descarga los archivos; una interfaz lo controla por JSON-RPC. El cliente de terminal y la extensión del navegador son dos de esas interfaces y gobiernan el mismo demonio.
 
 ```
-  Terminal                                  Your machine
-  ┌──────────────────┐    JSON-RPC ws://    ┌──────────────────┐
-  │      aria2t      │ ◀──────────────────▶ │  managed aria2c  │
-  │  Bubble Tea TUI  │     push + poll      │ spawned · reaped │
-  └────────┬─────────┘                      └────────┬─────────┘
-           │                                         │ downloads · seeds
-           │  ws:// or http(s)://                    ▼
-           ▼                                ┌──────────────────┐
-  ┌──────────────────┐                      │   HTTP mirrors   │
-  │  external aria2  │─────────────────────▶│ BitTorrent · DHT │
-  │  seedbox · NAS   │      downloads       │     Metalink     │
-  └──────────────────┘                      └──────────────────┘
+  Front ends                                Your machine
+  ┌──────────────────┐                      ┌──────────────────┐
+  │ terminal client  │──┐  JSON-RPC ws://   │  managed aria2c  │
+  │  Bubble Tea TUI  │  ├──────────────────▶│ spawned · reaped │
+  └──────────────────┘  │   push + poll     └──────────────────┘
+  ┌──────────────────┐  │                            │ downloads · seeds
+  │ Chrome extension │──┘                            │
+  │ capture · picker │                               ▼
+  └────────┬─────────┘                      ┌──────────────────┐
+           │  ws:// or http(s)://           │   HTTP mirrors   │
+           ▼                                │ BitTorrent · DHT │
+  ┌──────────────────┐      downloads       │     Metalink     │
+  │  external aria2  │─────────────────────▶│                  │
+  │  seedbox · NAS   │                      └──────────────────┘
+  └──────────────────┘
 ```
 
-Por defecto aria2t encuentra `aria2c` en el `PATH` y arranca un demonio privado en un puerto aleatorio con un secreto aleatorio. La sesión se guarda al salir y se restaura en el siguiente arranque, y el proceso hijo se detiene limpiamente junto con el programa; un demonio que quedó huérfano tras un fallo se apaga en el siguiente arranque. Si se ha configurado un servidor externo, el demonio integrado no se arranca y aria2t funciona como un cliente RPC normal.
+Por defecto Aria2t encuentra `aria2c` en el `PATH` y arranca un demonio privado en un puerto aleatorio con un secreto aleatorio. La sesión se guarda al salir y se restaura en el siguiente arranque, y el proceso hijo se detiene limpiamente junto con el programa; un demonio que quedó huérfano tras un fallo se apaga en el siguiente arranque. Si se ha configurado un servidor externo, el demonio integrado no se arranca y Aria2t funciona como un cliente RPC normal.
 
 ## 📥 Instalación
 
@@ -84,7 +88,7 @@ cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 ./aria2t
 ```
 
-En el primer arranque aria2t lanza el demonio privado y abre una lista de descargas vacía. La tecla `a` abre el formulario de añadir y `↵` añade un enlace desde el portapapeles.
+En el primer arranque Aria2t lanza el demonio privado y abre una lista de descargas vacía. La tecla `a` abre el formulario de añadir y `↵` añade un enlace desde el portapapeles.
 
 ### Conectar con un aria2 externo
 
@@ -141,13 +145,13 @@ Un servidor con el campo `managed` es el demonio integrado; su puerto y su secre
 ## ❓ Preguntas frecuentes
 
 **¿Qué es aria2 y por qué necesita una interfaz aparte?**
-[aria2](https://aria2.github.io/) es un motor de descargas rápido compatible con HTTP(S), FTP, SFTP, BitTorrent y Metalink. Funciona en segundo plano, se controla por JSON-RPC y no tiene interfaz propia más allá de comandos puntuales. aria2t le añade una lista de descargas en tiempo real, selección de archivos, gestión de la cola, límites de velocidad y comprobación de integridad.
+[aria2](https://aria2.github.io/) es un motor de descargas rápido compatible con HTTP(S), FTP, SFTP, BitTorrent y Metalink. Funciona en segundo plano, se controla por JSON-RPC y no tiene interfaz propia más allá de comandos puntuales. Aria2t le añade una lista de descargas en tiempo real, selección de archivos, gestión de la cola, límites de velocidad y comprobación de integridad.
 
 **¿En qué se diferencia de ejecutar `aria2c` directamente?**
-`aria2c` o bien descarga un archivo y termina, o bien funciona como un demonio controlado por scripts. aria2t asume la gestión de ese demonio: lo arranca, guarda y restaura la sesión, lo detiene limpiamente al salir y apaga un demonio que quedó huérfano tras un fallo. Sobre esa base, aria2t ofrece una interfaz interactiva.
+`aria2c` o bien descarga un archivo y termina, o bien funciona como un demonio controlado por scripts. Aria2t asume la gestión de ese demonio: lo arranca, guarda y restaura la sesión, lo detiene limpiamente al salir y apaga un demonio que quedó huérfano tras un fallo. Sobre esa base, Aria2t ofrece una interfaz interactiva.
 
 **¿Funciona con un aria2 que ya tengo en marcha?**
-Sí. La opción `--url ws://host:6800/jsonrpc --secret …` o el selector de servidores integrado con sondas de latencia conectan aria2t con cualquier aria2 por WebSocket o HTTP(S), por ejemplo en un seedbox, un NAS o un contenedor Docker. En ese caso el demonio integrado no se arranca.
+Sí. La opción `--url ws://host:6800/jsonrpc --secret …` o el selector de servidores integrado con sondas de latencia conectan Aria2t con cualquier aria2 por WebSocket o HTTP(S), por ejemplo en un seedbox, un NAS o un contenedor Docker. En ese caso el demonio integrado no se arranca.
 
 **¿Se conservan las descargas al salir del programa?**
 Sí. El demonio gestionado guarda la sesión al salir y la restaura en el siguiente arranque: las descargas activas, en espera, terminadas y en seeding se restauran, y los archivos ya descargados se reconocen en lugar de descargarse de nuevo. Una ventana de selección de archivos cerrada sin responder también se abre otra vez.
@@ -161,7 +165,7 @@ Sí. Un torrent terminado sigue compartiéndose y su estado cambia a seeding. Lo
 **¿Teclado o ratón?**
 Ambos están plenamente soportados. Todas las indicaciones de la barra de teclas responden al clic, cada acción del ratón tiene su equivalente de teclado y la lista completa de atajos se abre con `?`.
 
-**¿aria2t envía datos a alguna parte?**
+**¿Aria2t envía datos a alguna parte?**
 No. El programa no recopila analíticas ni telemetría, no obtiene configuración remota y solo se comunica por red con el servidor aria2 configurado.
 
 ## 🛠️ Desarrollo
@@ -177,6 +181,6 @@ go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
 
 ## 🙏 Agradecimientos
 
-- **[aria2](https://github.com/aria2/aria2)** (GPL-2.0) — el motor de descargas que realiza todo el trabajo de transferencia, BitTorrent y Metalink; aria2t es su panel de control.
-- **[Bubble Tea](https://github.com/charmbracelet/bubbletea)**, **[Bubbles](https://github.com/charmbracelet/bubbles)** y **[Lip Gloss](https://github.com/charmbracelet/lipgloss)** (MIT) — la pila TUI de Charm sobre la que está construido aria2t.
+- **[aria2](https://github.com/aria2/aria2)** (GPL-2.0) — el motor de descargas que realiza todo el trabajo de transferencia, BitTorrent y Metalink; Aria2t es su panel de control.
+- **[Bubble Tea](https://github.com/charmbracelet/bubbletea)**, **[Bubbles](https://github.com/charmbracelet/bubbles)** y **[Lip Gloss](https://github.com/charmbracelet/lipgloss)** (MIT) — la pila TUI de Charm sobre la que está construido Aria2t.
 - **[Tokyo Night](https://github.com/folke/tokyonight.nvim)** — ambas paletas están tomadas sin cambios de los temas Tokyo Night y Tokyo Night Day.

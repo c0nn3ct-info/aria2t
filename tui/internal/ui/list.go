@@ -190,7 +190,7 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 		// Reassure before quitting mid-transfer: the managed daemon pauses
 		// and resumes the session, but a bare quit looks like data loss.
 		if n := len(a.snap.Active) + len(a.snap.Waiting); n > 0 {
-			a.confirm = newConfirmModel(a, "Quit aria2t?",
+			a.confirm = newConfirmModel(a, "Quit Aria2t?",
 				fmt.Sprintf("%d download(s) still going — they'll pause now and resume next launch.", n),
 				func() tea.Cmd { return tea.Quit })
 			a.confirm.yesLabel = "Quit"
@@ -589,7 +589,7 @@ func (m listModel) view() string {
 	if a.connected && !m.filtering && m.filterQuery() == "" &&
 		len(a.snap.Active)+len(a.snap.Waiting)+len(a.snap.Stopped) == 0 {
 		welcome := []string{
-			st.Title.Render("Welcome to aria2t"),
+			st.Title.Render("Welcome to Aria2t"),
 			"",
 			st.Text.Render("Your downloads will show up here."),
 			st.Text.Render("Press ") + st.Key.Render("a") + st.Text.Render(" to add one — a URL, a magnet link, or a .torrent file."),

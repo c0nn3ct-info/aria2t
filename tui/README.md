@@ -1,6 +1,6 @@
-# aria2t (application)
+# Aria2t (application)
 
-Terminal client for the [aria2](https://aria2.github.io/) download manager — a Bubble Tea TUI that manages downloads, torrents, magnet links, and Metalink from the terminal. See the [root README](../README.md) for the full feature tour and the site at <https://aria2t.c0nn3ct.info>.
+The terminal front end of Aria2t, a download manager for [aria2](https://aria2.github.io/) — a Bubble Tea TUI that manages downloads, torrents, magnet links, and Metalink. It is one of two front ends onto the same aria2 daemon; the other is the browser extension, and this binary doubles as its native-messaging host. See the [root README](../README.md) for the full feature tour and the site at <https://aria2t.c0nn3ct.info>.
 
 This is the application source, published under `tui/` in the public [c0nn3ct-info/aria2t](https://github.com/c0nn3ct-info/aria2t) repo — a snapshot synced from the private development repo. Issues and pull requests welcome on the public repo.
 
