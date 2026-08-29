@@ -84,7 +84,7 @@ describe('pathFor and diskPath', () => {
     expect(core.pathFor('home', 'en')).toBe('/');
     expect(core.pathFor('install', 'en')).toBe('/install/');
     expect(core.pathFor('home', 'ru')).toBe('/ru/');
-    expect(core.pathFor('install', 'ja')).toBe('/ja/install/');
+    expect(core.pathFor('install', 'fa')).toBe('/fa/install/');
   });
 
   it('maps every page and locale to a distinct file on disk', () => {
@@ -103,7 +103,7 @@ describe('pathFor and diskPath', () => {
 describe('dictionary fallbacks', () => {
   it('falls back for a page the catalogues do not describe', () => {
     const meta = core.getMeta('nonexistent', 'en');
-    expect(meta.title).toBe('aria2t');
+    expect(meta.title).toBe('Aria2t');
     expect(meta.description).toBe('');
 
     const blocks = core.jsonLdBlocks('nonexistent', 'en', '1.2.3');
@@ -172,7 +172,7 @@ describe('buildHeadInjection', () => {
   });
 
   it('points each page at its own canonical URL', () => {
-    expect(core.buildHeadInjection('install', 'de', '1')).toContain('/de/install/');
+    expect(core.buildHeadInjection('install', 'ar', '1')).toContain('/ar/install/');
   });
 });
 

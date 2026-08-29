@@ -1,4 +1,5 @@
-import { ArrowRight, Check, ExternalLink, Github, PackageOpen } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowRight, Check, Chrome, ExternalLink, PackageOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Section } from '@/components/m3/section';
@@ -6,7 +7,9 @@ import { ArchitectureDiagram } from '../components/architecture-diagram';
 import { FaqSection } from '../components/faq-section';
 import { ListMock } from '../components/list-mock';
 import { TerminalMock } from '../components/terminal-mock';
-import { GITHUB_URL } from '../constants';
+import { BrowserMock } from '../components/browser-mock';
+import { PopupMock } from '../components/popup-mock';
+import { SurfaceSwitch, type Surface } from '../components/surface-switch';
 import { localePath, t } from '../i18n';
 import { Layout } from '../layout';
 
@@ -24,6 +27,7 @@ const SOURCES = [
 const FEATURE_KEYS = [
   'sources',
   'nosetup',
+  'capture',
   'manage',
   'detail',
   'limits',
@@ -32,8 +36,24 @@ const FEATURE_KEYS = [
   'mouse',
 ] as const;
 
+function Showcase({ surface }: { surface: Surface }) {
+  return surface === 'terminal' ? (
+    <TerminalMock>
+      <ListMock />
+    </TerminalMock>
+  ) : (
+    <BrowserMock>
+      <PopupMock />
+    </BrowserMock>
+  );
+}
+
 export function HomePage() {
   const installHref = localePath('/install/');
+  // The extension is the surface most visitors can use, so the hero opens on
+  // it; the switch swaps the mock, while both CTAs stay visible because they
+  // are two different things to get, not two views of one.
+  const [surface, setSurface] = useState<Surface>('extension');
   return (
     <Layout current="home">
       <section className="grid items-start gap-8 pb-10 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
@@ -43,10 +63,11 @@ export function HomePage() {
             <br />
             <span className="text-on-surface-variant">{t('home.hero.h1_sub')}</span>
           </h1>
-          <div className="flex w-full justify-center lg:hidden">
-            <TerminalMock className="w-full max-w-[560px]">
-              <ListMock />
-            </TerminalMock>
+          <div className="flex w-full flex-col items-center gap-3 lg:hidden">
+            <SurfaceSwitch value={surface} onChange={setSurface} className="self-start" />
+            <div className="w-full max-w-[560px]">
+              <Showcase surface={surface} />
+            </div>
           </div>
           <p className="max-w-xl text-body-large text-on-surface-variant">{t('home.hero.lede')}</p>
           <div className="flex flex-wrap items-center gap-2">
@@ -56,19 +77,20 @@ export function HomePage() {
                 <ArrowRight className="rtl:-scale-x-100" />
               </a>
             </Button>
-            <Button asChild variant="outlined" size="s">
-              <a href={GITHUB_URL} target="_blank" rel="noreferrer noopener">
-                <Github />
-                {t('home.hero.cta_github')}
-                <ExternalLink />
-              </a>
+            {/* Disabled until the listing is live: a store button that 404s is
+                worse than one that plainly cannot be pressed yet. */}
+            <Button variant="outlined" size="s" disabled title={t('home.hero.cta_webstore_soon')}>
+              <Chrome />
+              {t('home.hero.cta_webstore')}
+              <ExternalLink />
             </Button>
           </div>
         </div>
         <div className="hidden min-w-0 lg:block lg:pt-2">
-          <TerminalMock>
-            <ListMock />
-          </TerminalMock>
+          <div className="mb-3 flex justify-end">
+            <SurfaceSwitch value={surface} onChange={setSurface} />
+          </div>
+          <Showcase surface={surface} />
         </div>
       </section>
 

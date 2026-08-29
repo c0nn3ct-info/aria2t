@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Download, FileText, Github, Home, Puzzle, ShieldCheck } from 'lucide-react';
 import { Aria2tLogo } from '@/components/aria2t-logo';
-import { GITHUB_URL } from '@/constants';
+import { GITHUB_URL, ORG_SITE } from '@/constants';
 import { localePath, t } from './i18n';
 import { LanguageSwitcher } from './components/language-switcher';
 import { GithubLink } from './components/github-link';
@@ -34,7 +34,7 @@ export function Layout({ children }: LayoutProps) {
           aria-label={t('nav.home_aria')}
         >
           <Aria2tLogo className="h-6 w-6 text-primary" />
-          <span className="text-title-medium tracking-tight">aria2t</span>
+          <span className="text-title-medium tracking-tight">Aria2t</span>
         </a>
         <nav aria-label={t('nav.site_nav_aria')} className="ms-auto flex items-center gap-1">
           <GithubLink />
@@ -48,8 +48,18 @@ export function Layout({ children }: LayoutProps) {
 
       <footer className="mx-auto w-full max-w-3xl px-4 py-8 text-label-medium text-on-surface-variant sm:px-6 lg:max-w-5xl">
         <div className="border-t border-outline-variant pt-6 flex flex-wrap items-start gap-x-12 gap-y-6">
+          {/* The by-line points at the org site, not this one: aria2t.c0nn3ct.info
+              is the product, c0nn3ct.info is who made it. */}
           <div className="text-label-small text-on-surface-variant/70">
-            {t('footer.by')}
+            {t('footer.by')}{' '}
+            <a
+              className="underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              href={ORG_SITE}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              c0nn3ct.info
+            </a>
           </div>
           <nav aria-label={t('footer.pages')}>
             <div className="mb-2 text-label-small uppercase tracking-[0.12em] text-on-surface-variant/70">

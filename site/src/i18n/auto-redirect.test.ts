@@ -38,8 +38,8 @@ describe('auto-redirect snippet', () => {
     for (const [lang, loc] of [
       ['zh-Hans', 'zh-CN'],
       ['es-ES', 'es'],
-      ['de-AT', 'de'],
-      ['ja', 'ja'],
+      ['ar-EG', 'ar'],
+      ['fa-IR', 'fa'],
     ] as const) {
       const r = run(lang, '/install/');
       expect(r.saved, lang).toBe(loc);

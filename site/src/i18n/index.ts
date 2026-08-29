@@ -2,13 +2,13 @@ import en from './en.json';
 import ru from './ru.json';
 import zhCN from './zh-CN.json';
 import es from './es.json';
-import de from './de.json';
-import ja from './ja.json';
+import ar from './ar.json';
+import fa from './fa.json';
 
-export const LOCALES = ['en', 'ru', 'zh-CN', 'es', 'de', 'ja'] as const;
+export const LOCALES = ['en', 'ru', 'zh-CN', 'es', 'ar', 'fa'] as const;
 export type Locale = (typeof LOCALES)[number];
 
-export const RTL_LOCALES: readonly Locale[] = [];
+export const RTL_LOCALES: readonly Locale[] = ['ar', 'fa'];
 
 export function isRtl(locale: Locale): boolean {
   return RTL_LOCALES.includes(locale);
@@ -23,8 +23,8 @@ const DICTIONARIES: Record<Locale, Record<string, string>> = {
   ru,
   'zh-CN': zhCN,
   es,
-  de,
-  ja,
+  ar,
+  fa,
 };
 
 const NON_EN_LOCALES = LOCALES.filter((l): l is Exclude<Locale, 'en'> => l !== 'en');

@@ -3,7 +3,7 @@
 // which is why it seeds from a deterministic PRNG and only ticks after mount.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render } from '@/test/render';
-import { bar, fmtEta, fmtSpeed, ListMock, lpad, pad, trunc } from './list-mock';
+import { bar, fitHints, fmtEta, fmtSpeed, LIST_HINTS, ListMock, lpad, pad, Row, trunc } from './list-mock';
 
 const webdriver = { value: false };
 
@@ -117,8 +117,50 @@ describe('the TUI formatters it mirrors', () => {
   it('formats speeds in KiB and MiB, and a stall as a dash', () => {
     expect(fmtSpeed(0)).toBe('-');
     expect(fmtSpeed(-5)).toBe('-');
+    expect(fmtSpeed(512)).toBe('512 B/s');
     expect(fmtSpeed(2048)).toBe('2 KiB/s');
     expect(fmtSpeed(1048576 * 2.5)).toBe('2.5 MiB/s');
+  });
+
+  // The bar is width-adaptive in the real TUI and drops the lowest-priority
+  // hints from the right, so the mock must not show a hint the real screen
+  // would have dropped at the same width (hintbarEx, tui/internal/ui/app.go).
+  it('keeps the leftmost hints and drops the tail that would not fit', () => {
+    const wide = fitHints(LIST_HINTS, 200, '1/12');
+    expect(wide).toHaveLength(LIST_HINTS.length);
+
+    const narrow = fitHints(LIST_HINTS, 100, '1/12');
+    expect(narrow.map(([k, l]) => `${k} ${l}`)).toEqual([
+      'a add', 'space pause', '↵ details', 'd remove',
+      'l limit', '/ filter', 'y copy url', 'g stats', 's servers',
+    ]);
+    expect(narrow.some(([, l]) => l === 'help')).toBe(false);
+  });
+
+  it('keeps the first hint even when nothing fits, and needs no trailer', () => {
+    expect(fitHints(LIST_HINTS, 4, '1/12')).toEqual([['a', 'add']]);
+    // No trailer means the whole width is the budget: 'a add' then 'space
+    // pause' would end at column 18, past 12, so only the first survives.
+    expect(fitHints(LIST_HINTS, 12, '').map(([, l]) => l)).toEqual(['add']);
+    expect(fitHints(LIST_HINTS, 24, '').map(([, l]) => l)).toEqual(['add', 'pause']);
+  });
+
+  it('draws a red bar over the part a failed download did fetch', () => {
+    // list.go renders "error" as Bar() in red over the faint remainder, so a
+    // download that failed at 40% keeps the part it got. At 0% the bar is empty
+    // and the row is indistinguishable from waiting, which is all the mock's
+    // own data ever shows.
+    const { container } = render(
+      <Row name="x.iso" status="error" pct={40} size="1 GiB" speed="-" conn="-" eta="-" />,
+    );
+    // The STATUS word is red too, so pick the red span that holds bar glyphs.
+    const reds = [...container.querySelectorAll<HTMLElement>('span[style*="--tui-red"]')];
+    const filled = reds.find((el) => el.textContent?.includes('━'));
+    expect(filled, 'no red span holding bar glyphs').toBeDefined();
+    expect(filled?.textContent).toBe(bar(0.4).filled);
+    expect(filled?.textContent).toContain('╸');
+    // and the unfetched remainder stays faint, not red
+    expect(reds.some((el) => el.textContent?.includes('─'))).toBe(false);
   });
 
   it('formats an ETA in seconds, minutes and hours', () => {

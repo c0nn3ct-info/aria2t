@@ -1,6 +1,6 @@
 # aria2t-site
 
-The aria2t site (Vite + React + Tailwind, Material 3), served at <https://aria2t.c0nn3ct.info>. Four pages (home, install, privacy, license) × six locales (en, ru, zh-CN, es, de, ja), prerendered to static HTML.
+The aria2t site (Vite + React + Tailwind, Material 3), served at <https://aria2t.c0nn3ct.info>. Five pages (home, install, extension, privacy, license) × six locales (en, ru, zh-CN, es, ar, fa — exactly the set the extension ships, with ar/fa right-to-left), prerendered to static HTML.
 
 ## Commands
 

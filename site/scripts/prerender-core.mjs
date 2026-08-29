@@ -31,24 +31,24 @@ const PAGE_PATH = {
 
 const PRIORITY = { home: '1.0', install: '0.8', extension: '0.8', privacy: '0.5', license: '0.5' };
 
-const LOCALES = ['en', 'ru', 'zh-CN', 'es', 'de', 'ja'];
+const LOCALES = ['en', 'ru', 'zh-CN', 'es', 'ar', 'fa'];
 
 const OG_LOCALE = {
   en: 'en_US',
   ru: 'ru_RU',
   'zh-CN': 'zh_CN',
   es: 'es_ES',
-  de: 'de_DE',
-  ja: 'ja_JP',
+  ar: 'ar_AR',
+  fa: 'fa_IR',
 };
 
 const OG_IMAGE_ALT = {
-  en: 'aria2t — terminal client for the aria2 download manager',
-  ru: 'aria2t — консольный клиент для менеджера загрузок aria2',
-  'zh-CN': 'aria2t — aria2 下载管理器的终端客户端',
-  es: 'aria2t — cliente de terminal para el gestor de descargas aria2',
-  de: 'aria2t — Terminal-Client für den Download-Manager aria2',
-  ja: 'aria2t — aria2 ダウンロードマネージャーのターミナルクライアント',
+  en: 'Aria2t — terminal client for the aria2 download manager',
+  ru: 'Aria2t — консольный клиент для менеджера загрузок aria2',
+  'zh-CN': 'Aria2t — aria2 下载管理器的终端客户端',
+  es: 'Aria2t — cliente de terminal para el gestor de descargas aria2',
+  ar: 'Aria2t — مدير تنزيلات aria2 للطرفية والمتصفح',
+  fa: 'Aria2t — مدیر دانلود aria2 برای ترمینال و مرورگر',
 };
 
 const DICT = Object.fromEntries(
@@ -78,7 +78,7 @@ export function getMeta(page, locale) {
   const path = pathFor(page, locale);
   const url = `${ORIGIN}${path}`;
   return {
-    title: dict[`${page}.title`] ?? 'aria2t',
+    title: dict[`${page}.title`] ?? 'Aria2t',
     description: dict[`${page}.description`] ?? '',
     canonical: url,
     hreflang: [
@@ -89,13 +89,13 @@ export function getMeta(page, locale) {
       type: 'website',
       locale: OG_LOCALE[locale],
       localeAlternate: LOCALES.filter((l) => l !== locale).map((l) => OG_LOCALE[l]),
-      image: `${ORIGIN}/og-preview.jpg?v=5`,
+      image: `${ORIGIN}/og-preview.jpg?v=7`,
       url,
-      siteName: 'aria2t',
+      siteName: 'Aria2t',
     },
     twitter: {
       card: 'summary_large_image',
-      image: `${ORIGIN}/og-preview.jpg?v=5`,
+      image: `${ORIGIN}/og-preview.jpg?v=7`,
     },
   };
 }
@@ -117,7 +117,7 @@ export function jsonLdBlocks(page, locale, version) {
     blocks.push({
       '@context': 'https://schema.org',
       '@type': 'SoftwareApplication',
-      name: 'aria2t',
+      name: 'Aria2t',
       applicationCategory: 'UtilitiesApplication',
       applicationSubCategory: 'Download Manager',
       operatingSystem: 'macOS, Linux',
@@ -168,7 +168,7 @@ export function jsonLdBlocks(page, locale, version) {
         {
           '@type': 'ListItem',
           position: 1,
-          name: 'aria2t',
+          name: 'Aria2t',
           item: `${ORIGIN}${pathFor('home', locale)}`,
         },
         {

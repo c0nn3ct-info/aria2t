@@ -10,7 +10,7 @@ describe('TerminalMock', () => {
       </TerminalMock>,
     );
     expect(screen.getByText('rows')).toBeInTheDocument();
-    expect(screen.getByText(/aria2t/)).toBeInTheDocument();
+    expect(screen.getByText(/Aria2t/)).toBeInTheDocument();
     // The three traffic-light dots are decorative.
     expect(container.querySelectorAll('[aria-hidden]')).toHaveLength(3);
     // Always LTR: a terminal's own layout does not mirror.

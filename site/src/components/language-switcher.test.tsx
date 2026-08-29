@@ -35,8 +35,8 @@ describe('LanguageSwitcher', () => {
   });
 
   it('pairs from a prefixed path back to the same page', async () => {
-    window.history.replaceState({}, '', '/ja/extension/');
-    setLocale('ja');
+    window.history.replaceState({}, '', '/fa/extension/');
+    setLocale('fa');
     render(<LanguageSwitcher />);
     await userEvent.click(trigger());
 
@@ -45,10 +45,10 @@ describe('LanguageSwitcher', () => {
   });
 
   it('marks the current language', async () => {
-    setLocale('de');
+    setLocale('ar');
     render(<LanguageSwitcher />);
     await userEvent.click(trigger());
-    expect(screen.getByRole('menuitem', { name: 'Deutsch' })).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByRole('menuitem', { name: 'العربية' })).toHaveAttribute('aria-current', 'true');
     expect(screen.getByRole('menuitem', { name: 'English' })).not.toHaveAttribute('aria-current');
   });
 

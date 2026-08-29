@@ -11,7 +11,7 @@ interface TerminalMockProps {
 // app's own palettes (--tui-* vars in globals.css): Tokyo Night Day in light
 // mode, Tokyo Night in dark — the mock follows the site theme the way the
 // real app follows its theme setting.
-export function TerminalMock({ title = 'aria2t — ~/Downloads', children, className }: TerminalMockProps) {
+export function TerminalMock({ title = 'Aria2t — ~/Downloads', children, className }: TerminalMockProps) {
   return (
     <div
       dir="ltr"

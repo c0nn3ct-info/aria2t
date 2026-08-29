@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Cpu,
   Globe,
+  MonitorSmartphone,
   TerminalSquare,
 } from 'lucide-react';
 import { ConnectionVisual } from '@/components/m3/connection-visual';
@@ -11,13 +12,28 @@ import { cn } from '@/lib/utils';
 
 export function ArchitectureDiagram() {
   return (
-    <div dir="ltr" className="relative flex flex-col gap-3 pt-4 lg:flex-row lg:items-stretch lg:gap-2">
-      <Node
-        context="Terminal"
-        icon={TerminalSquare}
-        title="aria2t"
-        subtitle="List, details, pickers, scheduler"
-      />
+    <div dir="ltr" className="relative flex flex-col gap-3 pt-4 lg:flex-row lg:items-center lg:gap-2">
+      {/* Two front ends, one daemon. They are peers on purpose: the product is
+          the download manager, and the terminal and the browser are ways into
+          it, so a third could join this column without the picture changing
+          shape. */}
+      <div className="flex min-w-0 flex-col gap-2 lg:flex-1">
+        <span className="text-[10px] uppercase tracking-[0.16em] text-on-surface-variant">
+          Front ends
+        </span>
+        <Node
+          icon={TerminalSquare}
+          title="Terminal client"
+          subtitle="List, details, pickers, scheduler"
+          compact
+        />
+        <Node
+          icon={MonitorSmartphone}
+          title="Browser extension"
+          subtitle="Capture, magnets, file picking"
+          compact
+        />
+      </div>
       <Connector label="JSON-RPC · push + poll" featured />
       <Node
         context="Your machine"
@@ -38,31 +54,36 @@ export function ArchitectureDiagram() {
 }
 
 interface NodeProps {
-  context: string;
+  context?: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   title: string;
   subtitle: string;
   muted?: boolean;
+  /** Sits inside a labelled group, so it carries no eyebrow of its own. */
+  compact?: boolean;
 }
 
-function Node({ context, icon: Icon, title, subtitle, muted }: NodeProps) {
+function Node({ context, icon: Icon, title, subtitle, muted, compact }: NodeProps) {
   return (
     <div
       className={cn(
-        'relative flex min-w-0 flex-col gap-1.5 rounded-lg border bg-surface p-3 lg:flex-1',
+        'relative flex min-w-0 flex-col gap-1.5 rounded-lg border bg-surface p-3',
+        compact ? 'flex-1' : 'lg:flex-1',
         muted
           ? 'border-outline-variant bg-surface-container-low/60'
           : 'border-outline-variant',
       )}
     >
-      <span
-        className={cn(
-          'text-[10px] uppercase tracking-[0.16em]',
-          muted ? 'text-on-surface-variant/70' : 'text-on-surface-variant',
-        )}
-      >
-        {context}
-      </span>
+      {context && (
+        <span
+          className={cn(
+            'text-[10px] uppercase tracking-[0.16em]',
+            muted ? 'text-on-surface-variant/70' : 'text-on-surface-variant',
+          )}
+        >
+          {context}
+        </span>
+      )}
       <span
         className={cn(
           'grid h-8 w-8 shrink-0 place-items-center rounded-md',

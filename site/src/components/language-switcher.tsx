@@ -13,8 +13,8 @@ const LOCALES: ReadonlyArray<{ code: Locale; label: string }> = [
   { code: 'ru', label: 'Русский' },
   { code: 'zh-CN', label: '中文' },
   { code: 'es', label: 'Español' },
-  { code: 'de', label: 'Deutsch' },
-  { code: 'ja', label: '日本語' },
+  { code: 'ar', label: 'العربية' },
+  { code: 'fa', label: 'فارسی' },
 ];
 
 interface LanguageSwitcherProps {

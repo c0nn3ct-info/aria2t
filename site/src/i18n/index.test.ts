@@ -20,14 +20,16 @@ describe('locale identification', () => {
     expect(isLocale('')).toBe(false);
   });
 
-  it('reports no shipped locale as RTL', () => {
-    for (const l of LOCALES) expect(isRtl(l)).toBe(false);
+  it('reports Arabic and Persian as RTL and nothing else', () => {
+    // The site ships exactly the extension's locales, two of which read
+    // right-to-left; the layout is logical-property-only so it mirrors for free.
+    for (const l of LOCALES) expect(isRtl(l)).toBe(l === 'ar' || l === 'fa');
   });
 
   it('defaults to English and follows setLocale', () => {
     expect(getLocale()).toBe('en');
-    setLocale('ja');
-    expect(getLocale()).toBe('ja');
+    setLocale('fa');
+    expect(getLocale()).toBe('fa');
   });
 });
 
@@ -102,8 +104,8 @@ describe('locale paths', () => {
 
   it('localePath follows the current locale', () => {
     expect(localePath('/install/')).toBe('/install/');
-    setLocale('de');
-    expect(localePath('/install/')).toBe('/de/install/');
-    expect(localePath('/')).toBe('/de/');
+    setLocale('ar');
+    expect(localePath('/install/')).toBe('/ar/install/');
+    expect(localePath('/')).toBe('/ar/');
   });
 });

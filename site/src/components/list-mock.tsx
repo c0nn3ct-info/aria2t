@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { mulberry32, stepSpeed } from '@/lib/mock-motion';
 
 // The app's own palettes (tui/internal/ui/theme.go): Tokyo Night Day in light
 // mode, Tokyo Night in dark. Values live as --tui-* vars in globals.css so the
@@ -23,14 +24,20 @@ const C = {
 // Character grid mirroring the real list screen (tui/internal/ui/list.go):
 // marker(2)+NAME+' '+STATUS(9)+' '+bar+pct(5)+SIZE+SPEED+CONN+ETA, all
 // space-padded like the TUI does with pad/lpad. 78 columns per row line.
-const NAME_W = 17;
+// A real terminal geometry, not an invented one. The TUI derives
+// nameW = width-72 and barW = 20 (shrinking only below nameW 20), while
+// STATUS/SIZE/SPEED/CONN/ETA are fixed at 9/9/12/7/9 whatever the width
+// (list.go). COLS = 100 therefore yields nameCol 18 and barW 20, and the row
+// comes to 93 cells inside the panel's 96 — exactly what `aria2t` prints in a
+// 100-column terminal.
+const COLS = 100;
 const STATUS_W = 9;
-const BAR_W = 12;
-const SIZE_W = 8;
-const SPEED_W = 10;
-const CONN_W = 5;
-const ETA_W = 8;
-const COLS = 80; // header/tabs/key-bar lines; panel rows are 78 + 1ch padding
+const NAME_W = COLS - 72 - STATUS_W - 1; // nameCol = nameW - statusW - 1 = 18
+const BAR_W = 20;
+const SIZE_W = 9;
+const SPEED_W = 12;
+const CONN_W = 7;
+const ETA_W = 9;
 
 export function pad(s: string, w: number): string {
   return s.length >= w ? s.slice(0, w) : s + ' '.repeat(w - s.length);
@@ -58,7 +65,8 @@ export function bar(frac: number): { filled: string; empty: string } {
 export function fmtSpeed(bps: number): string {
   if (bps <= 0) return '-';
   if (bps >= 1048576) return `${(bps / 1048576).toFixed(1)} MiB/s`;
-  return `${Math.round(bps / 1024)} KiB/s`;
+  if (bps >= 1024) return `${Math.round(bps / 1024)} KiB/s`;
+  return `${Math.round(bps)} B/s`;
 }
 
 export function fmtEta(remainBytes: number, bps: number): string {
@@ -69,21 +77,44 @@ export function fmtEta(remainBytes: number, bps: number): string {
   return `${s}s`;
 }
 
-// Deterministic PRNG so the prerendered frame matches client hydration (no
-// flash / mismatch) — the live tick switches to Math.random after mount.
-function mulberry32(seed: number): () => number {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// The Active/All/Waiting key-bar, in the real bar's order
+// (tui/internal/ui/list.go listModel.keybar). Order matters: the bar is
+// width-adaptive and drops from the RIGHT, so at the mock's 80 columns the tail
+// (g stats onward) is genuinely absent from the real screen too.
+export const LIST_HINTS: ReadonlyArray<[string, string]> = [
+  ['a', 'add'],
+  ['space', 'pause'],
+  ['↵', 'details'],
+  ['d', 'remove'],
+  ['l', 'limit'],
+  ['/', 'filter'],
+  ['y', 'copy url'],
+  ['g', 'stats'],
+  ['s', 'servers'],
+  [',', 'settings'],
+  ['?', 'help'],
+  ['q', 'quit'],
+  ['S', 'scheduler'],
+  ['t', 'seeding'],
+];
 
-// One step of a speed random-walk: AR(1) low-pass around a target rate.
-function stepSpeed(prev: number, target: number, rnd: () => number): number {
-  const next = prev * 0.8 + target * 0.2 + (rnd() - 0.5) * target * 0.3;
-  return Math.max(target * 0.4, Math.min(target * 1.6, next));
+// Port of hintbarEx (tui/internal/ui/app.go): keep adding hints until the next
+// one would cross the budget the trailer leaves, and never drop the first.
+export function fitHints(
+  hints: ReadonlyArray<[string, string]>,
+  cols: number,
+  trailer: string,
+): ReadonlyArray<[string, string]> {
+  const budget = trailer ? cols - (trailer.length + 2) : cols;
+  const out: Array<[string, string]> = [];
+  let x = 1;
+  for (const h of hints) {
+    const w = h[0].length + 1 + h[1].length;
+    if (out.length > 0 && x + w - 1 >= budget) break;
+    out.push([h[0], h[1]]);
+    x += w + 2;
+  }
+  return out;
 }
 
 // The five downloading rows: target speed, size, starting percent.
@@ -161,7 +192,9 @@ interface RowData {
   selected?: boolean;
 }
 
-function Row({ name, status, pct, size, speed, conn, eta, selected }: RowData) {
+// Exported for its own test: an error row only shows its red bar once the
+// failed download got somewhere, which the mock's fixed data never does.
+export function Row({ name, status, pct, size, speed, conn, eta, selected }: RowData) {
   const nameStyle = { color: selected ? C.bright : C.fg };
   let progress: JSX.Element;
   if (status === 'done') {
@@ -173,7 +206,15 @@ function Row({ name, status, pct, size, speed, conn, eta, selected }: RowData) {
         <span style={{ color: C.dim }}>{' 100%'}</span>
       </>
     );
-  } else if (status === 'waiting' || status === 'paused' || status === 'error') {
+  } else if (status === 'error') {
+    const b = bar(pct / 100);
+    progress = (
+      <>
+        <span style={{ color: C.red }}>{b.filled}</span>
+        <span style={{ color: C.faint }}>{b.empty + '     '}</span>
+      </>
+    );
+  } else if (status === 'waiting' || status === 'paused') {
     progress = <span style={{ color: C.faint }}>{'─'.repeat(BAR_W) + '     '}</span>;
   } else {
     const b = bar(pct / 100);
@@ -215,7 +256,7 @@ export function ListMock({ className }: { className?: string }) {
   // Header line: brand │ endpoint ▪ connected … ▼ down ▲ up (app.go header()).
   const down = `▼ ${fmtSpeed(live.speeds.reduce((a, b) => a + b, 0))}`;
   const up = `▲ ${fmtSpeed(live.up)}`;
-  const headerLeft = 'aria2t │ localhost:6800 (built-in) ▪ connected';
+  const headerLeft = 'Aria2t │ localhost:6800 (built-in) ▪ connected';
   const headerGap = Math.max(1, COLS - 1 - headerLeft.length - down.length - 1 - up.length);
 
   const rows: RowData[] = [
@@ -294,6 +335,14 @@ export function ListMock({ className }: { className?: string }) {
     },
   ];
 
+  // aria2's own bucketing (rpc tellActive/tellWaiting/tellStopped): seeding is
+  // still active, paused counts as waiting, and stopped holds done + error.
+  const tabCounts = {
+    active: rows.filter((r) => r.status === 'active' || r.status === 'seeding').length,
+    waiting: rows.filter((r) => r.status === 'waiting' || r.status === 'paused').length,
+    stopped: rows.filter((r) => r.status === 'done' || r.status === 'error').length,
+  };
+
   const colHead =
     pad('NAME', NAME_W + 2) +
     ' ' +
@@ -305,29 +354,22 @@ export function ListMock({ className }: { className?: string }) {
     lpad('CONN', CONN_W) +
     lpad('ETA', ETA_W);
 
-  const hints: ReadonlyArray<[string, string]> = [
-    ['a', 'add'],
-    ['space', 'pause'],
-    ['↵', 'details'],
-    ['d', 'remove'],
-    ['l', 'limit'],
-    ['/', 'filter'],
-    ['?', 'help'],
-  ];
+  const trailer = `1/${rows.length}`;
+  const hints = fitHints(LIST_HINTS, COLS, trailer);
   const hintsLen = hints.reduce((n, [k, l]) => n + k.length + 1 + l.length, 0) + (hints.length - 1) * 2;
-  const keybarGap = Math.max(1, COLS - 1 - hintsLen - 4);
+  const keybarGap = Math.max(1, COLS - 1 - hintsLen - trailer.length);
 
   return (
     <div dir="ltr" className={cn('select-none [container-type:inline-size]', className)}>
       <div
-        className="whitespace-pre font-mono text-[length:min(12px,2.05cqw)] leading-[1.65]"
+        className="whitespace-pre font-mono text-[length:min(12px,1.64cqw)] leading-[1.65]"
         style={{ color: C.fg }}
       >
         {/* app header: brand │ endpoint ▪ connected … global speeds */}
         <div>
           <span> </span>
           <span className="font-bold" style={{ color: C.accent }}>
-            aria2t
+            Aria2t
           </span>
           <span style={{ color: C.faint }}>{' │ '}</span>
           <span style={{ color: C.dim }}>{'localhost:6800 (built-in) '}</span>
@@ -342,9 +384,11 @@ export function ListMock({ className }: { className?: string }) {
         <div className="mt-[0.25em]">
           <span> </span>
           <span className="font-bold" style={{ backgroundColor: C.accent, color: C.bg }}>
-            {' All 12 '}
+            {` All ${rows.length} `}
           </span>
-          <span style={{ color: C.dim }}>{' [ Active 6 ] [ Waiting 4 ] [ Stopped 2 ]'}</span>
+          <span style={{ color: C.dim }}>
+            {` [ Active ${tabCounts.active} ] [ Waiting ${tabCounts.waiting} ] [ Stopped ${tabCounts.stopped} ]`}
+          </span>
         </div>
 
         {/* the list panel */}
@@ -370,7 +414,7 @@ export function ListMock({ className }: { className?: string }) {
             </span>
           ))}
           <span>{' '.repeat(keybarGap)}</span>
-          <span style={{ color: C.dim }}>1/12</span>
+          <span style={{ color: C.dim }}>{trailer}</span>
         </div>
       </div>
     </div>
