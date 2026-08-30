@@ -3,6 +3,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render } from '@/test/render';
 import { fmtSpeed, PopupMock } from './popup-mock';
+import { fabVariants } from './ui/fab';
+import { iconButtonVariants } from './ui/icon-button';
 import { setLocale } from '../i18n';
 
 const webdriver = { value: false };
@@ -21,11 +23,17 @@ afterEach(() => {
 
 describe('PopupMock', () => {
   it('renders the same frame twice, so hydration cannot mismatch', () => {
+    // The wave's gradient id comes from `useId`, which React keeps in step
+    // across a prerender/hydrate pair of the same tree but not across two
+    // independent roots — the frame's data is what this guards, so normalize
+    // the id away.
+    const frame = (html: string) =>
+      html.replace(/(id="|url\(#)r[0-9a-z]+/g, (_m, lead: string) => `${lead}wave`);
     const a = render(<PopupMock />);
-    const first = a.container.innerHTML;
+    const first = frame(a.container.innerHTML);
     a.unmount();
     const b = render(<PopupMock />);
-    expect(b.container.innerHTML).toBe(first);
+    expect(frame(b.container.innerHTML)).toBe(first);
   });
 
   it('shows the queue, the statuses and the way in', () => {
@@ -72,6 +80,28 @@ describe('PopupMock', () => {
     const pcts = [...(container.textContent ?? '').matchAll(/(\d+)%/g)].map((m) => Number(m[1]));
     expect(pcts.length).toBeGreaterThan(0);
     expect(Math.max(...pcts)).toBeLessThanOrEqual(100);
+  });
+
+  // The mock is only worth anything while it is the real popup's twin, and the
+  // way it stays one is by drawing each control with the primitive the real one
+  // uses. Pin that: a control rebuilt by hand here would drift the next time
+  // the extension's own changed.
+  it('wears the real popup\'s controls, at the real popup\'s size', () => {
+    const { container } = render(<PopupMock />);
+    const shell = container.firstElementChild!;
+    expect(shell).toHaveClass('h-[600px]', 'w-[380px]');
+
+    // the hero's whole-queue action is the extension's success FAB — the muted
+    // container pair, not a flat `bg-success` tile
+    const fab = fabVariants({ color: 'success', size: 'regular' });
+    expect([...container.querySelectorAll('span')].some((s) => s.className === fab)).toBe(true);
+
+    // and a row's pause is the extension's tonal icon button, one per row
+    const tonal = iconButtonVariants({ variant: 'filled-tonal', size: 's' });
+    expect(container.querySelectorAll('li').length).toBe(5);
+    for (const li of container.querySelectorAll('li')) {
+      expect([...li.children].some((c) => c.className === tonal)).toBe(true);
+    }
   });
 
   it('stops ticking when it unmounts', async () => {

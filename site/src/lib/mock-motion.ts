@@ -24,14 +24,3 @@ export function stepSpeed(prev: number, target: number, rnd: () => number): numb
   const next = prev * 0.8 + target * 0.2 + (rnd() - 0.5) * target * 0.3;
   return Math.max(target * 0.4, Math.min(target * 1.6, next));
 }
-
-/**
- * Run a walk forward `steps` times from the seed so the first painted frame is
- * already settled. Without this the mock opens on its start value and visibly
- * shakes itself out over the first few seconds.
- */
-export function settle(start: number, target: number, rnd: () => number, steps = 16): number {
-  let v = start;
-  for (let i = 0; i < steps; i++) v = stepSpeed(v, target, rnd);
-  return v;
-}

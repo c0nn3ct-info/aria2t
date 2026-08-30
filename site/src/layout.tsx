@@ -51,7 +51,10 @@ export function Layout({ children }: LayoutProps) {
           {/* The by-line points at the org site, not this one: aria2t.c0nn3ct.info
               is the product, c0nn3ct.info is who made it. */}
           <div className="text-label-small text-on-surface-variant/70">
-            {t('footer.by')}{' '}
+            {/* the trailing space belongs inside the expression: `{x}{' '}` is
+                two text nodes, which the prerendered DOM serializes as one and
+                hydration then rejects */}
+            {`${t('footer.by')} `}
             <a
               className="underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               href={ORG_SITE}
