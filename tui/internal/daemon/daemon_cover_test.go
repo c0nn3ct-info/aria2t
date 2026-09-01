@@ -6,10 +6,19 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
+
+// swapOSExecutable replaces the os.Executable seam for the duration of a test.
+func swapOSExecutable(t *testing.T, fn func() (string, error)) {
+	t.Helper()
+	old := osExecutable
+	osExecutable = fn
+	t.Cleanup(func() { osExecutable = old })
+}
 
 // swapCommonPaths replaces commonPaths for the duration of a test.
 func swapCommonPaths(t *testing.T, paths []string) {
@@ -191,5 +200,56 @@ func TestStopReturnsWhenProcessExitsEarly(t *testing.T) {
 	defer cancel()
 	if err := d.Stop(ctx); err != nil {
 		t.Fatalf("stop: %v", err)
+	}
+}
+
+func TestAria2cName(t *testing.T) {
+	if got := aria2cName("windows"); got != "aria2c.exe" {
+		t.Fatalf("windows: got %q", got)
+	}
+	if got := aria2cName("darwin"); got != "aria2c" {
+		t.Fatalf("darwin: got %q", got)
+	}
+}
+
+// The Windows installer drops aria2c beside aria2t rather than relying on a
+// PATH the current process has not re-read; FindBinary must see it there.
+func TestFindBinaryBesideExecutable(t *testing.T) {
+	t.Setenv("PATH", t.TempDir()) // LookPath must miss
+	swapCommonPaths(t, nil)
+	dir := t.TempDir()
+	beside := filepath.Join(dir, aria2cName(runtime.GOOS))
+	if err := os.WriteFile(beside, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	swapOSExecutable(t, func() (string, error) { return filepath.Join(dir, "aria2t"), nil })
+	got, err := FindBinary()
+	if err != nil || got != beside {
+		t.Fatalf("got %q err=%v", got, err)
+	}
+}
+
+// A directory named aria2c beside the binary is not a usable aria2c, and an
+// unresolvable executable path is not fatal — both fall through to commonPaths.
+func TestFindBinaryBesideRejected(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, aria2cName(runtime.GOOS)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	real := filepath.Join(t.TempDir(), "aria2c")
+	if err := os.WriteFile(real, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	swapCommonPaths(t, []string{real})
+
+	swapOSExecutable(t, func() (string, error) { return filepath.Join(dir, "aria2t"), nil })
+	if got, err := FindBinary(); err != nil || got != real {
+		t.Fatalf("dir beside: got %q err=%v", got, err)
+	}
+
+	swapOSExecutable(t, func() (string, error) { return "", errors.New("no exe") })
+	if got, err := FindBinary(); err != nil || got != real {
+		t.Fatalf("exe error: got %q err=%v", got, err)
 	}
 }

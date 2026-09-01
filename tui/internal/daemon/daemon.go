@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -64,10 +65,35 @@ var commonPaths = []string{
 	"/opt/local/bin/aria2c",
 }
 
-// FindBinary locates aria2c.
+// aria2cName is the binary's filename on the given platform. Taken as a
+// parameter so both branches run in a test on any host.
+func aria2cName(goos string) string {
+	if goos == "windows" {
+		return "aria2c.exe"
+	}
+	return "aria2c"
+}
+
+// osExecutable is an indirection for tests over the running binary's path.
+var osExecutable = os.Executable
+
+// FindBinary locates aria2c: on PATH, then beside the aria2t binary, then in
+// the usual install prefixes.
+//
+// The beside-the-binary probe is what makes the Windows installer's private
+// aria2c.exe usable: it is dropped next to aria2t.exe, and neither the shell
+// that ran the installer nor the browser that spawns the native host has
+// re-read the user PATH yet.
 func FindBinary() (string, error) {
-	if p, err := exec.LookPath("aria2c"); err == nil {
+	name := aria2cName(runtime.GOOS)
+	if p, err := exec.LookPath(name); err == nil {
 		return p, nil
+	}
+	if exe, err := osExecutable(); err == nil {
+		beside := filepath.Join(filepath.Dir(exe), name)
+		if st, err := os.Stat(beside); err == nil && !st.IsDir() {
+			return beside, nil
+		}
 	}
 	for _, p := range commonPaths {
 		if st, err := os.Stat(p); err == nil && !st.IsDir() {
