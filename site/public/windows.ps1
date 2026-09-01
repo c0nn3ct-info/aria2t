@@ -5,6 +5,10 @@
 # messaging host — the same aria2t.exe serves both the TUI and the extension,
 # so there is no separate helper to install:
 #   $env:ARIA2T_EXT_ID='<extension-id>'; iwr -useb https://aria2t.c0nn3ct.info/windows.ps1 | iex
+#
+# When aria2c is missing the script offers to download aria2's own official
+# Windows build; set $env:ARIA2T_INSTALL_ARIA2 to '1' (or '0') to answer that
+# prompt unattended.
 [CmdletBinding()]
 param(
     [string]$ExtensionId = $env:ARIA2T_EXT_ID
@@ -48,8 +52,74 @@ if ($userPath -notlike "*$dest*") {
 }
 
 Write-Host "installed aria2t $tag to $dest"
-if (-not (Get-Command aria2c -ErrorAction SilentlyContinue)) {
-    Write-Host 'note: aria2c not found - the built-in daemon needs aria2 (winget install aria2.aria2)'
+
+# aria2 publishes an official static build for Windows: no installer, no
+# runtime DLLs, a single aria2c.exe. Fetch it straight from that release
+# instead of going through winget - no App Installer/Store dependency, and
+# nothing is redistributed by us, so no GPL obligation attaches here.
+#
+# Pinned; bump the version and the hash together. Upstream has no win-arm64
+# build, so an ARM64 host runs the x64 one under emulation.
+$aria2Version = '1.37.0'
+$aria2Dir     = "aria2-$aria2Version-win-64bit-build1"
+$aria2Url     = "https://github.com/aria2/aria2/releases/download/release-$aria2Version/$aria2Dir.zip"
+$aria2Sha256  = '67D015301EEF0B612191212D564C5BB0A14B5B9C4796B76454276A4D28D9B288'
+
+# Installs aria2c.exe beside aria2t.exe, where the daemon's FindBinary looks
+# for it before the shell (or the browser spawning the native host) has
+# re-read the user PATH. $env:ARIA2T_INSTALL_ARIA2 = '1'/'0' answers the
+# prompt for an unattended run.
+function Install-Aria2 {
+    param([Parameter(Mandatory)][string]$Dir)
+    $note = "note: aria2c not found - the built-in daemon needs aria2 ($aria2Url)"
+
+    $ans = $env:ARIA2T_INSTALL_ARIA2
+    if (-not $ans) {
+        # Read-Host talks to the host UI rather than stdin, so it still works
+        # when the script arrives through `iwr | iex`. A host with no console
+        # to ask on (a service, -NonInteractive) gets the note instead.
+        if (-not [Environment]::UserInteractive) { Write-Host $note; return }
+        try {
+            $ans = Read-Host "aria2c not found; the built-in daemon needs it. Download aria2 $aria2Version from GitHub now? [Y/n]"
+        } catch {
+            Write-Host $note
+            return
+        }
+    }
+    if ($ans -match '^\s*(n|no|0|false)\s*$') { Write-Host $note; return }
+
+    $tmp = Join-Path $env:TEMP 'aria2t-aria2'
+    try {
+        New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+        $zip = Join-Path $tmp 'aria2.zip'
+        Write-Host "downloading $aria2Dir.zip"
+        Invoke-WebRequest -UseBasicParsing $aria2Url -OutFile $zip
+        $got = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash
+        if ($got -ne $aria2Sha256) {
+            throw "checksum mismatch (expected $aria2Sha256, got $got)"
+        }
+        Expand-Archive -Force $zip $tmp
+        $exe = Join-Path $Dir 'aria2c.exe'
+        # A daemon left running by an earlier install holds the old file open.
+        Get-CimInstance Win32_Process |
+            Where-Object { $_.ExecutablePath -eq $exe } |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        Copy-Item (Join-Path $tmp "$aria2Dir\aria2c.exe") $exe -Force
+        Write-Host "installed aria2c $aria2Version to $Dir"
+    } catch {
+        Write-Host "note: could not install aria2c - $($_.Exception.Message)"
+        Write-Host $note
+    } finally {
+        Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+    }
+}
+
+# Test-Path as well as Get-Command: a re-run in the same terminal has not
+# picked up $dest on PATH yet, and re-downloading what is already there is
+# pure waste.
+if (-not (Get-Command aria2c -ErrorAction SilentlyContinue) -and
+    -not (Test-Path (Join-Path $dest 'aria2c.exe'))) {
+    Install-Aria2 -Dir $dest
 }
 
 # ---------------------------------------------------------------------------

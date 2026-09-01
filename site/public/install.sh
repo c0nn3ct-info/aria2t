@@ -6,6 +6,9 @@
 # messaging host — the same aria2t binary serves both the TUI and the
 # extension, so there is no separate helper to install:
 #   curl -fsSL https://aria2t.c0nn3ct.info/install.sh | sh -s -- <extension-id>
+#
+# When aria2c is missing the script offers to install it; set
+# ARIA2T_INSTALL_ARIA2=1 (or 0) to answer that prompt for an unattended run.
 set -eu
 
 REPO="c0nn3ct-info/aria2t"
@@ -71,8 +74,56 @@ case ":$PATH:" in
   *":$dest:"*) ;;
   *) echo "note: $dest is not on your PATH" ;;
 esac
-command -v aria2c >/dev/null 2>&1 ||
-  echo "note: aria2c not found — the built-in daemon needs aria2 (brew install aria2 / sudo apt install aria2)"
+# The built-in daemon shells out to aria2c, so offer to install it here rather
+# than leaving the user with a note. ARIA2T_INSTALL_ARIA2=1/0 answers for
+# unattended runs; without a package manager we can only print the note.
+aria2_install_cmd() {
+  case "$os" in
+    darwin)
+      if command -v brew >/dev/null 2>&1; then echo "brew install aria2"; return 0; fi
+      if command -v port >/dev/null 2>&1; then echo "sudo port install aria2"; return 0; fi
+      ;;
+    *)
+      if command -v apt-get >/dev/null 2>&1; then echo "sudo apt-get install -y aria2"; return 0; fi
+      if command -v dnf >/dev/null 2>&1; then echo "sudo dnf install -y aria2"; return 0; fi
+      if command -v pacman >/dev/null 2>&1; then echo "sudo pacman -S --noconfirm aria2"; return 0; fi
+      if command -v zypper >/dev/null 2>&1; then echo "sudo zypper install -y aria2"; return 0; fi
+      if command -v apk >/dev/null 2>&1; then echo "sudo apk add aria2"; return 0; fi
+      ;;
+  esac
+  return 1
+}
+
+if ! command -v aria2c >/dev/null 2>&1; then
+  aria2_cmd=$(aria2_install_cmd || true)
+  aria2_ans="${ARIA2T_INSTALL_ARIA2:-}"
+  if [ -z "$aria2_cmd" ]; then
+    aria2_ans=n
+    aria2_cmd="install aria2 with your package manager"
+  elif [ -z "$aria2_ans" ]; then
+    # `curl | sh` leaves stdin holding the script itself, so a plain `read`
+    # would eat the rest of the script — ask the controlling terminal instead.
+    # Opening /dev/tty is the test, not `[ -r /dev/tty ]`: the device node is
+    # there and mode-readable even in a CI job with no terminal attached, where
+    # only the open itself fails ("Device not configured"). No tty, no prompt.
+    if { : < /dev/tty; } 2>/dev/null; then
+      printf 'aria2c not found; the built-in daemon needs it. Run "%s" now? [Y/n] ' "$aria2_cmd"
+      read -r aria2_ans < /dev/tty || aria2_ans=n
+    else
+      aria2_ans=n
+    fi
+  fi
+  case "$aria2_ans" in
+    '' | 1 | y | Y | yes | Yes | YES)
+      if sh -c "$aria2_cmd"; then
+        echo "installed aria2c"
+      else
+        echo "note: \"$aria2_cmd\" failed — install aria2 manually before running aria2t" >&2
+      fi
+      ;;
+    *) echo "note: aria2c not found — the built-in daemon needs aria2 ($aria2_cmd)" ;;
+  esac
+fi
 
 # ---------------------------------------------------------------------------
 # Optional: register the browser extension's native messaging host. Points the
