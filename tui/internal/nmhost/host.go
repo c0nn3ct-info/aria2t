@@ -41,7 +41,25 @@ type response struct {
 	Type  string `json:"type"` // always "ack"
 	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
-	Data  any    `json:"data,omitempty"`
+	// Code is a stable machine-readable failure kind. The extension routes on
+	// it instead of pattern-matching Error, whose prose it cannot classify
+	// reliably — "aria2c not found" and Chrome's own "Specified native
+	// messaging host not found" are the same shape but opposite diagnoses.
+	Code string `json:"code,omitempty"`
+	Data any    `json:"data,omitempty"`
+}
+
+// errCodeAria2cMissing marks the one failure the extension must tell apart
+// from an absent host: the host answered, aria2c is what is missing.
+const errCodeAria2cMissing = "aria2c-missing"
+
+// failure builds a negative ack, tagging the kinds the extension routes on.
+func failure(id string, err error) response {
+	resp := response{ID: id, Type: "ack", OK: false, Error: err.Error()}
+	if errors.Is(err, daemon.ErrBinaryNotFound) {
+		resp.Code = errCodeAria2cMissing
+	}
+	return resp
 }
 
 // helloData answers hello: the host build version and its platform.
@@ -174,7 +192,7 @@ func (h *host) handle(req request) response {
 	case "ensure":
 		st, err := h.ensure()
 		if err != nil {
-			return response{ID: req.ID, Type: "ack", OK: false, Error: err.Error()}
+			return failure(req.ID, err)
 		}
 		ack.Data = st
 	case "reveal":

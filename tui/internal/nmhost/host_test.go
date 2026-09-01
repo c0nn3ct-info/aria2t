@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -235,6 +236,27 @@ func TestEnsureSpawnError(t *testing.T) {
 	h := &host{}
 	resp := h.handle(request{Type: "ensure"})
 	if resp.OK || !strings.Contains(resp.Error, "aria2c not found") {
+		t.Fatalf("resp = %+v", resp)
+	}
+	// Prose alone must not earn the code — this error only looks like the
+	// sentinel, and mislabelling it is the bug the code exists to prevent.
+	if resp.Code != "" {
+		t.Fatalf("code = %q, want empty", resp.Code)
+	}
+}
+
+// A genuinely missing aria2c is tagged, so the extension can say so instead
+// of sending the user to reinstall a native host that answered fine.
+func TestEnsureAria2cMissingIsTagged(t *testing.T) {
+	stubState(t, 0, "", false)
+	orig := startDaemon
+	startDaemon = func(daemon.Options) (*daemon.Daemon, error) {
+		return nil, fmt.Errorf("built-in daemon: %w", daemon.ErrBinaryNotFound)
+	}
+	t.Cleanup(func() { startDaemon = orig })
+	h := &host{}
+	resp := h.handle(request{Type: "ensure"})
+	if resp.OK || resp.Code != errCodeAria2cMissing {
 		t.Fatalf("resp = %+v", resp)
 	}
 }

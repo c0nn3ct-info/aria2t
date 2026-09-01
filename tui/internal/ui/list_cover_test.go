@@ -406,8 +406,16 @@ func TestListViewEmpty(t *testing.T) {
 	if v := a.list.view(); !strings.Contains(v, "Welcome to Aria2t") {
 		t.Fatalf("empty connected view must welcome:\n%s", v)
 	}
-	// Disconnected empty → the plain placeholder.
+	// Disconnected with a reason → the reason. It used to be recorded and never
+	// shown, so a machine with no aria2c looked like a silently broken app.
 	a.connected = false
+	a.connErr = errors.New("aria2c not found — install it (brew install aria2)")
+	v := a.list.view()
+	if !strings.Contains(v, "Not connected") || !strings.Contains(v, "aria2c not found") {
+		t.Fatalf("disconnected view must name the failure:\n%s", v)
+	}
+	// Disconnected with nothing to say → the plain placeholder.
+	a.connErr = nil
 	if v := a.list.view(); !strings.Contains(v, "nothing here") {
 		t.Fatalf("disconnected empty view must show placeholder:\n%s", v)
 	}

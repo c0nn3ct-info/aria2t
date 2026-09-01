@@ -584,6 +584,24 @@ func (m listModel) view() string {
 	}
 	b.WriteString("\n" + m.tabsLine() + "\n")
 
+	// Disconnected with nothing to show → say why. The error was recorded and
+	// never rendered: a daemon that cannot start (no aria2c on this machine, the
+	// commonest case) left a red "disconnected" in the header, an empty table
+	// and a silent one-second retry, with the one sentence that explains it
+	// sitting unread in a.connErr.
+	if !a.connected && a.connErr != nil &&
+		len(a.snap.Active)+len(a.snap.Waiting)+len(a.snap.Stopped) == 0 {
+		lines := []string{
+			st.Title.Render("Not connected"),
+			"",
+			st.Text.Render(a.connErr.Error()),
+			"",
+			st.Faint.Render("Retrying every second."),
+		}
+		b.WriteString(st.Panel.Width(a.width - 2).Render(strings.Join(lines, "\n")))
+		return m.bottomBar(b.String())
+	}
+
 	// Empty, connected and unfiltered → a friendly welcome instead of a bare
 	// table, so a first-time user knows what to do.
 	if a.connected && !m.filtering && m.filterQuery() == "" &&

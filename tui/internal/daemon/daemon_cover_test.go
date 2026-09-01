@@ -49,8 +49,10 @@ func TestFindBinaryCommonPath(t *testing.T) {
 func TestFindBinaryNotFoundAnywhere(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	swapCommonPaths(t, []string{filepath.Join(t.TempDir(), "missing")})
-	if _, err := FindBinary(); err == nil {
-		t.Fatal("want error")
+	// The sentinel, not just any error: the native host tags its ack from it
+	// so the extension can tell a missing aria2c from a missing host.
+	if _, err := FindBinary(); !errors.Is(err, ErrBinaryNotFound) {
+		t.Fatalf("err = %v, want ErrBinaryNotFound", err)
 	}
 }
 

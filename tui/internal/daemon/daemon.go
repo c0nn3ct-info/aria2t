@@ -65,6 +65,14 @@ var commonPaths = []string{
 	"/opt/local/bin/aria2c",
 }
 
+// ErrBinaryNotFound is returned when no aria2c can be located. Callers match
+// it with errors.Is rather than reading the prose: the native host turns it
+// into a machine-readable code, and the extension used to sniff the message
+// text instead — where the words "not found" collided with Chrome's own
+// "Specified native messaging host not found" and a missing aria2c was
+// reported to the user as a missing host.
+var ErrBinaryNotFound = errors.New("aria2c not found — install it (brew install aria2) or connect to an external server with --url")
+
 // aria2cName is the binary's filename on the given platform. Taken as a
 // parameter so both branches run in a test on any host.
 func aria2cName(goos string) string {
@@ -100,7 +108,7 @@ func FindBinary() (string, error) {
 			return p, nil
 		}
 	}
-	return "", errors.New("aria2c not found — install it (brew install aria2) or connect to an external server with --url")
+	return "", ErrBinaryNotFound
 }
 
 // netListen and randRead are indirections for tests.
