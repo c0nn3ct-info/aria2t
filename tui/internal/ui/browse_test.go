@@ -303,15 +303,16 @@ func TestAddCtrlOOpensBrowse(t *testing.T) {
 	a, _ := testApp(t)
 	withReadDir(t, func(string) ([]os.DirEntry, error) { return sampleDir(), nil })
 	_, _ = a.Update(key("a")) // add overlay, URL tab
-	_, _ = a.Update(ctrl(tea.KeyCtrlO))
+	_, cmd := a.Update(ctrl(tea.KeyCtrlO))
 	if a.overlay != overlayAdd {
 		t.Fatal("ctrl+o on the URL tab must be a no-op")
 	}
 	a.add.tab = addTabTorrent
-	_, _ = a.Update(ctrl(tea.KeyCtrlO))
+	_, cmd = a.Update(ctrl(tea.KeyCtrlO))
 	if a.overlay != overlayBrowse {
 		t.Fatalf("ctrl+o on the torrent tab must open the browser, overlay=%d", a.overlay)
 	}
+	drain(t, a, cmd)
 	// Routed through the app: key + mouse + view + wheel.
 	if !a.wheelNavigates() {
 		t.Fatal("browser must wheel-scroll")

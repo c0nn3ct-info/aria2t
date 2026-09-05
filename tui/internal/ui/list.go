@@ -176,7 +176,7 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 			m.filterInput.Blur()
 		default:
 			var cmd tea.Cmd
-			m.filterInput, cmd = m.filterInput.Update(msg)
+			m.filterInput, cmd = updateInput(m.filterInput, msg)
 			m.clampCursor()
 			return m, cmd
 		}
@@ -208,6 +208,10 @@ func (m listModel) update(msg tea.KeyMsg) (listModel, tea.Cmd) {
 		}
 	case "tab":
 		m.tab = (m.tab + 1) % 4
+		m.cursor, m.offset = 0, 0
+		m.filterInput.SetValue("")
+	case "shift+tab":
+		m.tab = (m.tab + 3) % 4
 		m.cursor, m.offset = 0, 0
 		m.filterInput.SetValue("")
 	case "1", "2", "3", "4":
@@ -462,23 +466,20 @@ func (m listModel) updateReorder(key string) (listModel, tea.Cmd) {
 
 // pad truncates or right-pads a plain (unstyled) string to w cells.
 func pad(s string, w int) string {
-	r := []rune(s)
-	if len(r) > w {
-		if w <= 1 {
-			return string(r[:w])
-		}
-		return string(r[:w-1]) + "…"
+	if w <= 0 {
+		return ""
 	}
-	return s + strings.Repeat(" ", w-len(r))
+	s = trunc(s, w)
+	return s + strings.Repeat(" ", w-cellWidth(s))
 }
 
 // lpad left-pads a plain string to w cells.
 func lpad(s string, w int) string {
-	r := []rune(s)
-	if len(r) >= w {
+	width := cellWidth(s)
+	if width >= w {
 		return s
 	}
-	return strings.Repeat(" ", w-len(r)) + s
+	return strings.Repeat(" ", w-width) + s
 }
 
 func (m listModel) tabsLine() string {
@@ -540,7 +541,7 @@ func (m listModel) statusCell(s rpc.Status) string {
 	case "waiting":
 		return st.Yellow.Render("waiting")
 	default:
-		return st.Dim.Render(s.Status)
+		return st.Dim.Render(safeText(s.Status))
 	}
 }
 
@@ -562,7 +563,7 @@ func (m listModel) integrityCell(s rpc.Status) string {
 		f, e := Bar(frac, 11)
 		return st.Cyan.Render("verifying ") + st.Brand.Render(f) + st.Faint.Render(e) + fmt.Sprintf(" %d%%", int(frac*100))
 	case v.Finished && v.Err != nil:
-		return st.Red.Render("✗ " + v.Err.Error())
+		return st.Red.Render("✗ " + safeText(v.Err.Error()))
 	case v.Finished && v.OK:
 		return st.Green.Render("✓ sha-256 verified")
 	case v.Finished:
@@ -594,7 +595,7 @@ func (m listModel) view() string {
 		lines := []string{
 			st.Title.Render("Not connected"),
 			"",
-			st.Text.Render(a.connErr.Error()),
+			st.Text.Render(safeText(a.connErr.Error())),
 			"",
 			st.Faint.Render("Retrying every second."),
 		}
@@ -656,7 +657,7 @@ func (m listModel) view() string {
 				marker, style = st.Brand.Render("▸")+" ", st.Title
 			}
 			status := m.statusCell(s)
-			row := marker + style.Render(pad(s.Name(), nameW)) + " " +
+			row := marker + style.Render(pad(safeText(s.Name()), nameW)) + " " +
 				status + strings.Repeat(" ", max(1, 14-lipgloss.Width(status))) +
 				m.integrityCell(s)
 			if i == m.cursor {
@@ -673,7 +674,7 @@ func (m listModel) view() string {
 			posCell := st.Dim.Render(pad(fmt.Sprintf("%d", i+1), 5))
 			name := pad(s.Name(), nameW)
 			row := "  " + posCell + st.Text.Render(name) + "  " +
-				st.Dim.Render(lpad(FmtBytes(s.Total()), 10)) + st.Dim.Render(lpad(s.Status, 12))
+				st.Dim.Render(lpad(FmtBytes(s.Total()), 10)) + st.Dim.Render(lpad(safeText(s.Status), 12))
 			if s.GID == m.reorderGID {
 				grabbed := st.Magenta.Render(pad(fmt.Sprintf("%d", i+1), 5)) +
 					st.Title.Render(name) + st.Magenta.Render(fmt.Sprintf(" ◂ grabbed — was #%d", m.origIndex+1))
@@ -733,7 +734,7 @@ func (m listModel) view() string {
 			if s.IsSeeding() {
 				word, wstyle = "seeding", st.Magenta
 			}
-			row := marker + style.Render(pad(s.Name(), nameCol)) + " " +
+			row := marker + style.Render(pad(safeText(s.Name()), nameCol)) + " " +
 				wstyle.Render(pad(word, statusW)) + " " + progress +
 				st.Dim.Render(lpad(FmtBytes(s.Total()), 9)) +
 				st.Cyan.Render(lpad(FmtSpeed(s.DownSpeed()), 12)) +
@@ -756,7 +757,7 @@ func (m listModel) view() string {
 		if s, ok := m.selected(); ok {
 			if v := m.a.verify[s.GID]; v != nil && (v.Expected != "" || v.Running || v.Finished) {
 				var det []string
-				det = append(det, st.Dim.Render("CHECKSUM · "+s.Name()))
+				det = append(det, st.Dim.Render("CHECKSUM · "+safeText(s.Name())))
 				det = append(det, st.Dim.Render("expected ")+st.Text.Render("sha-256:"+shortHash(v.Expected)))
 				switch {
 				case v.Running:

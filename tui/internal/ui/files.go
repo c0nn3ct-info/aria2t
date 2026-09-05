@@ -303,20 +303,21 @@ func (m filesModel) confirmCmd() tea.Cmd {
 	})
 }
 
-// cancelCmd closes the picker. From the add flow it still honours start-now
-// (adds all files) so the download is not left in limbo unintentionally.
+// cancelCmd closes the picker. In the add flow Cancel means cancel the add: the
+// paused provisional downloads are removed instead of unexpectedly starting
+// every file.
 func (m filesModel) cancelCmd() tea.Cmd {
 	a := m.a
 	a.overlay = overlayNone
 	a.clearPick(m.pickKey)
-	if m.fromAdd && m.unpauseAfter {
+	if m.fromAdd {
 		ids := m.gids
 		if len(ids) == 0 {
 			ids = []string{m.gid}
 		}
-		return a.rpcCmd("added", func(ctx context.Context, c api) error {
+		return a.rpcCmd("add cancelled", func(ctx context.Context, c api) error {
 			for _, g := range ids {
-				if err := c.Unpause(ctx, g); err != nil {
+				if err := c.Remove(ctx, g); err != nil {
 					return err
 				}
 			}
@@ -363,7 +364,7 @@ func (m filesModel) view() string {
 	st := m.a.styles
 	title := st.Title.Render("Pick files")
 	if m.name != "" {
-		title += st.Dim.Render(" — " + m.name)
+		title += st.Dim.Render(" — " + safeText(m.name))
 	}
 	if m.moreQueued > 0 {
 		title += st.Yellow.Render(fmt.Sprintf("  (+%d more magnet%s)", m.moreQueued, plural(m.moreQueued)))
@@ -382,7 +383,7 @@ func (m filesModel) view() string {
 	case m.loading:
 		lines = append(lines, st.Dim.Render("loading files…"))
 	case m.err != nil:
-		lines = append(lines, st.Red.Render("✗ "+m.err.Error()))
+		lines = append(lines, st.Red.Render("✗ "+safeText(m.err.Error())))
 	case len(m.rows) == 0:
 		lines = append(lines, st.Dim.Render("no files"))
 	default:
@@ -464,7 +465,7 @@ func (m filesModel) rowString(n *treeNode, selected bool) string {
 	default:
 		boxStyled = st.Dim.Render(box)
 	}
-	name := n.name
+	name := safeText(n.name)
 	if !n.isLeaf() {
 		name += "/"
 	}

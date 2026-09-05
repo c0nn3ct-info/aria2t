@@ -1,0 +1,67 @@
+name: Bug report
+description: Something in Aria2t does not work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Came from the extension?** The environment card is already filled in
+        below. Two things are missing: what you saw, and the report file the
+        extension saved to your Downloads.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+      placeholder: |
+        I clicked a magnet link and the popup stayed on "Connecting…".
+        After a few seconds it said aria2 couldn't start.
+    validations:
+      required: true
+
+  - type: input
+    id: surface
+    attributes:
+      label: Where did it happen?
+      description: >
+        Prefilled when you come from the extension. Say so here if it happened
+        somewhere the extension cannot see.
+      placeholder: the TUI, the installer, the manager tab …
+
+  - type: markdown
+    attributes:
+      value: |
+        > [!WARNING]
+        > ### 📎 Attach the `aria2t-report-*.json` file from your Downloads
+        > The extension saved it when it opened this form. Drag it into the
+        > field below: it carries aria2's log and the worker's, which the card
+        > does not. Without the file a report shows the state Aria2t was in,
+        > but not what aria2 wrote.
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Environment and where it broke
+      description: >
+        Filled in for you when you open this issue from the extension — the
+        "Report a problem" button in an error toast, in the setup dialog, or
+        under Settings → About. No need to retype it; attach the report file in
+        this same field. Download links, file names, server addresses and the
+        RPC secret are stripped from both the card and the file.
+      placeholder: |
+        > [!WARNING]
+        > ### 📎 …attach the report file…
+        …
+        | Environment | |
+        | --- | --- |
+        | Extension | 0.5.0 · UI language ru |
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before filing
+      options:
+        - label: Attached the `aria2t-report-*.json` file from my Downloads
+        - label: Re-ran the install from the setup dialog (or pressed "Check again"), and it still happens
+        - label: Read the card above and I am willing to post it publicly

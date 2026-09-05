@@ -49,6 +49,7 @@ type snapshot struct {
 }
 
 type pollMsg struct {
+	seq  uint64
 	snap snapshot
 	err  error
 }
@@ -79,6 +80,19 @@ type clearStatusMsg struct{ seq int }
 type actionDoneMsg struct {
 	text string
 	err  error
+}
+
+// addBatchDoneMsg is separate from a generic action result so an asynchronous
+// input-file read can keep the form and entered values on failure.
+type addBatchDoneMsg struct {
+	text string
+	err  error
+}
+
+type browseDataMsg struct {
+	dir     string
+	entries []browseEntry
+	err     error
 }
 
 type detailDataMsg struct {

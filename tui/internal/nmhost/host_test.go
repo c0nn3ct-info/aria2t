@@ -238,10 +238,11 @@ func TestEnsureSpawnError(t *testing.T) {
 	if resp.OK || !strings.Contains(resp.Error, "aria2c not found") {
 		t.Fatalf("resp = %+v", resp)
 	}
-	// Prose alone must not earn the code — this error only looks like the
-	// sentinel, and mislabelling it is the bug the code exists to prevent.
-	if resp.Code != "" {
-		t.Fatalf("code = %q, want empty", resp.Code)
+	// Prose alone must not earn the aria2c code — this error only looks like
+	// the sentinel, and mislabelling it is the bug the code exists to prevent.
+	// It is still a daemon that did not come up, and says so.
+	if resp.Code != errCodeDaemonFailed {
+		t.Fatalf("code = %q, want %q", resp.Code, errCodeDaemonFailed)
 	}
 }
 
@@ -685,5 +686,116 @@ func TestDeleteFilesError(t *testing.T) {
 	})
 	if resp.OK || !strings.Contains(resp.Error, "permission denied") {
 		t.Fatalf("resp = %+v", resp)
+	}
+}
+
+// stubFindBinary swaps the aria2c lookup for a fixed answer.
+func stubFindBinary(t *testing.T, path string, err error) {
+	t.Helper()
+	orig := findBinary
+	findBinary = func() (string, error) { return path, err }
+	t.Cleanup(func() { findBinary = orig })
+}
+
+func TestDiagnosticsWithEverythingInPlace(t *testing.T) {
+	dataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dataDir, "aria2.log"), []byte("l1\nl2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Two downloads, each with an indented option line, plus a trailing newline.
+	session := "https://a/x.iso\n dir=/dl\n gid=abc\nmagnet:?xt=urn:btih:z\n dir=/dl\n"
+	if err := os.WriteFile(filepath.Join(dataDir, "session.txt"), []byte(session), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stubState(t, 6800, "sec", true)
+	stubProbe(t, nil)
+	stubFindBinary(t, "/opt/homebrew/bin/aria2c", nil)
+	origExe := osExecutable
+	osExecutable = func() (string, error) { return "/usr/local/bin/aria2t", nil }
+	t.Cleanup(func() { osExecutable = origExe })
+
+	h := &host{version: "v1.2.3", cfgPath: "/cfg/config.json", dataDir: dataDir, dir: "/dl", keepControl: true}
+	resp := h.handle(request{ID: "d", Type: "diagnostics"})
+	if !resp.OK {
+		t.Fatalf("resp = %+v", resp)
+	}
+	d := resp.Data.(diagnosticsData)
+	if d.Version != "v1.2.3" || d.Platform != runtime.GOOS+"-"+runtime.GOARCH {
+		t.Fatalf("identity = %+v", d)
+	}
+	if d.Executable != "/usr/local/bin/aria2t" || d.ConfigPath != "/cfg/config.json" || d.ConfigError != "" {
+		t.Fatalf("paths = %+v", d)
+	}
+	if d.DataDir != dataDir || d.DownloadDir != "/dl" || !d.KeepControl {
+		t.Fatalf("dirs = %+v", d)
+	}
+	if d.Aria2c != "/opt/homebrew/bin/aria2c" || d.Aria2cError != "" {
+		t.Fatalf("aria2c = %+v", d)
+	}
+	if d.Daemon != (daemonDiag{Recorded: true, PID: 1, Port: 6800, Answering: true}) {
+		t.Fatalf("daemon = %+v", d.Daemon)
+	}
+	if d.SessionEntries != 2 {
+		t.Fatalf("sessionEntries = %d, want 2", d.SessionEntries)
+	}
+	if strings.Join(d.Log, "|") != "l1|l2" {
+		t.Fatalf("log = %v", d.Log)
+	}
+	// The one thing status hands out that a public report must never carry.
+	if raw, _ := json.Marshal(d); strings.Contains(string(raw), "sec") {
+		t.Fatalf("diagnostics leaked the secret: %s", raw)
+	}
+}
+
+// Every probe that fails is reported as a fact rather than aborting the
+// report: those facts are what a report about a broken install is for.
+func TestDiagnosticsReportsWhatIsMissing(t *testing.T) {
+	stubState(t, 6800, "sec", true)
+	stubProbe(t, errors.New("connection refused"))
+	stubFindBinary(t, "", daemon.ErrBinaryNotFound)
+	origExe := osExecutable
+	osExecutable = func() (string, error) { return "", errors.New("no exe") }
+	t.Cleanup(func() { osExecutable = origExe })
+
+	h := &host{cfgErr: errors.New("config: parse: bad json"), dataDir: t.TempDir()}
+	d := h.handle(request{Type: "diagnostics"}).Data.(diagnosticsData)
+	if d.ConfigError != "config: parse: bad json" || d.Executable != "" {
+		t.Fatalf("d = %+v", d)
+	}
+	if d.Aria2c != "" || !strings.Contains(d.Aria2cError, "aria2c not found") {
+		t.Fatalf("aria2c = %+v", d)
+	}
+	if !d.Daemon.Recorded || d.Daemon.Answering || d.Daemon.ProbeError != "connection refused" {
+		t.Fatalf("daemon = %+v", d.Daemon)
+	}
+	// No session file and no log: reported as absent, not as empty.
+	if d.SessionEntries != -1 || d.Log != nil {
+		t.Fatalf("session/log = %d %v", d.SessionEntries, d.Log)
+	}
+}
+
+func TestDiagnosticsWithNoDaemonRecorded(t *testing.T) {
+	stubState(t, 0, "", false)
+	stubProbe(t, errors.New("must not probe without a recorded daemon"))
+	stubFindBinary(t, "/usr/bin/aria2c", nil)
+	h := &host{dataDir: t.TempDir()}
+	d := h.handle(request{Type: "diagnostics"}).Data.(diagnosticsData)
+	if d.Daemon != (daemonDiag{}) {
+		t.Fatalf("daemon = %+v", d.Daemon)
+	}
+}
+
+func TestSessionEntries(t *testing.T) {
+	cases := map[string]int{
+		"":                                   0,
+		"\n\n":                               0,
+		"https://a/x\n":                      1,
+		"https://a/x\n dir=/dl\n\tgid=1\n":   1,
+		"https://a/x\n dir=/dl\nmagnet:?x\n": 2,
+	}
+	for raw, want := range cases {
+		if got := sessionEntries(raw); got != want {
+			t.Errorf("sessionEntries(%q) = %d, want %d", raw, got, want)
+		}
 	}
 }

@@ -147,7 +147,7 @@ func TestFilesMultiAbsorbConfirmCancel(t *testing.T) {
 		t.Fatalf("empty metalink selection must warn: overlay=%d", a2.overlay)
 	}
 
-	// Cancel from the add flow starts everything.
+	// Cancel from the add flow removes every provisional download.
 	a3, fake3 := testApp(t)
 	m = newFilesModel(a3)
 	m.gids = []string{"g1", "g2"}
@@ -157,8 +157,8 @@ func TestFilesMultiAbsorbConfirmCancel(t *testing.T) {
 	a3.overlay = overlayFiles
 	_, cmd = m.update(key("esc"))
 	drain(t, a3, cmd)
-	if len(fake3.unpaused) != 2 {
-		t.Fatalf("metalink cancel must start all: %v", fake3.unpaused)
+	if len(fake3.removed) != 2 || len(fake3.unpaused) != 0 {
+		t.Fatalf("metalink cancel must remove all: removed=%v unpaused=%v", fake3.removed, fake3.unpaused)
 	}
 }
 
@@ -252,9 +252,9 @@ func TestFilesMultiConfirmAndCancelErrors(t *testing.T) {
 		t.Fatal("Unpause failure must flash")
 	}
 
-	// Unpause failure during cancel.
+	// Remove failure during cancel.
 	a3, fake3 := testApp(t)
-	a3.client = opErrAPI{fakeAPI: fake3, unpauseErr: true}
+	a3.client = opErrAPI{fakeAPI: fake3, removeErr: true}
 	m = newFilesModel(a3)
 	m.gids = []string{"g1"}
 	m.fromAdd = true
@@ -264,6 +264,6 @@ func TestFilesMultiConfirmAndCancelErrors(t *testing.T) {
 	_, cmd = m.update(key("esc"))
 	drain(t, a3, cmd)
 	if !a3.statusErr {
-		t.Fatal("cancel Unpause failure must flash")
+		t.Fatal("cancel Remove failure must flash")
 	}
 }

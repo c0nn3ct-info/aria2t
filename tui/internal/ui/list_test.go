@@ -29,6 +29,7 @@ type fakeAPI struct {
 	waiting            []rpc.Status     // returned by TellWaiting
 	status             rpc.Status       // returned by TellStatus
 	servers            []rpc.ServerStat // returned by GetServers
+	peers              []rpc.Peer       // returned by GetPeers
 	addTorrentOpts     map[string]string
 	addedURIs          [][]string
 	metalinkGids       []string
@@ -117,7 +118,7 @@ func (f *fakeAPI) GetGlobalOption(context.Context) (map[string]string, error) {
 func (f *fakeAPI) GetGlobalStat(context.Context) (rpc.GlobalStat, error) {
 	return rpc.GlobalStat{}, nil
 }
-func (f *fakeAPI) GetPeers(context.Context, string) ([]rpc.Peer, error) { return nil, nil }
+func (f *fakeAPI) GetPeers(context.Context, string) ([]rpc.Peer, error) { return f.peers, nil }
 func (f *fakeAPI) GetServers(context.Context, string) ([]rpc.ServerStat, error) {
 	return f.servers, nil
 }

@@ -32,9 +32,16 @@ type browseModel struct {
 	entries     []browseEntry
 	cursor, top int
 	err         error
+	loading     bool
 }
 
 func newBrowseModel(a *App, dir string, exts []string) browseModel {
+	m := newBrowseModelAsync(a, dir, exts)
+	m.load()
+	return m
+}
+
+func newBrowseModelAsync(a *App, dir string, exts []string) browseModel {
 	if dir == "" {
 		if h, err := browseHome(); err == nil {
 			dir = h
@@ -42,15 +49,29 @@ func newBrowseModel(a *App, dir string, exts []string) browseModel {
 			dir = "/"
 		}
 	}
-	m := browseModel{a: a, dir: dir, exts: exts}
-	m.load()
-	return m
+	return browseModel{a: a, dir: dir, exts: exts, loading: true}
+}
+
+func (m browseModel) loadCmd() tea.Cmd {
+	dir, exts := m.dir, append([]string(nil), m.exts...)
+	return func() tea.Msg {
+		probe := browseModel{dir: dir, exts: exts}
+		probe.load()
+		return browseDataMsg{dir: dir, entries: probe.entries, err: probe.err}
+	}
+}
+
+func (m *browseModel) absorb(msg browseDataMsg) {
+	m.entries, m.err, m.loading = msg.entries, msg.err, false
+	m.cursor, m.top = 0, 0
+	m.clamp()
 }
 
 // load reads the current directory into a dirs-first, name-sorted list.
 func (m *browseModel) load() {
 	m.cursor, m.top = 0, 0
 	m.entries = nil
+	m.loading = false
 	ents, err := browseReadDir(m.dir)
 	if err != nil {
 		m.err = err
@@ -120,13 +141,16 @@ func (m *browseModel) clamp() {
 }
 
 // cd changes directory (sub may be ".." to go up) and reloads.
-func (m *browseModel) cd(sub string) {
+func (m *browseModel) cd(sub string) tea.Cmd {
 	if sub == ".." {
 		m.dir = filepath.Dir(m.dir)
 	} else {
 		m.dir = filepath.Join(m.dir, sub)
 	}
-	m.load()
+	m.loading = true
+	m.entries = nil
+	m.err = nil
+	return m.loadCmd()
 }
 
 // choose hands the selected file back to the add overlay and closes.
@@ -151,14 +175,13 @@ func (m browseModel) update(msg tea.KeyMsg) (browseModel, tea.Cmd) {
 		m.clamp()
 	case "h", "left", "backspace":
 		if m.dir != "/" {
-			m.cd("..")
+			return m, m.cd("..")
 		}
 	case "enter", "l", "right":
 		if m.cursor >= 0 && m.cursor < len(m.entries) {
 			e := m.entries[m.cursor]
 			if e.isDir {
-				m.cd(e.name)
-				return m, nil
+				return m, m.cd(e.name)
 			}
 			return m, m.choose(e.name)
 		}
@@ -189,14 +212,16 @@ func (m browseModel) mouse(id string) (browseModel, tea.Cmd) {
 
 func (m browseModel) view() string {
 	st := m.a.styles
-	title := st.Title.Render("Choose a file") + "   " + st.Dim.Render(trunc(m.dir, 60))
+	title := st.Title.Render("Choose a file") + "   " + st.Dim.Render(trunc(safeText(m.dir), 60))
 	lines := []string{title, ""}
 	rowStart := len(lines)
 
 	var window []browseEntry
 	start := 0
-	if m.err != nil {
-		lines = append(lines, st.Red.Render("✗ "+m.err.Error()))
+	if m.loading {
+		lines = append(lines, st.Dim.Render("loading directory…"))
+	} else if m.err != nil {
+		lines = append(lines, st.Red.Render("✗ "+safeText(m.err.Error())))
 	} else if len(m.entries) == 0 {
 		lines = append(lines, st.Dim.Render("empty — nothing to choose here"))
 	} else {
@@ -207,7 +232,7 @@ func (m browseModel) view() string {
 		}
 		window = m.entries[start:end]
 		for wi, e := range window {
-			icon, name := "  ", e.name
+			icon, name := "  ", safeText(e.name)
 			if e.isDir {
 				icon, name = st.Brand.Render("▸ "), e.name+"/"
 			}

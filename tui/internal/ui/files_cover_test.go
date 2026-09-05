@@ -219,7 +219,7 @@ func TestFilesConfirmCmd(t *testing.T) {
 }
 
 func TestFilesCancelCmd(t *testing.T) {
-	// Add flow + start-now → cancel still starts (unpauses).
+	// Cancel in the add flow removes the provisional paused download.
 	a, fake := testApp(t)
 	m := loadedFiles(a)
 	m.fromAdd = true
@@ -230,19 +230,19 @@ func TestFilesCancelCmd(t *testing.T) {
 		t.Fatal("esc must close")
 	}
 	drain(t, a, cmd)
-	if len(fake.unpaused) != 1 {
-		t.Fatalf("add-flow cancel with start-now must unpause: %v", fake.unpaused)
+	if len(fake.removed) != 1 || len(fake.unpaused) != 0 {
+		t.Fatalf("add-flow cancel must remove, not start: removed=%v unpaused=%v", fake.removed, fake.unpaused)
 	}
 
-	// Add flow + start-paused → close, no unpause.
+	// Add flow + start-paused has the same cancel semantics.
 	a2, fake2 := testApp(t)
 	m2 := loadedFiles(a2)
 	m2.fromAdd = true
 	a2.overlay = overlayFiles
 	_, cmd = m2.update(key("esc"))
 	drain(t, a2, cmd)
-	if len(fake2.unpaused) != 0 {
-		t.Fatalf("paused cancel must not unpause: %v", fake2.unpaused)
+	if len(fake2.unpaused) != 0 || len(fake2.removed) != 1 {
+		t.Fatalf("paused cancel must remove without unpausing: removed=%v unpaused=%v", fake2.removed, fake2.unpaused)
 	}
 
 	// Detail flow → close, no side effects.

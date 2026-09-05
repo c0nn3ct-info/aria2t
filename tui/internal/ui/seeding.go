@@ -131,6 +131,17 @@ func (m seedingModel) update(msg tea.KeyMsg) (seedingModel, tea.Cmd) {
 			return m, m.stime.Focus()
 		}
 		return m, nil
+	case "shift+tab":
+		m.ratio.Blur()
+		m.stime.Blur()
+		m.focus = (m.focus + m.trackersStart()) % (m.trackersStart() + 1)
+		switch m.focus {
+		case 0:
+			return m, m.ratio.Focus()
+		case 1:
+			return m, m.stime.Focus()
+		}
+		return m, nil
 	case " ":
 		if i := m.focus - 2; i >= 0 && i < len(m.toggles) {
 			// aria2 fixes these at startup; changeGlobalOption silently
@@ -190,9 +201,9 @@ func (m seedingModel) update(msg tea.KeyMsg) (seedingModel, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.focus {
 	case 0:
-		m.ratio, cmd = m.ratio.Update(msg)
+		m.ratio, cmd = updateInput(m.ratio, msg)
 	case 1:
-		m.stime, cmd = m.stime.Update(msg)
+		m.stime, cmd = updateInput(m.stime, msg)
 	}
 	return m, cmd
 }
@@ -258,7 +269,7 @@ func (m seedingModel) view() string {
 	st := a.styles
 	var b strings.Builder
 	b.WriteString(" " + st.Dim.Render("← esc") + st.Faint.Render(" │ ") + st.Title.Render("Seeding") +
-		"  " + st.Dim.Render(m.name) + "\n")
+		"  " + st.Dim.Render(safeText(m.name)) + "\n")
 
 	inputView := func(idx int, label string, in textinput.Model) string {
 		box := st.Input
@@ -325,7 +336,7 @@ func (m seedingModel) view() string {
 		// trackers and the key-bar off a short screen.
 		emb := make([]string, len(m.embedded))
 		for i, tr := range m.embedded {
-			emb[i] = st.Dim.Render("  " + tr)
+			emb[i] = st.Dim.Render("  " + safeText(tr))
 		}
 		rows = append(rows, capRows(emb, max(3, a.height-14), st.Dim, "")...)
 	}
@@ -344,7 +355,7 @@ func (m seedingModel) view() string {
 			marker = st.Brand.Render("▸ ")
 			style = st.Title
 		}
-		rows = append(rows, marker+style.Render(tr))
+		rows = append(rows, marker+style.Render(safeText(tr)))
 	}
 	if len(m.trackers) == 0 {
 		rows = append(rows, st.Dim.Render("  none — + adds one"))

@@ -182,3 +182,67 @@ func TestRealAria2c(t *testing.T) {
 		t.Fatalf("session file not written: %v", err)
 	}
 }
+
+// A detached child (the native host's spawn) has no stderr pipe to us, so its
+// last words are in the log file it was told to write. Without reading it the
+// error was the bare "exited during startup: " the extension then showed.
+func TestStartExitsDuringStartupDetachedReadsTheLog(t *testing.T) {
+	bin := fakeBin(t, `for a in "$@"; do
+  case "$a" in --log=*) printf 'first line\n[ERROR] boom from the log\n' >> "${a#--log=}" ;; esac
+done
+exit 1`)
+	_, err := Start(Options{
+		Bin:        bin,
+		DataDir:    t.TempDir(),
+		Detach:     true,
+		ReadyProbe: func(int, string) error { return errors.New("not yet") },
+	})
+	if err == nil || !strings.Contains(err.Error(), "boom from the log") {
+		t.Fatalf("err = %v", err)
+	}
+	if strings.Contains(err.Error(), "no output") {
+		t.Fatalf("a log with content must not read as silence: %v", err)
+	}
+}
+
+func TestStartExitsDuringStartupWithNothingToSay(t *testing.T) {
+	bin := fakeBin(t, `exit 1`)
+	dataDir := t.TempDir()
+	_, err := Start(Options{
+		Bin:        bin,
+		DataDir:    dataDir,
+		Detach:     true,
+		ReadyProbe: func(int, string) error { return errors.New("not yet") },
+	})
+	want := "no output (see " + filepath.Join(dataDir, "aria2.log") + ")"
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("err = %v, want %q", err, want)
+	}
+}
+
+func TestLogTail(t *testing.T) {
+	dir := t.TempDir()
+	if got := LogTail(filepath.Join(dir, "missing.log"), 5); got != nil {
+		t.Fatalf("missing file: got %v", got)
+	}
+	p := filepath.Join(dir, "aria2.log")
+	if err := os.WriteFile(p, []byte("one\r\n\n  \ntwo\nthree\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Blank lines are skipped, CR is trimmed, and the count is of what is kept.
+	if got := LogTail(p, 10); strings.Join(got, "|") != "one|two|three" {
+		t.Fatalf("got %v", got)
+	}
+	if got := LogTail(p, 2); strings.Join(got, "|") != "two|three" {
+		t.Fatalf("got %v", got)
+	}
+	// A log larger than the read window yields only its end.
+	big := strings.Repeat("padding line that is long enough to matter\n", logTailBytes/40+10) + "last\n"
+	if err := os.WriteFile(p, []byte(big), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := LogTail(p, 1)
+	if len(got) != 1 || got[0] != "last" {
+		t.Fatalf("got %v", got)
+	}
+}

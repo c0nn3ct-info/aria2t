@@ -213,14 +213,8 @@ func TestAllScreensPinHintBar(t *testing.T) {
 			if len(lines) > h {
 				t.Errorf("%s %dx%d: frame %d lines exceeds terminal height", sc.name, w, h, len(lines))
 			}
-			found := false
-			for i, l := range lines {
-				if i < h && strings.Contains(l, "back") {
-					found = true
-				}
-			}
-			if !found {
-				t.Errorf("%s %dx%d: hint bar ('… back') not on a visible line", sc.name, w, h)
+			if len(lines) == 0 || !strings.Contains(lines[0], "Terminal too small") {
+				t.Errorf("%s %dx%d: missing explicit minimum-size fallback", sc.name, w, h)
 			}
 		}
 	}
@@ -347,7 +341,7 @@ func TestSeedingTrackerRegionsMatchRows(t *testing.T) {
 }
 
 func TestSchedulerRuleRegionsMatchRowsAndNoWrap(t *testing.T) {
-	for _, w := range []int{78, 100, 120} {
+	for _, w := range []int{80, 100, 120} {
 		a, _ := bigApp(t, w, 36)
 		a.cfg.Rules = []config.Rule{
 			{Start: "09:00", End: "18:00", Label: "RULE-ALPHA working hours", Down: "5M", Up: "1M"},

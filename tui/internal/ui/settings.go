@@ -41,7 +41,7 @@ func newSettingsModel(a *App) settingsModel {
 	mk := func(label, optKey, value string, width int) setField {
 		in := textinput.New()
 		in.Width = width // Width must precede SetValue: overflow windows on set
-		in.SetValue(value)
+		in.SetValue(safeText(value))
 		return setField{label: label, optKey: optKey, input: in}
 	}
 	tg := func(label, optKey string) setField {
@@ -121,7 +121,7 @@ func (m *settingsModel) absorbGlobal(opts map[string]string) {
 			if f.toggle {
 				f.on = v == "true"
 			} else if !m.dirty {
-				f.input.SetValue(v)
+				f.input.SetValue(safeText(v))
 			}
 		}
 	}
@@ -182,7 +182,19 @@ func (m settingsModel) update(msg tea.KeyMsg) (settingsModel, tea.Cmd) {
 			return m, f.input.Focus()
 		}
 		return m, nil
-	case "shift+tab", "left":
+	case "shift+tab":
+		m.blurAll()
+		if m.focus == 0 {
+			m.inSide = true
+			return m, nil
+		}
+		m.focus--
+		f := &m.fields[m.section][m.focus]
+		if !f.toggle {
+			return m, f.input.Focus()
+		}
+		return m, nil
+	case "left":
 		m.blurAll()
 		m.inSide = true
 		return m, nil
@@ -201,7 +213,7 @@ func (m settingsModel) update(msg tea.KeyMsg) (settingsModel, tea.Cmd) {
 	if !f.toggle {
 		before := f.input.Value()
 		var cmd tea.Cmd
-		f.input, cmd = f.input.Update(msg)
+		f.input, cmd = updateInput(f.input, msg)
 		if f.input.Value() != before {
 			m.dirty = true
 		}
@@ -347,8 +359,17 @@ func (m settingsModel) view() string {
 	b.WriteString(" " + st.Dim.Render("← esc") + st.Faint.Render(" │ ") + st.Title.Render("Settings") + marker + "\n")
 
 	a.hits.line("back", 0, a.width)
+	compact := a.width < 96
 	var side []string
+	sx := 1
 	for i, name := range m.sections {
+		if compact {
+			chip := m.a.tab(name, i == m.section)
+			a.hits.add(fmt.Sprintf("side:%d", i), sx, 1, sx+lipgloss.Width(chip)-1, 1)
+			sx += lipgloss.Width(chip) + 1
+			side = append(side, chip)
+			continue
+		}
 		a.hits.add(fmt.Sprintf("side:%d", i), 1, 2+i, 18, 2+i)
 		if i == m.section {
 			line := st.Brand.Render("▸ ") + st.Title.Render(name)
@@ -361,22 +382,40 @@ func (m settingsModel) view() string {
 		}
 	}
 	sidebar := st.Panel.Render(strings.Join(side, "\n"))
+	if compact {
+		sidebar = strings.Join(side, " ")
+		b.WriteString(" " + sidebar + "\n")
+	}
 
 	var rows []string
 	fieldY := 3 // panel border + section caption
+	if compact {
+		fieldY = 4
+	}
 	rows = append(rows, st.Dim.Render(strings.ToUpper(m.sections[m.section])))
 	if m.section == 0 && a.cfg.ActiveServer().Managed {
 		rows = append(rows,
 			st.Text.Render("Built-in daemon — Aria2t spawns and manages aria2c itself."),
 			st.Dim.Render("Endpoint and secret are chosen at launch; nothing to configure."),
 			st.Dim.Render("Use the server switcher (s → +) to add an external server."))
-		form := st.Panel.Width(a.width - lipgloss.Width(sidebar) - 4).Render(strings.Join(rows, "\n"))
-		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, sidebar, " ", form) + "\n")
+		formW := a.width - lipgloss.Width(sidebar) - 4
+		if compact {
+			formW = a.width - 2
+		}
+		form := st.Panel.Width(formW).Render(strings.Join(rows, "\n"))
+		if compact {
+			b.WriteString(form + "\n")
+		} else {
+			b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, sidebar, " ", form) + "\n")
+		}
 		return a.screenFrame(b.String(), []keyHint{
 			{"", "↑↓", "section"}, {"^s", "^s", "save"}, {"esc", "esc", "back"},
 		})
 	}
 	fx0, fx1 := 20, a.width-4 // form panel content x-range (after sidebar)
+	if compact {
+		fx0, fx1 = 2, a.width-3
+	}
 	for i, f := range m.fields[m.section] {
 		focused := !m.inSide && i == m.focus
 		h := 1 // toggle rows are one line
@@ -408,8 +447,16 @@ func (m settingsModel) view() string {
 			rows = append(rows, st.Dim.Render(f.label)+"\n"+boxStyle.Render(f.input.View()))
 		}
 	}
-	form := st.Panel.Width(a.width - lipgloss.Width(sidebar) - 4).Render(strings.Join(rows, "\n"))
-	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, sidebar, " ", form) + "\n")
+	formW := a.width - lipgloss.Width(sidebar) - 4
+	if compact {
+		formW = a.width - 2
+	}
+	form := st.Panel.Width(formW).Render(strings.Join(rows, "\n"))
+	if compact {
+		b.WriteString(form + "\n")
+	} else {
+		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, sidebar, " ", form) + "\n")
+	}
 
 	return a.screenFrame(b.String(), []keyHint{
 		{"", "↑↓", "section"}, {"tab", "tab", "next field"}, {" ", "space", "toggle"},

@@ -45,6 +45,7 @@ const (
 	overlayHelp
 	overlayFiles
 	overlayBrowse
+	overlayCommands
 )
 
 // verifyState tracks checksum verification of one stopped download.
@@ -98,6 +99,7 @@ type App struct {
 	help      helpModel
 	files     filesModel
 	browse    browseModel
+	commands  commandModel
 
 	hits hitmap
 
@@ -123,9 +125,13 @@ type App struct {
 	picks           []pendingPick
 	picksReconciled bool
 
-	status    string
-	statusErr bool
-	statusSeq int
+	status     string
+	statusErr  bool
+	statusSeq  int
+	pollSeq    uint64
+	polling    bool
+	accessible bool
+	events     []string
 
 	lastSchedKey string
 
@@ -164,8 +170,13 @@ func NewApp(cfg config.Config, cfgPath string) *App {
 	a.servers = newServersModel(a)
 	a.help = newHelpModel(a)
 	a.files = newFilesModel(a)
+	a.commands = newCommandModel(a)
 	return a
 }
+
+// SetAccessible enables the keyboard-only, colour-free, ASCII presentation.
+// It is intended for screen readers and terminals with limited capabilities.
+func (a *App) SetAccessible(on bool) { a.accessible = on }
 
 // keyHint is one clickable hint in a screen's key-bar: token is the key the
 // click synthesizes (empty = display-only), key/label are shown.
@@ -232,6 +243,8 @@ func (a *App) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		a.browse, cmd = a.browse.mouse(id)
 	case overlayHelp:
 		a.overlay = overlayNone
+	case overlayCommands:
+		a.commands, cmd = a.commands.mouse(id)
 	case overlayPrompt:
 		a.prompt, cmd = a.prompt.mouse(id)
 	default:
@@ -422,7 +435,24 @@ func (a *App) Init() tea.Cmd {
 }
 
 func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second, tickMsgAt)
+	return tickCmdAfter(time.Second)
+}
+
+func tickCmdAfter(d time.Duration) tea.Cmd { return tea.Tick(d, tickMsgAt) }
+
+func (a *App) pollInterval() time.Duration {
+	for _, v := range a.verify {
+		if v.Running {
+			return time.Second
+		}
+	}
+	if len(a.snap.Active) > 0 || len(a.snap.Waiting) > 0 || a.connErr != nil {
+		return time.Second
+	}
+	if a.accessible {
+		return 10 * time.Second
+	}
+	return 5 * time.Second
 }
 
 // tickMsgAt wraps the tick time; named so tests can invoke it directly.
@@ -493,8 +523,22 @@ func (a *App) Shutdown() {
 	a.daemon = nil
 }
 
-// pollCmd gathers the full snapshot in one background round.
-func (a *App) pollCmd() tea.Cmd {
+// pollCmd is the unguarded polling command used by focused unit tests.
+func (a *App) pollCmd() tea.Cmd { return a.pollCmdSeq(0) }
+
+// requestPoll starts at most one production poll at a time. Its generation
+// prevents an old connection's response from replacing a newer snapshot.
+func (a *App) requestPoll() tea.Cmd {
+	if a.client == nil || a.polling {
+		return nil
+	}
+	a.polling = true
+	a.pollSeq++
+	return a.pollCmdSeq(a.pollSeq)
+}
+
+// pollCmdSeq gathers the full snapshot in one background round.
+func (a *App) pollCmdSeq(seq uint64) tea.Cmd {
 	c := a.client
 	if c == nil {
 		return nil
@@ -505,19 +549,19 @@ func (a *App) pollCmd() tea.Cmd {
 		var s snapshot
 		var err error
 		if s.Active, err = c.TellActive(ctx); err != nil {
-			return pollMsg{err: err}
+			return pollMsg{seq: seq, err: err}
 		}
 		if s.Waiting, err = c.TellWaiting(ctx, 0, 1000); err != nil {
-			return pollMsg{err: err}
+			return pollMsg{seq: seq, err: err}
 		}
 		if s.Stopped, err = c.TellStopped(ctx, 0, 1000); err != nil {
-			return pollMsg{err: err}
+			return pollMsg{seq: seq, err: err}
 		}
 		if s.Stat, err = c.GetGlobalStat(ctx); err != nil {
-			return pollMsg{err: err}
+			return pollMsg{seq: seq, err: err}
 		}
 		s.Taken = time.Now()
-		return pollMsg{snap: s}
+		return pollMsg{seq: seq, snap: s}
 	}
 }
 
@@ -542,6 +586,12 @@ func (a *App) rpcCmd(okText string, fn func(ctx context.Context, c api) error) t
 	if c == nil {
 		return a.flash("not connected", true)
 	}
+	a.status = "Working: " + strings.TrimSpace(okText) + "…"
+	if strings.TrimSpace(okText) == "" {
+		a.status = "Working…"
+	}
+	a.statusErr = false
+	a.statusSeq++
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -607,7 +657,15 @@ func (a *App) removeFn(gid string, s rpc.Status) func(context.Context, api) erro
 
 // flash shows a transient status-line message.
 func (a *App) flash(text string, isErr bool) tea.Cmd {
-	a.status, a.statusErr = text, isErr
+	a.status, a.statusErr = safeText(text), isErr
+	prefix := "INFO: "
+	if isErr {
+		prefix = "ERROR: "
+	}
+	a.events = append(a.events, prefix+a.status)
+	if len(a.events) > 50 {
+		a.events = append([]string(nil), a.events[len(a.events)-50:]...)
+	}
 	a.statusSeq++
 	return tea.Tick(4*time.Second, clearStatusAt(a.statusSeq))
 }
@@ -634,6 +692,7 @@ func (a *App) reconnect() tea.Cmd {
 		a.client = nil
 	}
 	a.connected = false
+	a.polling = false
 	return a.connectCmd()
 }
 
@@ -695,6 +754,23 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.width, a.height = msg.Width, msg.Height
+		a.list.clampCursor()
+		if a.files.a != nil {
+			a.files.clamp()
+		}
+		if a.browse.a != nil {
+			a.browse.clamp()
+		}
+		if len(a.cfg.Rules) == 0 {
+			a.scheduler.cursor = 0
+		} else if a.scheduler.cursor >= len(a.cfg.Rules) {
+			a.scheduler.cursor = len(a.cfg.Rules) - 1
+		}
+		if len(a.seeding.trackers) == 0 {
+			a.seeding.tCursor = 0
+		} else if a.seeding.tCursor >= len(a.seeding.trackers) {
+			a.seeding.tCursor = len(a.seeding.trackers) - 1
+		}
 		return a, nil
 
 	case connectedMsg:
@@ -702,6 +778,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.client.Close() // overlapping connects must not leak the old client
 		}
 		a.client = msg.client
+		a.polling = false
 		a.version = msg.version
 		a.connected = true
 		a.connErr = nil
@@ -725,10 +802,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.magnetQueue = nil
 		a.picks = a.loadPicks() // restore unanswered file pickers
 		a.picksReconciled = false
-		return a, tea.Batch(a.pollCmd(), a.listenCmd(), a.applySavedLimitsCmd())
+		return a, tea.Batch(a.requestPoll(), a.listenCmd(), a.applySavedLimitsCmd())
 
 	case connectErrMsg:
 		a.connected = false
+		a.polling = false
 		a.connErr = msg.err
 		if msg.daemon != nil {
 			a.daemon = msg.daemon // keep the spawned child for reuse and Shutdown
@@ -736,9 +814,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case tickMsg:
-		cmds := []tea.Cmd{tickCmd()}
+		cmds := []tea.Cmd{tickCmdAfter(a.pollInterval())}
 		if a.client != nil {
-			cmds = append(cmds, a.pollCmd())
+			cmds = append(cmds, a.requestPoll())
 		} else if a.connErr != nil {
 			cmds = append(cmds, a.connectCmd()) // simple 1s retry
 		}
@@ -748,6 +826,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, tea.Batch(cmds...)
 
 	case pollMsg:
+		if msg.seq != 0 && msg.seq != a.pollSeq {
+			return a, nil
+		}
+		a.polling = false
 		if msg.err != nil {
 			// Treat a failed poll as a lost connection: drop the client so
 			// the tick loop redials (and respawns the daemon if it died).
@@ -760,6 +842,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.connected = true
+		msg.snap = safeSnapshot(msg.snap)
 		if a.list.reordering {
 			msg.snap.Waiting = a.list.frozenWaiting(msg.snap.Waiting)
 		}
@@ -790,7 +873,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case notifMsg:
 		cmds := []tea.Cmd{a.listenCmd()}
 		if a.client != nil {
-			cmds = append(cmds, a.pollCmd())
+			cmds = append(cmds, a.requestPoll())
 		}
 		return a, tea.Batch(cmds...)
 
@@ -801,11 +884,19 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.lastSchedKey = ""
 			return a, a.flash(msg.err.Error(), true)
 		}
-		cmds := []tea.Cmd{a.pollCmd()}
+		cmds := []tea.Cmd{a.requestPoll()}
 		if msg.text != "" {
 			cmds = append(cmds, a.flash(msg.text, false))
 		}
 		return a, tea.Batch(cmds...)
+
+	case addBatchDoneMsg:
+		a.add.submitting = false
+		if msg.err != nil {
+			return a, a.flash(msg.err.Error(), true)
+		}
+		a.overlay = overlayNone
+		return a, tea.Batch(a.requestPoll(), a.flash(msg.text, false))
 
 	case clearStatusMsg:
 		if msg.seq == a.statusSeq {
@@ -833,10 +924,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.flash("checksum MISMATCH", true)
 
 	case detailDataMsg:
-		a.detail.absorb(msg)
+		a.detail.absorb(safeDetailData(msg))
 		return a, nil
 
 	case torrentAddedMsg:
+		a.add.submitting = false
 		if msg.err != nil {
 			return a, a.flash(msg.err.Error(), true)
 		}
@@ -850,14 +942,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, tea.Batch(a.files.loadCmd(), a.flash("added — pick files", false))
 
 	case magnetAddedMsg:
+		a.add.submitting = false
 		if msg.err != nil {
 			return a, a.flash(msg.err.Error(), true)
 		}
+		a.overlay = overlayNone
 		a.pendingMagnets[msg.gid] = msg.unpause
 		a.addPick(pendingPick{GID: msg.gid, Kind: "magnet", Unpause: msg.unpause})
-		return a, tea.Batch(a.pollCmd(), a.flash("magnet added — fetching metadata…", false))
+		return a, tea.Batch(a.requestPoll(), a.flash("magnet added — fetching metadata…", false))
 
 	case metalinkAddedMsg:
+		a.add.submitting = false
 		if msg.err != nil {
 			return a, a.flash(msg.err.Error(), true)
 		}
@@ -881,14 +976,27 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case filesMultiMsg:
 		if a.overlay == overlayFiles {
+			for i := range msg.statuses {
+				msg.statuses[i] = safeStatus(msg.statuses[i])
+			}
 			var cmd tea.Cmd
 			a.files, cmd = a.files.absorbMulti(msg)
 			return a, cmd
 		}
 		return a, nil
 
+	case browseDataMsg:
+		if a.overlay == overlayBrowse && filepath.Clean(msg.dir) == filepath.Clean(a.browse.dir) {
+			a.browse.absorb(msg)
+		}
+		return a, nil
+
 	case filesDataMsg:
 		if a.overlay == overlayFiles {
+			msg.dir = safeText(msg.dir)
+			for i := range msg.files {
+				msg.files[i].Path = safeText(msg.files[i].Path)
+			}
 			var cmd tea.Cmd
 			a.files, cmd = a.files.absorb(msg)
 			return a, cmd
@@ -923,7 +1031,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleMouse(msg)
 
 	case tea.KeyMsg:
-		return a.handleKey(msg)
+		return a.handleKey(safeKey(msg))
 	}
 	return a, nil
 }
@@ -931,6 +1039,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+c" {
 		return a, tea.Quit
+	}
+	if a.tooSmall() {
+		if msg.String() == "q" {
+			return a, tea.Quit
+		}
+		return a, nil
+	}
+	if msg.String() == "ctrl+p" && a.overlay == overlayNone {
+		a.commands = newCommandModel(a)
+		a.overlay = overlayCommands
+		return a, a.commands.focusCmd()
 	}
 	// Overlays swallow all keys while open.
 	if a.overlay != overlayNone {
@@ -952,6 +1071,8 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.browse, cmd = a.browse.update(msg)
 		case overlayHelp:
 			a.help, cmd = a.help.update(msg)
+		case overlayCommands:
+			a.commands, cmd = a.commands.update(msg)
 		}
 		return a, cmd
 	}
@@ -1303,6 +1424,7 @@ func (a *App) cleanControl(s rpc.Status) {
 // openDirBin is the file-manager launcher; a var so tests can substitute a
 // harmless command.
 var openDirBin = openBinFor(runtime.GOOS)
+var absolutePath = filepath.Abs
 
 // openBinFor picks the platform's directory opener.
 func openBinFor(goos string) string {
@@ -1317,10 +1439,14 @@ func (a *App) openDir(dir string) tea.Cmd {
 	if dir == "" {
 		return a.flash("no directory", true)
 	}
+	abs, err := absolutePath(dir)
+	if err != nil {
+		return a.flash("open directory: "+err.Error(), true)
+	}
 	bin := openDirBin
 	return func() tea.Msg {
-		if err := exec.Command(bin, dir).Start(); err != nil {
-			return actionDoneMsg{err: fmt.Errorf("open %s: %w", dir, err)}
+		if err := exec.Command(bin, abs).Start(); err != nil {
+			return actionDoneMsg{err: fmt.Errorf("open %s: %w", abs, err)}
 		}
 		return actionDoneMsg{}
 	}
@@ -1343,7 +1469,7 @@ func (a *App) header() string {
 	}
 	left := lipgloss.JoinHorizontal(lipgloss.Center,
 		st.Brand.Render("Aria2t"), st.Faint.Render(" │ "),
-		st.Dim.Render(endpoint+" "), conn)
+		st.Dim.Render(safeText(endpoint)+" "), conn)
 	right := st.Cyan.Render("▼ "+FmtSpeed(a.snap.Stat.DownSpeed())) + " " +
 		st.Magenta.Render("▲ "+FmtSpeed(a.snap.Stat.UpSpeed()))
 	gap := a.width - lipgloss.Width(left) - lipgloss.Width(right) - 2
@@ -1369,6 +1495,9 @@ func (a *App) statusLine() string {
 
 func (a *App) View() string {
 	a.hits.reset()
+	if a.tooSmall() {
+		return a.tooSmallView()
+	}
 	var body string
 	switch a.screen {
 	case screenList:
@@ -1404,10 +1533,24 @@ func (a *App) View() string {
 			modal = a.browse.view()
 		case overlayHelp:
 			modal = a.help.view()
+		case overlayCommands:
+			modal = a.commands.view()
 		}
-		return a.composite(body, modal)
+		return a.outputView(a.composite(body, modal))
 	}
-	return body
+	return a.outputView(body)
+}
+
+func (a *App) outputView(view string) string {
+	if !a.accessible {
+		return view
+	}
+	view = asciiText(ansi.Strip(view))
+	if len(a.events) > 0 {
+		start := max(0, len(a.events)-5)
+		view += "\n\nActivity log\n" + strings.Join(a.events[start:], "\n")
+	}
+	return view
 }
 
 // composite centers the modal over the current screen, dimmed — the design's
@@ -1427,8 +1570,8 @@ func (a *App) composite(body, modal string) string {
 		if y < len(bodyLines) {
 			line = ansi.Strip(bodyLines[y])
 		}
-		if r := []rune(line); len(r) > a.width {
-			line = string(r[:a.width])
+		if cellWidth(line) > a.width {
+			line = ansi.Truncate(line, a.width, "")
 		}
 		rows[y] = line
 	}
@@ -1438,15 +1581,15 @@ func (a *App) composite(body, modal string) string {
 		if y < 0 || y >= a.height {
 			continue
 		}
-		plain := []rune(rows[y])
 		left, right := "", ""
-		if offX <= len(plain) {
-			left = string(plain[:offX])
+		plainWidth := cellWidth(rows[y])
+		if offX <= plainWidth {
+			left = ansi.Cut(rows[y], 0, offX)
 		} else {
-			left = string(plain) + strings.Repeat(" ", offX-len(plain))
+			left = rows[y] + strings.Repeat(" ", offX-plainWidth)
 		}
-		if end := offX + lipgloss.Width(ml); end < len(plain) {
-			right = string(plain[end:])
+		if end := offX + lipgloss.Width(ml); end < plainWidth {
+			right = ansi.Cut(rows[y], end, plainWidth)
 		}
 		rows[y] = faint.Render(left) + ml + faint.Render(right)
 	}
@@ -1457,4 +1600,35 @@ func (a *App) composite(body, modal string) string {
 		rows[y] = faint.Render(rows[y])
 	}
 	return strings.Join(rows, "\n")
+}
+
+const minTermWidth, minTermHeight = 80, 24
+
+func (a *App) tooSmall() bool {
+	return a.width < minTermWidth || a.height < minTermHeight
+}
+
+func (a *App) tooSmallView() string {
+	lines := []string{
+		"Terminal too small",
+		"",
+		fmt.Sprintf("Required: at least %d × %d", minTermWidth, minTermHeight),
+		fmt.Sprintf("Current:  %d × %d", a.width, a.height),
+		"",
+		"Resize the terminal to continue.",
+		"Press q to quit.",
+	}
+	if a.height <= 0 || a.width <= 0 {
+		return ""
+	}
+	if len(lines) > a.height {
+		lines = lines[:a.height]
+	}
+	for len(lines) < a.height {
+		lines = append(lines, "")
+	}
+	for i := range lines {
+		lines[i] = ansi.Truncate(lines[i], a.width, "")
+	}
+	return strings.Join(lines, "\n")
 }

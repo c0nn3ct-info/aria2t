@@ -319,7 +319,7 @@ func Start(opts Options) (*Daemon, error) {
 	for {
 		select {
 		case <-d.done:
-			return nil, fmt.Errorf("aria2c exited during startup: %s", strings.TrimSpace(stderr.String()))
+			return nil, fmt.Errorf("aria2c exited during startup: %s", startupDetail(stderr.String(), logFile))
 		default:
 		}
 		if err := probe(port, secret); err == nil {
@@ -331,6 +331,53 @@ func Start(opts Options) (*Daemon, error) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+// startupDetail is what an "exited during startup" error can say about why.
+//
+// A supervised child wrote its complaint to the captured stderr. A detached one
+// (the native host's case) has no pipe to us, so its only words are in the log
+// file aria2c was told to write — without reading it the error was the bare
+// "aria2c exited during startup: " that the extension then showed verbatim,
+// which told the user nothing and a bug report even less.
+func startupDetail(stderr, logFile string) string {
+	if s := strings.TrimSpace(stderr); s != "" {
+		return s
+	}
+	if tail := LogTail(logFile, 5); len(tail) > 0 {
+		return strings.Join(tail, " | ")
+	}
+	return "no output (see " + logFile + ")"
+}
+
+// logTailBytes bounds how much of the log is read for a tail: the last lines
+// are the ones that explain a failure, and a daemon that has been running for
+// weeks has a log nobody needs whole.
+const logTailBytes = 64 << 10
+
+// LogTail returns the last n non-empty lines of the file at path, or nil when
+// there is nothing to read. Best effort by design — it decorates an error and
+// a problem report, and a missing log is itself a fact worth reporting.
+func LogTail(path string, n int) []string {
+	// Whole-file read, then a slice: aria2 logs at warn level here, so the file
+	// stays small, and it keeps this to one branch a test can actually reach.
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	if len(raw) > logTailBytes {
+		raw = raw[len(raw)-logTailBytes:]
+	}
+	var lines []string
+	for _, l := range strings.Split(string(raw), "\n") {
+		if l = strings.TrimRight(l, "\r"); strings.TrimSpace(l) != "" {
+			lines = append(lines, l)
+		}
+	}
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return lines
 }
 
 // URL returns the websocket RPC endpoint of the daemon.

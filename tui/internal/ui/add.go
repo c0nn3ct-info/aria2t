@@ -36,8 +36,9 @@ type addModel struct {
 	split textinput.Model
 	out   textinput.Model
 
-	startNow bool
-	rename   bool
+	startNow   bool
+	rename     bool
+	submitting bool
 
 	focus int // 0 uris/file, 1 dir, 2 split, 3 out (when rename)
 }
@@ -55,6 +56,7 @@ func newAddModel(a *App) addModel {
 	// file box.
 	tab := addTabURL
 	if clip := strings.TrimSpace(clipboardRead()); clip != "" {
+		clip = safeText(clip)
 		switch {
 		case looksLikeSource(clip):
 			uris.SetValue(clip)
@@ -120,6 +122,9 @@ func (m *addModel) applyFocus() tea.Cmd {
 func (m addModel) update(msg tea.KeyMsg) (addModel, tea.Cmd) {
 	a := m.a
 	key := msg.String()
+	if m.submitting {
+		return m, nil
+	}
 	switch key {
 	case "esc":
 		a.overlay = overlayNone
@@ -134,6 +139,13 @@ func (m addModel) update(msg tea.KeyMsg) (addModel, tea.Cmd) {
 			limit = 4
 		}
 		m.focus = (m.focus + 1) % limit
+		return m, m.applyFocus()
+	case "shift+tab":
+		limit := 3
+		if m.rename {
+			limit = 4
+		}
+		m.focus = (m.focus + limit - 1) % limit
 		return m, m.applyFocus()
 	case "ctrl+s":
 		m.startNow = !m.startNow
@@ -150,9 +162,9 @@ func (m addModel) update(msg tea.KeyMsg) (addModel, tea.Cmd) {
 				// addTabInput: nil → show every file
 			}
 			start := expandHome(strings.TrimSpace(m.dir.Value()))
-			a.browse = newBrowseModel(a, start, exts)
+			a.browse = newBrowseModelAsync(a, start, exts)
 			a.overlay = overlayBrowse
-			return m, nil
+			return m, a.browse.loadCmd()
 		}
 		return m, nil
 	case "ctrl+r":
@@ -173,15 +185,15 @@ func (m addModel) update(msg tea.KeyMsg) (addModel, tea.Cmd) {
 	var cmd tea.Cmd
 	switch {
 	case m.focus == 0 && m.tab == addTabURL:
-		m.uris, cmd = m.uris.Update(msg)
+		m.uris, cmd = updateTextArea(m.uris, msg)
 	case m.focus == 0:
-		m.file, cmd = m.file.Update(msg)
+		m.file, cmd = updateInput(m.file, msg)
 	case m.focus == 1:
-		m.dir, cmd = m.dir.Update(msg)
+		m.dir, cmd = updateInput(m.dir, msg)
 	case m.focus == 2:
-		m.split, cmd = m.split.Update(msg)
+		m.split, cmd = updateInput(m.split, msg)
 	default:
-		m.out, cmd = m.out.Update(msg)
+		m.out, cmd = updateInput(m.out, msg)
 	}
 	return m, cmd
 }
@@ -233,61 +245,70 @@ func (m addModel) submit() (addModel, tea.Cmd) {
 				return m, a.flash("not a link — use http/https/ftp/sftp or a magnet (for local files use the Torrent/Metalink tabs)", true)
 			}
 		}
-		a.overlay = overlayNone
-		return m, a.addURICmd(uris, opts, m.startNow)
+		m.submitting = true
+		if len(uris) == 1 && strings.HasPrefix(uris[0], "magnet:") {
+			return m, a.addURICmd(uris, opts, m.startNow)
+		}
+		c := a.client
+		if c == nil {
+			m.submitting = false
+			return m, a.flash("not connected", true)
+		}
+		return m, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			_, err := c.AddURI(ctx, uris, opts)
+			return addBatchDoneMsg{text: "added", err: err}
+		}
 	case addTabInput:
 		path := expandHome(strings.TrimSpace(m.file.Value()))
 		if path == "" {
 			return m, a.flash("enter a file path", true)
 		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return m, a.flash(err.Error(), true)
+		base, name := opts, filepath.Base(path)
+		c := a.client
+		if c == nil {
+			return m, a.flash("not connected", true)
 		}
-		// A binary file (a .torrent or an aria2 .aria2 control file) is a common
-		// mistake here; catch it before parsing produces junk URIs.
-		if bytes.IndexByte(raw, 0) >= 0 {
-			return m, a.flash("that's a binary file, not an aria2 input list (a .torrent goes on the Torrent tab)", true)
-		}
-		// Keep only entries with a real URI, so a stray non-URI line does not
-		// become a failing download.
-		var entries []inputEntry
-		for _, e := range parseInputFile(string(raw)) {
-			var us []string
-			for _, u := range e.uris {
-				if looksLikeSource(u) {
-					us = append(us, u)
+		m.submitting = true
+		return m, func() tea.Msg {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return addBatchDoneMsg{err: err}
+			}
+			if bytes.IndexByte(raw, 0) >= 0 {
+				return addBatchDoneMsg{err: fmt.Errorf("that's a binary file, not an aria2 input list (a .torrent goes on the Torrent tab)")}
+			}
+			var entries []inputEntry
+			for _, e := range parseInputFile(string(raw)) {
+				var us []string
+				for _, u := range e.uris {
+					if looksLikeSource(u) {
+						us = append(us, u)
+					}
+				}
+				if len(us) > 0 {
+					e.uris = us
+					entries = append(entries, e)
 				}
 			}
-			if len(us) > 0 {
-				e.uris = us
-				entries = append(entries, e)
+			if len(entries) == 0 {
+				return addBatchDoneMsg{err: fmt.Errorf("no valid links found in the file")}
 			}
-		}
-		if len(entries) == 0 {
-			return m, a.flash("no valid links found in the file", true)
-		}
-		base, name := opts, filepath.Base(path)
-		a.overlay = overlayNone
-		return m, a.rpcCmd(fmt.Sprintf("added %d from %s", len(entries), name), func(ctx context.Context, c api) error {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 			for _, e := range entries {
 				if _, err := c.AddURI(ctx, e.uris, mergeOpts(base, e.opts)); err != nil {
-					return err
+					return addBatchDoneMsg{err: err}
 				}
 			}
-			return nil
-		})
+			return addBatchDoneMsg{text: fmt.Sprintf("added %d from %s", len(entries), safeText(name))}
+		}
 	default:
 		path := expandHome(strings.TrimSpace(m.file.Value()))
 		if path == "" {
 			return m, a.flash("enter a file path", true)
 		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return m, a.flash(err.Error(), true)
-		}
-		b64 := base64.StdEncoding.EncodeToString(raw)
-		a.overlay = overlayNone
 		if m.tab == addTabTorrent {
 			// Add the torrent paused so the tree picker can show its files
 			// before the download starts; unpause after selection if the user
@@ -298,10 +319,15 @@ func (m addModel) submit() (addModel, tea.Cmd) {
 			if c == nil {
 				return m, a.flash("not connected", true)
 			}
+			m.submitting = true
 			return m, func() tea.Msg {
+				raw, err := os.ReadFile(path)
+				if err != nil {
+					return torrentAddedMsg{err: err}
+				}
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				gid, err := c.AddTorrent(ctx, b64, opts)
+				gid, err := c.AddTorrent(ctx, base64.StdEncoding.EncodeToString(raw), opts)
 				return torrentAddedMsg{gid: gid, unpause: unpause, err: err}
 			}
 		}
@@ -314,10 +340,15 @@ func (m addModel) submit() (addModel, tea.Cmd) {
 		if c == nil {
 			return m, a.flash("not connected", true)
 		}
+		m.submitting = true
 		return m, func() tea.Msg {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return metalinkAddedMsg{err: err}
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			gids, err := c.AddMetalink(ctx, b64, opts)
+			gids, err := c.AddMetalink(ctx, base64.StdEncoding.EncodeToString(raw), opts)
 			return metalinkAddedMsg{gids: gids, name: name, unpause: unpause, err: err}
 		}
 	}
@@ -407,6 +438,9 @@ func (m addModel) view() string {
 		strings.Join(navParts, "  "),
 		m.a.buttonRow(buttons),
 	)
+	if m.submitting {
+		body = lipgloss.JoinVertical(lipgloss.Left, body, st.Yellow.Render("Working: reading and adding…"))
+	}
 	modal := m.a.modalCard(false).Render(body)
 
 	// Clickable regions: source tabs, the nav-hint line, and the buttons.

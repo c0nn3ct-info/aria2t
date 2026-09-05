@@ -166,11 +166,15 @@ func TestSchedulerFormKeys(t *testing.T) {
 			t.Fatalf("formFoc = %d after %d tabs", m.formFoc, i)
 		}
 	}
-	// Day keys 1..7 map Mon..Sun onto time.Weekday indices.
+	m, _ = m.update(key("shift+tab"))
+	if m.formFoc != 4 {
+		t.Fatalf("shift+tab formFoc = %d", m.formFoc)
+	}
+	// Alt+1..7 toggle days without stealing digits from focused text fields.
 	m.days = [7]bool{}
 	weekday := map[string]time.Weekday{
-		"1": time.Monday, "2": time.Tuesday, "3": time.Wednesday, "4": time.Thursday,
-		"5": time.Friday, "6": time.Saturday, "7": time.Sunday,
+		"alt+1": time.Monday, "alt+2": time.Tuesday, "alt+3": time.Wednesday, "alt+4": time.Thursday,
+		"alt+5": time.Friday, "alt+6": time.Saturday, "alt+7": time.Sunday,
 	}
 	for k, wd := range weekday {
 		m, _ = m.update(key(k))
@@ -245,7 +249,7 @@ func TestSchedulerFormEnterAddsAndEdits(t *testing.T) {
 
 func TestValidHM(t *testing.T) {
 	cases := map[string]bool{
-		"09:00": true, "24:00": true, "0:59": true,
+		"09:00": true, "24:00": false, "0:59": false,
 		"xx": false, "25:00": false, "10:99": false, "-1:00": false,
 	}
 	for in, want := range cases {

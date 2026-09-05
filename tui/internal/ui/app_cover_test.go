@@ -454,7 +454,7 @@ func TestUpdateActionDone(t *testing.T) {
 	}
 	a.status = ""
 	_, cmd = a.Update(actionDoneMsg{})
-	if cmd == nil || a.status != "" {
+	if a.status != "" {
 		t.Fatalf("silent success must not flash, status = %q", a.status)
 	}
 }

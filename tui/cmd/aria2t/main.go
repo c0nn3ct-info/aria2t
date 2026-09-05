@@ -27,10 +27,15 @@ var appVersion = "dev"
 // osExit, programOpts, runProgram and runHost are indirections so run(),
 // main() and the native-host path are testable.
 var (
-	osExit      = os.Exit
-	programOpts = []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseCellMotion()}
-	runProgram  = func(m tea.Model) error {
-		_, err := tea.NewProgram(m, programOpts...).Run()
+	osExit            = os.Exit
+	programOpts       = []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseCellMotion()}
+	accessibleProgram bool
+	runProgram        = func(m tea.Model) error {
+		opts := programOpts
+		if accessibleProgram {
+			opts = nil
+		}
+		_, err := tea.NewProgram(m, opts...).Run()
 		return err
 	}
 	runHost = nmhost.Run
@@ -79,6 +84,7 @@ func run(args []string, stderr io.Writer) int {
 	rpcURL := fs.String("url", "", "external aria2 RPC endpoint, e.g. ws://localhost:6800/jsonrpc (skips the built-in daemon)")
 	secret := fs.String("secret", "", "aria2 RPC secret (overrides config)")
 	showVersion := fs.Bool("version", false, "print version and exit")
+	accessible := fs.Bool("accessible", false, "keyboard-only ASCII mode without colour, mouse capture, or alternate screen")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -110,6 +116,9 @@ func run(args []string, stderr io.Writer) int {
 	}
 
 	app := ui.NewApp(cfg, *cfgPath)
+	app.SetAccessible(*accessible)
+	accessibleProgram = *accessible
+	defer func() { accessibleProgram = false }()
 	runErr := runProgram(app)
 	app.Shutdown() // stops the managed daemon even when the loop errored
 	if runErr != nil {

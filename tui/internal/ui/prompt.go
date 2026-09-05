@@ -18,8 +18,8 @@ func newPromptModel(a *App, title, initial string, onSubmit func(string) tea.Cmd
 	in := textinput.New()
 	in.CharLimit = 256
 	in.Width = 68 // Width must precede SetValue: overflow windows on set
-	in.SetValue(initial)
-	return promptModel{a: a, title: title, input: in, onSubmit: onSubmit}
+	in.SetValue(safeText(initial))
+	return promptModel{a: a, title: safeText(title), input: in, onSubmit: onSubmit}
 }
 
 // focusCmd needs a pointer receiver: Focus mutates the model, and focusing
@@ -39,7 +39,7 @@ func (m promptModel) update(msg tea.KeyMsg) (promptModel, tea.Cmd) {
 		return m, nil
 	}
 	var cmd tea.Cmd
-	m.input, cmd = m.input.Update(msg)
+	m.input, cmd = updateInput(m.input, msg)
 	return m, cmd
 }
 

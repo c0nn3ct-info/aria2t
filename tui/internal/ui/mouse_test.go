@@ -203,16 +203,16 @@ func TestSmartSpaceToggle(t *testing.T) {
 
 func TestListScrollFollowsCursor(t *testing.T) {
 	a, _ := testApp(t)
-	a.height = 12 // visibleRows = 4
+	a.height = 24 // minimum supported viewport
 	var many []rpc.Status
 	for i := 0; i < 30; i++ {
 		many = append(many, rpc.Status{GID: fmt.Sprintf("g%02d", i), Status: "active"})
 	}
 	a.snap.Active = many
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 20; i++ {
 		_, _ = a.Update(key("j"))
 	}
-	if a.list.cursor != 10 {
+	if a.list.cursor != 20 {
 		t.Fatalf("cursor = %d", a.list.cursor)
 	}
 	vis := a.list.visibleRows()

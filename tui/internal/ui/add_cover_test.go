@@ -179,11 +179,15 @@ func TestAddCtrlDSubmitsURIs(t *testing.T) {
 	m := newAddModel(a)
 	m.uris.SetValue("http://x\n \nhttp://y")
 	m.startNow = false
-	_, cmd := m.update(ctrl(tea.KeyCtrlD))
-	if a.overlay != overlayNone {
-		t.Fatalf("overlay = %d", a.overlay)
+	m, cmd := m.update(ctrl(tea.KeyCtrlD))
+	if a.overlay != overlayAdd || !m.submitting {
+		t.Fatalf("form must remain while adding: overlay=%d submitting=%v", a.overlay, m.submitting)
 	}
+	a.add = m
 	drain(t, a, cmd)
+	if a.overlay != overlayNone {
+		t.Fatalf("successful add must close the form: overlay=%d", a.overlay)
+	}
 	if len(rec.uris) != 2 || rec.uris[0] != "http://x" || rec.uris[1] != "http://y" {
 		t.Fatalf("uris = %v", rec.uris)
 	}
@@ -294,7 +298,8 @@ func TestAddSubmitTorrent(t *testing.T) {
 	}
 
 	m.file.SetValue(filepath.Join(t.TempDir(), "missing.torrent"))
-	_, _ = m.submit()
+	m, cmd := m.submit()
+	drain(t, a, cmd)
 	if !a.statusErr || !strings.Contains(a.status, "missing.torrent") {
 		t.Fatalf("status = %q", a.status)
 	}
@@ -307,10 +312,11 @@ func TestAddSubmitTorrent(t *testing.T) {
 	a.overlay = overlayAdd
 	m.startNow = true
 	m.file.SetValue(p)
-	_, cmd := m.submit()
-	if a.overlay != overlayNone { // submit closes the add overlay first
-		t.Fatalf("overlay = %d", a.overlay)
+	m, cmd = m.submit()
+	if a.overlay != overlayAdd || !m.submitting {
+		t.Fatalf("form must remain visible and busy while reading: overlay=%d submitting=%v", a.overlay, m.submitting)
 	}
+	a.add = m
 	drain(t, a, cmd)
 	if rec.torrentB64 != base64.StdEncoding.EncodeToString(raw) {
 		t.Fatalf("torrentB64 = %q", rec.torrentB64)
@@ -334,7 +340,8 @@ func TestAddSubmitMetalink(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.file.SetValue(p)
-	_, cmd := m.submit()
+	m, cmd := m.submit()
+	a.add = m
 	drain(t, a, cmd)
 	if rec.metaB64 != base64.StdEncoding.EncodeToString(raw) {
 		t.Fatalf("metaB64 = %q", rec.metaB64)

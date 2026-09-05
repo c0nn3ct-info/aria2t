@@ -111,14 +111,14 @@ func (m detailModel) view() string {
 	s := m.s
 	var b strings.Builder
 
-	badge := st.Badge.Render(s.Status)
+	badge := st.Badge.Render(safeText(s.Status))
 	seed := ""
 	if s.Seeder == "true" {
 		seed = " " + st.Green.Render("seeding")
 	}
-	b.WriteString(" " + st.Dim.Render("← esc") + st.Faint.Render(" │ ") + st.Title.Render(s.Name()) + "  " + badge + seed + "\n")
+	b.WriteString(" " + st.Dim.Render("← esc") + st.Faint.Render(" │ ") + st.Title.Render(safeText(s.Name())) + "  " + badge + seed + "\n")
 	if m.err != nil {
-		b.WriteString(st.Red.Render(" " + m.err.Error()))
+		b.WriteString(st.Red.Render(" " + safeText(m.err.Error())))
 		return b.String()
 	}
 	if s.Status == "error" {
@@ -139,10 +139,10 @@ func (m detailModel) view() string {
 	if s.BitTorrent != nil {
 		meta := st.Dim.Render("torrent ") + st.Text.Render(shortHash(s.InfoHash))
 		if s.BitTorrent.Mode != "" {
-			meta += st.Dim.Render("  mode ") + st.Text.Render(s.BitTorrent.Mode)
+			meta += st.Dim.Render("  mode ") + st.Text.Render(safeText(s.BitTorrent.Mode))
 		}
 		if c := strings.TrimSpace(s.BitTorrent.Comment); c != "" {
-			meta += st.Dim.Render("  “") + st.Text.Render(trunc(c, 40)) + st.Dim.Render("”")
+			meta += st.Dim.Render("  “") + st.Text.Render(trunc(safeText(c), 40)) + st.Dim.Render("”")
 		}
 		sum = append(sum, meta)
 	}
@@ -161,9 +161,12 @@ func (m detailModel) view() string {
 		b.WriteString(st.Panel.Width(a.width-2).Render(strings.Join(pieces, "\n")) + "\n")
 	}
 
-	// Remaining height for the two side-by-side panels (each: 2 border + 1
-	// header + data; plus a keybar and a status line below).
+	// Remaining height for the data panels plus the keybar/status below.
 	rowCap := a.height - strings.Count(b.String(), "\n") - 5
+	stacked := a.width < 112
+	if stacked {
+		rowCap = (rowCap - 4) / 2
+	}
 	if rowCap < 2 {
 		rowCap = 2
 	}
@@ -177,8 +180,14 @@ func (m detailModel) view() string {
 	// Clicking the FILES panel opens the tree picker (same as f) — full mouse
 	// parity, so the picker is reachable without the keyboard.
 	yP := strings.Count(b.String(), "\n")
-	a.hits.add("key:f", lipgloss.Width(leftPanel), yP, a.width-1, yP+lipgloss.Height(filesPanel)-1)
-	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, filesPanel) + "\n")
+	if stacked {
+		filesY := yP + lipgloss.Height(leftPanel)
+		a.hits.add("key:f", 0, filesY, a.width-1, filesY+lipgloss.Height(filesPanel)-1)
+		b.WriteString(lipgloss.JoinVertical(lipgloss.Left, leftPanel, filesPanel) + "\n")
+	} else {
+		a.hits.add("key:f", lipgloss.Width(leftPanel), yP, a.width-1, yP+lipgloss.Height(filesPanel)-1)
+		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, filesPanel) + "\n")
+	}
 
 	return a.screenFrame(b.String(), []keyHint{
 		{"p", "p", "pause/resume"}, {"d", "d", "remove"}, {"f", "f", "select files"},
@@ -199,14 +208,14 @@ func (m detailModel) mouse(id string) (detailModel, tea.Cmd) {
 // seeds (torrents), and the download directory.
 func (m detailModel) summaryStats(s rpc.Status) string {
 	st := m.a.styles
-	line := st.Dim.Render("gid ") + st.Text.Render(s.GID) +
+	line := st.Dim.Render("gid ") + st.Text.Render(safeText(s.GID)) +
 		st.Dim.Render("  ↑ ") + st.Text.Render(FmtBytes(s.Uploaded())) +
 		st.Dim.Render("  ratio ") + st.Text.Render(fmt.Sprintf("%.2f", s.Ratio())) +
 		st.Dim.Render("  conns ") + st.Text.Render(fmt.Sprintf("%d", s.Conns()))
 	if s.IsTorrent() {
 		line += st.Dim.Render("  seeds ") + st.Green.Render(fmt.Sprintf("%d", s.Seeds()))
 	}
-	return line + st.Dim.Render("  dir ") + st.Text.Render(s.Dir)
+	return line + st.Dim.Render("  dir ") + st.Text.Render(safeText(s.Dir))
 }
 
 // peersOrServers renders the left panel: bittorrent peers for torrents, the

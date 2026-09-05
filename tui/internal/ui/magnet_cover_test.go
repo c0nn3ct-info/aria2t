@@ -13,11 +13,15 @@ func TestAddSubmitMagnet(t *testing.T) {
 	m.uris.SetValue("magnet:?xt=urn:btih:deadbeef")
 	m.startNow = true
 	a.overlay = overlayAdd
-	_, cmd := m.submit()
-	if a.overlay != overlayNone {
-		t.Fatalf("submit must close the add overlay, overlay=%d", a.overlay)
+	m, cmd := m.submit()
+	if a.overlay != overlayAdd || !m.submitting {
+		t.Fatalf("form must stay visible while adding, overlay=%d submitting=%v", a.overlay, m.submitting)
 	}
+	a.add = m
 	drain(t, a, cmd)
+	if a.overlay != overlayNone {
+		t.Fatalf("successful magnet add must close the form, overlay=%d", a.overlay)
+	}
 	if rec.uriOpts["pause-metadata"] != "true" {
 		t.Fatalf("magnet must set pause-metadata: %v", rec.uriOpts)
 	}

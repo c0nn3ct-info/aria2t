@@ -15,14 +15,14 @@ type confirmModel struct {
 }
 
 func newConfirmModel(a *App, title, text string, onYes func() tea.Cmd) confirmModel {
-	return confirmModel{a: a, title: title, text: text, yesLabel: "Remove", onYes: onYes}
+	return confirmModel{a: a, title: safeText(title), text: safeText(text), yesLabel: "Remove", onYes: onYes}
 }
 
 func (m confirmModel) update(msg tea.KeyMsg) (confirmModel, tea.Cmd) {
 	switch msg.String() {
-	case "y", "Y", "enter":
+	case "y", "Y":
 		return m.confirm()
-	case "n", "N", "esc", "q":
+	case "n", "N", "esc", "q", "enter":
 		m.a.overlay = overlayNone
 	}
 	return m, nil

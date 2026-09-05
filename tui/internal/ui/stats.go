@@ -98,12 +98,19 @@ func (m statsModel) view() string {
 	tile := func(label, value string) string {
 		return st.Panel.Render(st.Dim.Render(label) + "\n" + st.Title.Render(value))
 	}
-	tiles := lipgloss.JoinHorizontal(lipgloss.Top,
+	allTiles := []string{
 		tile("SESSION DOWNLOADED", FmtBytes(sessionDown)),
 		tile("SESSION UPLOADED", FmtBytes(sessionUp)),
 		tile("ACTIVE / WAITING", fmt.Sprintf("%d / %d", a.snap.Stat.Active(), a.snap.Stat.Waiting())),
 		tile("FINISHED", fmt.Sprintf("%d", finished)),
-	)
+	}
+	tiles := lipgloss.JoinHorizontal(lipgloss.Top, allTiles...)
+	if a.width < 112 {
+		tiles = lipgloss.JoinVertical(lipgloss.Left,
+			lipgloss.JoinHorizontal(lipgloss.Top, allTiles[0], allTiles[1]),
+			lipgloss.JoinHorizontal(lipgloss.Top, allTiles[2], allTiles[3]),
+		)
+	}
 	b.WriteString(tiles + "\n")
 
 	// Bandwidth by download.
@@ -123,7 +130,7 @@ func (m statsModel) view() string {
 		}
 		blocks := int(frac * float64(barW))
 		rows = append(rows,
-			st.Text.Render(pad(s.Name(), a.width-barW-20))+
+			st.Text.Render(pad(safeText(s.Name()), a.width-barW-20))+
 				st.Cyan.Render(pad(strings.Repeat("█", blocks), barW))+
 				st.Cyan.Render(lpad(FmtSpeed(s.DownSpeed()), 12)))
 	}

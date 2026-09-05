@@ -59,6 +59,22 @@ func TestRunProgramDefault(t *testing.T) {
 	}
 }
 
+func TestRunAccessibleMode(t *testing.T) {
+	orig := runProgram
+	seen := false
+	runProgram = func(tea.Model) error {
+		seen = accessibleProgram
+		return nil
+	}
+	t.Cleanup(func() { runProgram = orig })
+	if code := run([]string{"--accessible", "--config", missingConfig(t)}, io.Discard); code != 0 {
+		t.Fatalf("run accessible = %d", code)
+	}
+	if !seen || accessibleProgram {
+		t.Fatalf("accessible program lifecycle: seen=%v current=%v", seen, accessibleProgram)
+	}
+}
+
 func TestMainFunc(t *testing.T) {
 	stubProgram(t, nil)
 

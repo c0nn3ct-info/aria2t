@@ -22,6 +22,17 @@ go build -o aria2t ./cmd/aria2t
 
 Go 1.25 or newer. Stamp a version with `-ldflags "-X main.appVersion=v1.2.3"`. The managed daemon needs `aria2c` on `PATH` at runtime; connecting to an external aria2 does not.
 
+## Terminal interaction
+
+The full interface is keyboard-operable. Press `?` for contextual key help or
+`Ctrl+P` to search and run commands. The supported functional minimum is
+80 columns by 24 rows; below it Aria2t shows a resize message without changing
+the current selection, focus, or unfinished form values.
+
+Use `aria2t --accessible` for a keyboard-only, colour-free ASCII presentation.
+It avoids the alternate screen and mouse capture, reduces idle refreshes, and
+keeps recent status changes in a linear activity log for assistive technology.
+
 ## Test
 
 ```bash

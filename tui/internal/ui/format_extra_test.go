@@ -28,7 +28,7 @@ func TestTrunc(t *testing.T) {
 	if got := trunc("hello", 10); got != "hello" {
 		t.Fatalf("short = %q", got)
 	}
-	if got := trunc("hello", 1); got != "h" {
+	if got := trunc("hello", 1); got != "…" {
 		t.Fatalf("w=1 = %q", got)
 	}
 	if got := trunc("hello world", 5); got != "hell…" {

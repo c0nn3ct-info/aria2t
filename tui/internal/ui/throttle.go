@@ -133,13 +133,13 @@ func (m throttleModel) update(msg tea.KeyMsg) (throttleModel, tea.Cmd) {
 			return m, nil
 		}
 		var cmd tea.Cmd
-		m.custom[m.row], cmd = m.custom[m.row].Update(msg)
+		m.custom[m.row], cmd = updateInput(m.custom[m.row], msg)
 		return m, cmd
 	}
 	switch key {
 	case "esc":
 		a.overlay = overlayNone
-	case "tab", "j", "k", "down", "up":
+	case "tab", "shift+tab", "j", "k", "down", "up":
 		m.row = 1 - m.row
 	case "h", "left":
 		if s := m.selection(m.row); s > 0 {
@@ -251,7 +251,7 @@ func (m throttleModel) view() string {
 	navLine := strings.Join(navParts, "  ") + "   " + st.Dim.Render("h/l select")
 	buttons := []button{{"esc", "Cancel", "esc", btnRed}, {"enter", "Apply", "↵", btnGreen}}
 	body := lipgloss.JoinVertical(lipgloss.Left,
-		st.Title.Render("Throttle")+"  "+st.Dim.Render(m.name),
+		st.Title.Render("Throttle")+"  "+st.Dim.Render(safeText(m.name)),
 		"",
 		m.chipRow(0, "Download limit"),
 		"",

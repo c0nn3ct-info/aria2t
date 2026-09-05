@@ -114,10 +114,10 @@ func (m serversModel) update(msg tea.KeyMsg) (serversModel, tea.Cmd) {
 			srv := a.cfg.Servers[m.cursor]
 			m.editing = true
 			m.editIdx = m.cursor
-			m.form[0].SetValue(srv.Name)
-			m.form[1].SetValue(srv.Host)
+			m.form[0].SetValue(safeText(srv.Name))
+			m.form[1].SetValue(safeText(srv.Host))
 			m.form[2].SetValue(fmt.Sprintf("%d", srv.Port))
-			m.form[3].SetValue(srv.Secret)
+			m.form[3].SetValue(safeText(srv.Secret))
 			m.formWS = srv.Protocol != "http" && srv.Protocol != "https"
 			m.formFoc = 0
 			return m, m.form[0].Focus()
@@ -155,6 +155,10 @@ func (m serversModel) updateForm(msg tea.KeyMsg) (serversModel, tea.Cmd) {
 		m.form[m.formFoc].Blur()
 		m.formFoc = (m.formFoc + 1) % len(m.form)
 		return m, m.form[m.formFoc].Focus()
+	case "shift+tab":
+		m.form[m.formFoc].Blur()
+		m.formFoc = (m.formFoc + len(m.form) - 1) % len(m.form)
+		return m, m.form[m.formFoc].Focus()
 	case "ctrl+w":
 		m.formWS = !m.formWS
 		return m, nil
@@ -189,7 +193,7 @@ func (m serversModel) updateForm(msg tea.KeyMsg) (serversModel, tea.Cmd) {
 		return m, m.probeCmd()
 	}
 	var cmd tea.Cmd
-	m.form[m.formFoc], cmd = m.form[m.formFoc].Update(msg)
+	m.form[m.formFoc], cmd = updateInput(m.form[m.formFoc], msg)
 	return m, cmd
 }
 
@@ -294,8 +298,8 @@ func (m serversModel) view() string {
 				desc = fmt.Sprintf("built-in · localhost:%d", a.daemon.Port)
 			}
 		}
-		line := marker + nameStyle.Render(srv.Name) + " " +
-			st.Dim.Render(desc) + active +
+		line := marker + nameStyle.Render(safeText(srv.Name)) + " " +
+			st.Dim.Render(safeText(desc)) + active +
 			"  " + state
 		if i == m.cursor {
 			line = st.RowSel.Render(line)

@@ -80,7 +80,7 @@ func (m schedulerModel) update(msg tea.KeyMsg) (schedulerModel, tea.Cmd) {
 			m.editing = true
 			m.editIdx = m.cursor
 			for i, v := range []string{r.Start, r.End, r.Label, r.Down, r.Up} {
-				m.form[i].SetValue(v)
+				m.form[i].SetValue(safeText(v))
 			}
 			m.days = r.Days
 			m.formFoc = 0
@@ -111,10 +111,14 @@ func (m schedulerModel) updateForm(msg tea.KeyMsg) (schedulerModel, tea.Cmd) {
 		m.form[m.formFoc].Blur()
 		m.formFoc = (m.formFoc + 1) % len(m.form)
 		return m, m.form[m.formFoc].Focus()
-	case "1", "2", "3", "4", "5", "6", "7":
+	case "shift+tab":
+		m.form[m.formFoc].Blur()
+		m.formFoc = (m.formFoc + len(m.form) - 1) % len(m.form)
+		return m, m.form[m.formFoc].Focus()
+	case "alt+1", "alt+2", "alt+3", "alt+4", "alt+5", "alt+6", "alt+7":
 		// 1=Mon … 7=Sun, matching how people say it; index time.Weekday.
-		n := int(key[0] - '1') // 0=Mon
-		idx := (n + 1) % 7     // time.Weekday: 0=Sun
+		n := int(key[len(key)-1] - '1') // 0=Mon
+		idx := (n + 1) % 7              // time.Weekday: 0=Sun
 		m.days[idx] = !m.days[idx]
 		return m, nil
 	case "enter":
@@ -148,16 +152,16 @@ func (m schedulerModel) updateForm(msg tea.KeyMsg) (schedulerModel, tea.Cmd) {
 		return m, nil
 	}
 	var cmd tea.Cmd
-	m.form[m.formFoc], cmd = m.form[m.formFoc].Update(msg)
+	m.form[m.formFoc], cmd = updateInput(m.form[m.formFoc], msg)
 	return m, cmd
 }
 
 func validHM(s string) bool {
-	var h, mn int
-	if _, err := fmt.Sscanf(s, "%d:%d", &h, &mn); err != nil {
+	if len(s) != 5 || s[2] != ':' || s[0] < '0' || s[0] > '9' || s[1] < '0' || s[1] > '9' || s[3] < '0' || s[3] > '9' || s[4] < '0' || s[4] > '9' {
 		return false
 	}
-	return h >= 0 && h <= 24 && mn >= 0 && mn <= 59
+	_, err := time.Parse("15:04", s)
+	return err == nil
 }
 
 func fmtDays(d [7]bool) string {
@@ -241,13 +245,12 @@ func (m schedulerModel) formButtons() []button {
 func (m schedulerModel) formBody() string {
 	st := m.a.styles
 	labels := []string{"Window start (HH:MM)", "Window end (HH:MM)", "Label", "Down limit", "Up limit"}
-	var fields []string
-	for i, l := range labels {
+	field := func(i int) string {
 		box := st.Input
 		if m.formFoc == i {
 			box = st.InputHot
 		}
-		fields = append(fields, st.Dim.Render(l)+"\n"+box.Render(m.form[i].View()))
+		return st.Dim.Render(labels[i]) + "\n" + box.Render(m.form[i].View())
 	}
 	names := []string{"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"}
 	var days []string
@@ -262,9 +265,13 @@ func (m schedulerModel) formBody() string {
 	return lipgloss.JoinVertical(lipgloss.Left,
 		st.Title.Render("Scheduler rule"),
 		"",
-		strings.Join(fields, "\n"),
+		lipgloss.JoinHorizontal(lipgloss.Top, field(0), "   ", field(1)),
 		"",
-		st.Dim.Render("Days (1–7 toggle)  ")+strings.Join(days, " "),
+		field(2),
+		"",
+		lipgloss.JoinHorizontal(lipgloss.Top, field(3), "   ", field(4)),
+		"",
+		st.Dim.Render("Days (click or alt+1–7)  ")+strings.Join(days, " "),
 		"",
 		m.a.buttonRow(m.formButtons()),
 	)
@@ -274,15 +281,17 @@ func (m schedulerModel) formBody() string {
 // row focuses, each day chip toggles, and the buttons save/cancel.
 func (m schedulerModel) registerForm(offX, offY int, modal string) {
 	st := m.a.styles
-	// Fields are a label row + a 3-line bordered input box, so each spans 4 rows.
-	// Fields block starts at body row 2 → field i at body row 2+4i; content
-	// starts at offY+2. Register the whole 4-row block as one focus target.
-	for i := range m.form {
-		y0 := offY + 4 + 4*i
-		m.a.hits.add(fmt.Sprintf("field:%d", i), offX+3, y0, offX+lipgloss.Width(modal)-4, y0+3)
+	contentX := offX + 3
+	pairOffset := lipgloss.Width(st.Dim.Render("Window start (HH:MM)")) + 3
+	for _, f := range []struct{ i, x, y int }{
+		{0, contentX, offY + 4}, {1, contentX + pairOffset, offY + 4},
+		{2, contentX, offY + 9},
+		{3, contentX, offY + 14}, {4, contentX + pairOffset, offY + 14},
+	} {
+		m.a.hits.add(fmt.Sprintf("field:%d", f.i), f.x, f.y, f.x+19, f.y+3)
 	}
-	dayY := offY + 25 // body row 23 (5 fields × 4 rows + title + 2 blanks)
-	prefix := st.Dim.Render("Days (1–7 toggle)  ")
+	dayY := offY + 19
+	prefix := st.Dim.Render("Days (click or alt+1–7)  ")
 	dx := offX + 3 + lipgloss.Width(prefix)
 	names := []string{"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"}
 	for n, label := range names {
@@ -298,6 +307,11 @@ func (m schedulerModel) registerForm(offX, offY int, modal string) {
 	m.a.registerButtons(offX, offY, modal, m.formButtons())
 }
 
+// schedNow is the wall clock the strip is drawn against, swapped by the
+// Storybook frame generator: today's segments and the active-rule line are read
+// off it, so a real clock would give a different frame on every run.
+var schedNow = time.Now
+
 func (m schedulerModel) listBody() string {
 	a := m.a
 	st := a.styles
@@ -309,7 +323,7 @@ func (m schedulerModel) listBody() string {
 	b.WriteString(" " + st.Dim.Render("← esc") + st.Faint.Render(" │ ") + st.Title.Render("Scheduler") + "   " + enabled + "\n")
 
 	// 24h strip for today.
-	now := time.Now()
+	now := schedNow()
 	segs := sched.Segments(a.cfg.Rules, now.Weekday())
 	stripW := a.width - 8
 	if stripW < 24 {
@@ -318,7 +332,7 @@ func (m schedulerModel) listBody() string {
 	var strip, axis strings.Builder
 	activeLabel := "∞ (no rule)"
 	if r, ok := sched.Active(a.cfg.Rules, now); ok {
-		activeLabel = FmtLimit(r.Down) + " (" + r.Label + ")"
+		activeLabel = FmtLimit(r.Down) + " (" + safeText(r.Label) + ")"
 	}
 	for _, seg := range segs {
 		w := (seg.To - seg.From) * stripW / 1440
@@ -327,10 +341,10 @@ func (m schedulerModel) listBody() string {
 		}
 		label := FmtLimit(seg.Down)
 		cell := label
-		if len(cell) > w {
+		if cellWidth(cell) > w {
 			cell = ""
 		}
-		padTotal := w - len([]rune(cell))
+		padTotal := w - cellWidth(cell)
 		block := strings.Repeat(" ", padTotal/2) + cell + strings.Repeat(" ", padTotal-padTotal/2)
 		style := st.Green // unlimited
 		if seg.Down != "0" {
@@ -372,9 +386,9 @@ func (m schedulerModel) listBody() string {
 			marker, style = st.Brand.Render("▸ "), st.Title
 		}
 		limit := FmtLimit(r.Down) + " / " + FmtLimit(r.Up)
-		line := marker + style.Render(pad(r.Start+" – "+r.End, 14)) +
+		line := marker + style.Render(pad(safeText(r.Start)+" – "+safeText(r.End), 14)) +
 			st.Text.Render(pad(fmtDays(r.Days), 12)) +
-			st.Text.Render(pad(r.Label, labelW)) +
+			st.Text.Render(pad(safeText(r.Label), labelW)) +
 			st.Yellow.Render(lpad(limit, 14))
 		if i == m.cursor {
 			line = st.RowSel.Render(line)

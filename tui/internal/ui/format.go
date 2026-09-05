@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // FmtBytes renders n like the design mocks: one decimal below 10 units,
@@ -162,14 +164,13 @@ func plural(n int) string {
 
 // trunc shortens s to w cells with an ellipsis, without padding.
 func trunc(s string, w int) string {
-	r := []rune(s)
-	if len(r) <= w {
+	if w <= 0 {
+		return ""
+	}
+	if cellWidth(s) <= w {
 		return s
 	}
-	if w <= 1 {
-		return string(r[:w])
-	}
-	return string(r[:w-1]) + "…"
+	return ansi.Truncate(s, w, "…")
 }
 
 // bitfieldProgress returns the fraction of pieces present in a hex bitfield
@@ -245,7 +246,7 @@ func friendlyError(code, msg string) string {
 		return "bad magnet link"
 	}
 	if msg != "" {
-		return msg
+		return safeText(msg)
 	}
 	if code != "" && code != "0" {
 		return "error " + code

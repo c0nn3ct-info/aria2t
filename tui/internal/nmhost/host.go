@@ -49,13 +49,27 @@ type response struct {
 	Data any    `json:"data,omitempty"`
 }
 
-// errCodeAria2cMissing marks the one failure the extension must tell apart
-// from an absent host: the host answered, aria2c is what is missing.
-const errCodeAria2cMissing = "aria2c-missing"
+// Failure kinds an ensure can end in. The extension routes on these:
+//   - errCodeAria2cMissing: the host answered, aria2c is what is missing — the
+//     one failure with an install step of its own.
+//   - errCodeDaemonFailed: aria2c is there and still did not come up (exited on
+//     a bad session file, never opened its port, could not write the data
+//     dir). Nothing for the user to install; the error prose carries what the
+//     daemon's log said, and the extension offers a bug report.
+//
+// Before the second code existed every such failure arrived untagged, and the
+// extension filed it under "everything is installed but nothing answered" —
+// whose remedy, "check the server in Settings", has nothing to do with a
+// daemon that died on launch.
+const (
+	errCodeAria2cMissing = "aria2c-missing"
+	errCodeDaemonFailed  = "daemon-failed"
+)
 
-// failure builds a negative ack, tagging the kinds the extension routes on.
+// failure builds the negative ack for an ensure that could not produce a
+// daemon, tagging it with the kind the extension routes on.
 func failure(id string, err error) response {
-	resp := response{ID: id, Type: "ack", OK: false, Error: err.Error()}
+	resp := response{ID: id, Type: "ack", OK: false, Error: err.Error(), Code: errCodeDaemonFailed}
 	if errors.Is(err, daemon.ErrBinaryNotFound) {
 		resp.Code = errCodeAria2cMissing
 	}
@@ -76,6 +90,43 @@ type daemonData struct {
 	Secret  string `json:"secret"`
 }
 
+// diagnosticsData answers diagnostics: everything the host knows about its own
+// installation, for the extension's problem report. It names paths and versions
+// and the daemon's last log lines; it carries no secret and no download URL —
+// the RPC secret is deliberately absent even though status hands it out, since
+// a report is pasted into a public tracker.
+type diagnosticsData struct {
+	Version     string     `json:"version"`
+	Platform    string     `json:"platform"`
+	Executable  string     `json:"executable"`
+	ConfigPath  string     `json:"configPath"`
+	ConfigError string     `json:"configError,omitempty"`
+	DataDir     string     `json:"dataDir"`
+	DownloadDir string     `json:"downloadDir"`
+	KeepControl bool       `json:"keepControl"`
+	Aria2c      string     `json:"aria2c,omitempty"`
+	Aria2cError string     `json:"aria2cError,omitempty"`
+	Daemon      daemonDiag `json:"daemon"`
+	// SessionEntries counts the downloads the saved session would reload; -1
+	// when there is no session file to read.
+	SessionEntries int      `json:"sessionEntries"`
+	Log            []string `json:"log"`
+}
+
+// daemonDiag is the daemon as the host sees it: what daemon.json records, and
+// whether anything answers there.
+type daemonDiag struct {
+	Recorded   bool   `json:"recorded"`
+	PID        int    `json:"pid,omitempty"`
+	Port       int    `json:"port,omitempty"`
+	Answering  bool   `json:"answering"`
+	ProbeError string `json:"probeError,omitempty"`
+}
+
+// diagLogLines is how much of aria2's log a report carries: the tail, where
+// the failure being reported is.
+const diagLogLines = 40
+
 // Injection seams for tests (the repo's standard pattern over direct
 // OS/daemon calls).
 var (
@@ -87,6 +138,12 @@ var (
 	userHome    = os.UserHomeDir
 	statPath    = os.Stat
 	goos        = runtime.GOOS
+
+	// diagnostics reads its own picture of the install through these.
+	findBinary   = daemon.FindBinary
+	logTail      = daemon.LogTail
+	osExecutable = os.Executable
+	readFile     = os.ReadFile
 
 	cleanControlFiles   = control.Clean
 	deleteTargets       = control.Targets
@@ -120,6 +177,8 @@ func defaultProbe(port int, secret string) error {
 // host serves one extension connection.
 type host struct {
 	version     string
+	cfgPath     string // where the config was read from, for diagnostics
+	cfgErr      error  // why the config fell back to defaults, if it did
 	dataDir     string // the TUI's stable daemon dir (session.txt, daemon.json)
 	dir         string // download dir from the user's config
 	keepControl bool   // user opted out of deleting .aria2 control files
@@ -135,9 +194,13 @@ type host struct {
 // version is the build-stamped host version reported by hello.
 func Run(r io.Reader, w io.Writer, version string) error {
 	cfgPath := configPath()
-	cfg, _ := config.Load(cfgPath) // a broken config falls back to defaults
+	// A broken config falls back to defaults; the error is kept for diagnostics,
+	// where "your config did not parse" explains a download dir nobody chose.
+	cfg, cfgErr := config.Load(cfgPath)
 	h := &host{
 		version:     version,
+		cfgPath:     cfgPath,
+		cfgErr:      cfgErr,
 		dataDir:     filepath.Join(filepath.Dir(cfgPath), "daemon"), // same stable dir the TUI uses
 		dir:         expandHome(cfg.Dir),
 		keepControl: !cfg.CleanControl(),
@@ -189,6 +252,8 @@ func (h *host) handle(req request) response {
 		ack.Data = helloData{Version: h.version, Platform: runtime.GOOS + "-" + runtime.GOARCH}
 	case "status":
 		ack.Data = h.status()
+	case "diagnostics":
+		ack.Data = h.diagnostics()
 	case "ensure":
 		st, err := h.ensure()
 		if err != nil {
@@ -221,6 +286,59 @@ func (h *host) status() daemonData {
 		return daemonData{}
 	}
 	return daemonData{Running: true, Port: port, Secret: secret}
+}
+
+// diagnostics assembles the host's view of the install for a problem report.
+// Every probe here is best effort and reported as a fact either way: an
+// unreadable log, a missing aria2c and a dead daemon are exactly the things a
+// report exists to say.
+func (h *host) diagnostics() diagnosticsData {
+	d := diagnosticsData{
+		Version:        h.version,
+		Platform:       runtime.GOOS + "-" + runtime.GOARCH,
+		ConfigPath:     h.cfgPath,
+		DataDir:        h.dataDir,
+		DownloadDir:    h.dir,
+		KeepControl:    h.keepControl,
+		SessionEntries: -1,
+		Log:            logTail(filepath.Join(h.dataDir, "aria2.log"), diagLogLines),
+	}
+	if h.cfgErr != nil {
+		d.ConfigError = h.cfgErr.Error()
+	}
+	if exe, err := osExecutable(); err == nil {
+		d.Executable = exe
+	}
+	if bin, err := findBinary(); err != nil {
+		d.Aria2cError = err.Error()
+	} else {
+		d.Aria2c = bin
+	}
+	if pid, port, secret, ok := readState(h.dataDir); ok {
+		d.Daemon = daemonDiag{Recorded: true, PID: pid, Port: port}
+		if err := probeRPC(port, secret); err != nil {
+			d.Daemon.ProbeError = err.Error()
+		} else {
+			d.Daemon.Answering = true
+		}
+	}
+	if raw, err := readFile(filepath.Join(h.dataDir, "session.txt")); err == nil {
+		d.SessionEntries = sessionEntries(string(raw))
+	}
+	return d
+}
+
+// sessionEntries counts the downloads in an aria2 session file: one per
+// unindented, non-empty line (a URI or a magnet), each followed by its
+// indented option lines.
+func sessionEntries(raw string) int {
+	n := 0
+	for _, l := range strings.Split(raw, "\n") {
+		if l != "" && l[0] != ' ' && l[0] != '\t' {
+			n++
+		}
+	}
+	return n
 }
 
 // ensure returns a live daemon's coordinates, spawning one when none

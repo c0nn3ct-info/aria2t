@@ -307,7 +307,7 @@ func TestPadAndLpad(t *testing.T) {
 	if got := pad("abcdef", 3); got != "ab…" {
 		t.Errorf("pad trunc = %q", got)
 	}
-	if got := pad("ab", 1); got != "a" {
+	if got := pad("ab", 1); got != "…" {
 		t.Errorf("pad w<=1 = %q", got)
 	}
 	if got := pad("ab", 4); got != "ab  " {

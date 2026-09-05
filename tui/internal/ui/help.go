@@ -98,6 +98,7 @@ func (m helpModel) contentLines() []string {
 		"",
 		section("Everywhere",
 			[2]string{"?", "this help"},
+			[2]string{"ctrl+p", "search commands"},
 			[2]string{"esc", "back / close"},
 			[2]string{"q / ctrl+c", "quit"},
 		),

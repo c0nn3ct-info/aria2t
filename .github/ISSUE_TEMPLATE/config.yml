@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Installation guide
+    url: https://aria2t.c0nn3ct.info/install/
+    about: The one-liners for macOS, Linux and Windows, and the usual fixes.
+  - name: Releases
+    url: https://github.com/c0nn3ct-info/aria2t/releases
+    about: What changed in each TUI and host release.
