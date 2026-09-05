@@ -25,13 +25,20 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: site/package-lock.json
 
       - name: Install dependencies
+        # `npm install`, not `npm ci`: Storybook's `oxc-parser` brings
+        # platform-specific wasm bindings whose sub-trees npm records only for
+        # the platform the lock was written on, and this lock is written on
+        # macOS. `npm ci` then refuses on Linux over transitive `@emnapi/*`
+        # entries it cannot find. Back to `npm ci` once the lock is generated
+        # on Linux, or once the site's Storybook lives in its own package the
+        # way the TUI's does.
         working-directory: site
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
