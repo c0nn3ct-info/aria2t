@@ -1,0 +1,12 @@
+{
+  // Everything `tsconfig.json` excludes: the tests, their helpers, the stories
+  // and the Storybook config. Same compiler options as the app plus
+  // `skipLibCheck`, because the declaration files this code pulls in (vitest's
+  // and Storybook's) do not check clean — see the note in `tsconfig.json`.
+  // `skipLibCheck` skips *declaration* files only, so this code is still fully
+  // type-checked; `npm run build` runs this project alongside the app's.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "skipLibCheck": true },
+  "include": ["src", ".storybook", "vite.storybook.config.ts", "tailwind.config.ts"],
+  "exclude": []
+}

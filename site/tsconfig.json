@@ -22,5 +22,17 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "vite.config.ts", "tailwind.config.ts"]
+  "include": ["src", "vite.config.ts", "vite.storybook.config.ts", "tailwind.config.ts"],
+  // The site's own sources, and nothing that only exists to test or document
+  // them. Those are `tsconfig.dev.json`, the same project with `skipLibCheck`
+  // on, and `npm run build` runs both.
+  //
+  // The split exists because two devDependencies do not type-check under this
+  // TypeScript with `skipLibCheck` off, which is how this package is
+  // deliberately configured: `@storybook/react`'s shipped `.d.ts`, and `vitest`
+  // — its types `import 'chai'`, and Storybook's `@vitest/expect@3` hoists an
+  // `@types/chai` that TypeScript prefers over chai's own bundled types, so the
+  // two declare the same names. Neither is the site's code, and neither should
+  // be able to downgrade the check over `src/`.
+  "exclude": ["src/**/*.stories.tsx", "src/storybook/**", "src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**"]
 }

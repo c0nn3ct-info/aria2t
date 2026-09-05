@@ -3,7 +3,15 @@ import animate from 'tailwindcss-animate';
 
 export default {
   darkMode: ['variant', ['.dark &', '[data-theme="dark"] &']],
-  content: ['./src/**/*.{ts,tsx,html}', './pages/**/index.html'],
+  content: [
+    './src/**/*.{ts,tsx,html}',
+    // Stories never ship, so a utility used only in one must not enter this
+    // bundle. Storybook scans them through its own Tailwind instance
+    // (see vite.storybook.config.ts).
+    '!./src/**/*.stories.tsx',
+    '!./src/storybook/**',
+    './pages/**/index.html',
+  ],
   theme: {
     extend: {
       colors: {

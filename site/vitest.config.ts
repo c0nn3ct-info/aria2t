@@ -26,8 +26,19 @@ export default defineConfig({
       all: true,
       // The prerender/sitemap generator is source too, so it counts.
       include: ['src/**/*.{ts,tsx}', 'scripts/**/*.mjs'],
-      // Non-source only: the tests, their helpers, and type-only declarations.
-      exclude: ['src/**/*.{test,spec}.{ts,tsx}', 'src/test/**', 'src/**/*.d.ts', 'scripts/**/*.test.mjs'],
+      // Non-source only: the tests, their helpers, type-only declarations, and
+      // story-only code — rendered by Storybook, never by the site. The stories
+      // are still executed on every run: `src/storybook/stories.smoke.test.tsx`
+      // mounts every one of them, so excluding them from the denominator is not
+      // the same as leaving them unchecked.
+      exclude: [
+        'src/**/*.{test,spec}.{ts,tsx}',
+        'src/test/**',
+        'src/**/*.d.ts',
+        'src/**/*.stories.tsx',
+        'src/storybook/**',
+        'scripts/**/*.test.mjs',
+      ],
       reporter: ['text', 'html'],
       // All four metrics, and nothing silenced: no istanbul-ignore comments
       // anywhere, and the exclude list above names only non-source. Code that

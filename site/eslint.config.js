@@ -7,8 +7,10 @@ import tseslint from 'typescript-eslint';
 // escalations, no rule turned off, run with --max-warnings 0. See the note
 // there for why the react-hooks rules are named instead of preset-spread.
 export default tseslint.config(
-  // Build output only — no source is excluded from linting.
-  { ignores: ['dist'] },
+  // Build output only — no source is excluded from linting. `storybook-static`
+  // and `coverage` are generated too, and both hold minified bundles that would
+  // otherwise be linted as source.
+  { ignores: ['dist', 'storybook-static', 'coverage'] },
   js.configs.recommended,
   tseslint.configs.recommended,
   {

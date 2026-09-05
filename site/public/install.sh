@@ -200,6 +200,35 @@ done <<EOF
 $dirs
 EOF
 
+# Sandboxed browsers. A snap or Flatpak browser cannot launch a native host
+# that lives outside its sandbox: /usr/local/bin is not visible from inside it,
+# and even a host it could reach would run confined, unable to see the system
+# aria2c or the user's download folder. No manifest is written for them — one
+# would only make the extension report a host it can never actually start.
+# Instead the user is told, because from the extension's side this is
+# indistinguishable from a host that was never installed.
+if [ "$os" = linux ]; then
+  sandboxed=""
+  for d in \
+    "$HOME/snap/chromium" \
+    "$HOME/snap/brave" \
+    "$HOME/snap/opera" \
+    "$HOME/.var/app/com.google.Chrome" \
+    "$HOME/.var/app/org.chromium.Chromium" \
+    "$HOME/.var/app/com.brave.Browser" \
+    "$HOME/.var/app/com.microsoft.Edge" \
+    "$HOME/.var/app/com.vivaldi.Vivaldi" \
+    "$HOME/.var/app/com.opera.Opera"; do
+    [ -d "$d" ] && sandboxed="$sandboxed
+  $d"
+  done
+  if [ -n "$sandboxed" ]; then
+    echo "note: sandboxed browser install(s) found:$sandboxed" >&2
+    echo "      a snap or Flatpak browser cannot run native messaging hosts, so the extension" >&2
+    echo "      cannot reach aria2t from it — use the browser vendor's .deb/.rpm build instead" >&2
+  fi
+fi
+
 if [ "$written" -eq 0 ]; then
   echo "no supported browser data dirs found — open your browser once, then re-run" >&2
   exit 1
