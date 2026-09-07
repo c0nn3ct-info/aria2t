@@ -4,14 +4,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, userEvent, waitFor } from '@/test/render';
 import { LOCALES, setLocale } from '@/i18n';
 import en from '@/i18n/en.json';
-import { HomePage } from './home';
+import { LandingPage } from './landing';
 import { InstallPage } from './install';
 import { ExtensionPage } from './extension';
 import { PrivacyPage } from './privacy';
 import { LicensePage } from './license';
 
 const PAGES = [
-  ['home', HomePage],
+  ['home', LandingPage],
   ['install', InstallPage],
   ['extension', ExtensionPage],
   ['privacy', PrivacyPage],

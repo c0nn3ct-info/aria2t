@@ -70,6 +70,7 @@ const ACCENT_TITLES: Record<Accent, string> = {
   neutral: 'Neutral',
   purple: 'Purple',
   cyan: 'Cyan',
+  blue: 'Blue (landing)',
 };
 
 // The locale items derive from `LOCALES` for the same reason: a seventh

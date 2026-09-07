@@ -1,9 +1,26 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { render, screen, userEvent } from '@/test/render';
 import { LOCALES, setLocale } from '@/i18n';
-import { FaqSection } from './faq-section';
+import { FaqList, FaqSection } from './faq-section';
 
 afterEach(() => setLocale('en'));
+
+describe('FaqList', () => {
+  it('draws the same entries bare when the page frames them itself', () => {
+    const card = render(<FaqList />);
+    const boxed = card.container.firstElementChild!;
+    expect(boxed.className).toMatch(/border/);
+    expect(boxed.querySelectorAll('details')).toHaveLength(8);
+    card.unmount();
+
+    const { container } = render(<FaqList variant="flush" />);
+    const flush = container.firstElementChild!;
+    expect(flush.className).not.toMatch(/border-outline/);
+    expect(flush.querySelectorAll('details')).toHaveLength(8);
+    // the same questions, whichever frame
+    expect(flush.textContent).toBe(boxed.textContent);
+  });
+});
 
 describe('FaqSection', () => {
   it('renders one collapsible entry per question, all closed', () => {

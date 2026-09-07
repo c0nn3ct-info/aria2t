@@ -24,3 +24,17 @@ export function stepSpeed(prev: number, target: number, rnd: () => number): numb
   const next = prev * 0.8 + target * 0.2 + (rnd() - 0.5) * target * 0.3;
   return Math.max(target * 0.4, Math.min(target * 1.6, next));
 }
+
+/**
+ * Whether a mock should animate at all.
+ *
+ * Two reasons not to, and both apply to every live figure on the site, which
+ * is why they live here rather than in one component: a prerender pass drives a
+ * real browser and its captured DOM has to equal the visitor's first render, and
+ * ambient movement with no informational content has to be stoppable (WCAG
+ * 2.2.2) - the honest way to stop it is not to start.
+ */
+export function motionAllowed(): boolean {
+  if (navigator.webdriver) return false;
+  return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}

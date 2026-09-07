@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Download, FileText, Github, Home, Puzzle, ShieldCheck } from 'lucide-react';
 import { Aria2tLogo } from '@/components/aria2t-logo';
 import { GITHUB_URL, ORG_SITE } from '@/constants';
+import { cn } from '@/lib/utils';
 import { localePath, t } from './i18n';
 import { LanguageSwitcher } from './components/language-switcher';
 import { GithubLink } from './components/github-link';
@@ -10,12 +11,18 @@ type PageKey = 'home' | 'install' | 'extension' | 'privacy' | 'license';
 
 interface LayoutProps {
   current: PageKey;
+  /**
+   * Full-bleed main: the page lays out its own sections edge to edge (a hero
+   * that paints under the header, bands of alternating width) instead of
+   * living in the reading column every other page uses.
+   */
+  bleed?: boolean;
   children: ReactNode;
 }
 
 // `current` stays in the props so callers keep naming the page they render,
 // but the layout itself has no use for it — the nav marks nothing active.
-export function Layout({ children }: LayoutProps) {
+export function Layout({ bleed = false, children }: LayoutProps) {
   const homeHref = localePath('/');
   return (
     <div className="flex min-h-screen flex-col bg-background text-on-surface">
@@ -42,11 +49,27 @@ export function Layout({ children }: LayoutProps) {
         </nav>
       </header>
 
-      <main id="main" className="mx-auto w-full max-w-3xl flex-1 px-4 py-10 sm:px-6 sm:py-12 lg:max-w-5xl">
+      <main
+        id="main"
+        className={
+          bleed
+            ? 'w-full flex-1'
+            : 'mx-auto w-full max-w-3xl flex-1 px-4 py-10 sm:px-6 sm:py-12 lg:max-w-5xl'
+        }
+      >
         {children}
       </main>
 
-      <footer className="mx-auto w-full max-w-3xl px-4 py-8 text-label-medium text-on-surface-variant sm:px-6 lg:max-w-5xl">
+      {/* The footer has to line up with whatever the page above it used, or its
+          rule and its columns stop short of the content they close. */}
+      <footer
+        className={cn(
+          'mx-auto w-full py-8 text-label-medium text-on-surface-variant',
+          bleed
+            ? 'max-w-[1160px] px-5 sm:px-8 lg:px-10'
+            : 'max-w-3xl px-4 sm:px-6 lg:max-w-5xl',
+        )}
+      >
         <div className="border-t border-outline-variant pt-6 flex flex-wrap items-start gap-x-12 gap-y-6">
           {/* The by-line points at the org site, not this one: aria2t.c0nn3ct.info
               is the product, c0nn3ct.info is who made it. */}

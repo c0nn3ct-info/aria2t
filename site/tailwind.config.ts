@@ -162,11 +162,19 @@ export default {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.45' },
         },
+        // A swapped panel arrives from just under its resting place rather
+        // than blinking into it. One moment, one direction, already-visible
+        // default (`both` holds the end state, never the start).
+        'swap-in': {
+          from: { opacity: '0', transform: 'translateY(8px)' },
+          to: { opacity: '1', transform: 'none' },
+        },
       },
       animation: {
         'pulse-ring': 'pulse-ring var(--pulse-dur, 3s) var(--ease-emph-decel) infinite',
         breathe: 'breathe 3.6s var(--ease-emph) infinite',
         'status-dot': 'status-dot 1.4s var(--ease-emph) infinite',
+        'swap-in': 'swap-in var(--dur-med) var(--ease-emph-decel) both',
       },
     },
   },

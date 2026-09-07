@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { mulberry32, stepSpeed } from '@/lib/mock-motion';
+import { ITEMS, fmtSize, useQueueScene, type Kind } from '@/lib/queue-scene';
 
 // The app's own palettes (tui/internal/ui/theme.go): Tokyo Night Day in light
 // mode, Tokyo Night in dark. Values live as --tui-* vars in globals.css so the
@@ -28,7 +27,7 @@ const C = {
 // nameW = width-72 and barW = 20 (shrinking only below nameW 20), while
 // STATUS/SIZE/SPEED/CONN/ETA are fixed at 9/9/12/7/9 whatever the width
 // (list.go). COLS = 100 therefore yields nameCol 18 and barW 20, and the row
-// comes to 93 cells inside the panel's 96 — exactly what `aria2t` prints in a
+// comes to 93 cells inside the panel's 96, which is what `aria2t` prints in a
 // 100-column terminal.
 const COLS = 100;
 const STATUS_W = 9;
@@ -79,8 +78,8 @@ export function fmtEta(remainBytes: number, bps: number): string {
 
 // The Active/All/Waiting key-bar, in the real bar's order
 // (tui/internal/ui/list.go listModel.keybar). Order matters: the bar is
-// width-adaptive and drops from the RIGHT, so at the mock's 80 columns the tail
-// (g stats onward) is genuinely absent from the real screen too.
+// width-adaptive and drops from the RIGHT, so the tail the mock cuts at its 100
+// columns is genuinely absent from the real screen at that width too.
 export const LIST_HINTS: ReadonlyArray<[string, string]> = [
   ['a', 'add'],
   ['space', 'pause'],
@@ -117,60 +116,8 @@ export function fitHints(
   return out;
 }
 
-// The five downloading rows: target speed, size, starting percent.
-const LIVE_TARGETS = [4_000_000, 2_500_000, 6_100_000, 1_500_000, 930_000] as const;
-const LIVE_BYTES = [
-  5.4 * 1073741824,
-  2.3 * 1073741824,
-  1.2 * 1073741824,
-  4.1 * 1073741824,
-  1.4 * 1073741824,
-] as const;
-const LIVE_P0 = [35.2, 68.4, 19.1, 55.6, 81.3] as const;
-
-interface Live {
-  speeds: number[];
-  pcts: number[];
-  up: number;
-}
-
-// Seed by running the walk forward deterministically, so the opening frame is
-// already settled (same distribution as the live tick).
-function seedLive(): Live {
-  const rnd = mulberry32(0x61726961); // 'aria'
-  const speeds = [...LIVE_TARGETS] as number[];
-  let up = 900_000;
-  for (let i = 0; i < 16; i++) {
-    for (let j = 0; j < speeds.length; j++) speeds[j] = stepSpeed(speeds[j], LIVE_TARGETS[j], rnd);
-    up = stepSpeed(up, 900_000, rnd);
-  }
-  return { speeds, pcts: [...LIVE_P0], up };
-}
-
-function useLiveList(): Live {
-  const [live, setLive] = useState<Live>(seedLive);
-  useEffect(() => {
-    // Keep the prerender frozen at the deterministic seed: the prerendered DOM
-    // must equal the first client render or hydration mismatches.
-    if (navigator.webdriver) return;
-    const rnd = () => Math.random();
-    const id = setInterval(() => {
-      setLive((l) => {
-        const speeds = l.speeds.map((s, j) => stepSpeed(s, LIVE_TARGETS[j], rnd));
-        // Visual pace, slower than real time so the bars creep rather than race;
-        // wrap near the end so the demo never freezes at 100%.
-        const pcts = l.pcts.map((p, j) =>
-          p >= 99 ? LIVE_P0[j] * 0.2 : p + (speeds[j] / LIVE_BYTES[j]) * 100 * 0.35,
-        );
-        return { speeds, pcts, up: stepSpeed(l.up, 900_000, rnd) };
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
-  return live;
-}
-
-type Status = 'active' | 'seeding' | 'waiting' | 'paused' | 'error' | 'done';
+// The same six the queue store uses; aria2 has no seventh.
+type Status = Kind;
 
 const STATUS_COLOR: Record<Status, string> = {
   active: C.green,
@@ -241,99 +188,38 @@ export function Row({ name, status, pct, size, speed, conn, eta, selected }: Row
   );
 }
 
-const LIVE_NAMES = [
-  'ubuntu-24.04.2-desktop-amd64.iso',
-  'fedora-workstation-42-x86_64.iso',
-  'archlinux-2026.07.01-x86_64.iso',
-  'kali-linux-2026.2-installer.iso',
-  'tails-amd64-6.15.img',
-] as const;
-const LIVE_SIZES = ['5.4 GiB', '2.3 GiB', '1.2 GiB', '4.1 GiB', '1.4 GiB'] as const;
-
 export function ListMock({ className }: { className?: string }) {
-  const live = useLiveList();
+  const scene = useQueueScene();
 
   // Header line: brand │ endpoint ▪ connected … ▼ down ▲ up (app.go header()).
-  const down = `▼ ${fmtSpeed(live.speeds.reduce((a, b) => a + b, 0))}`;
-  const up = `▲ ${fmtSpeed(live.up)}`;
+  // Both figures are aria2's globals, which is why they match the extension
+  // popup's to the byte: it is the same daemon and the same store.
+  const down = `▼ ${fmtSpeed(scene.down)}`;
+  const up = `▲ ${fmtSpeed(scene.up)}`;
   const headerLeft = 'Aria2t │ localhost:6800 (built-in) ▪ connected';
   const headerGap = Math.max(1, COLS - 1 - headerLeft.length - down.length - 1 - up.length);
 
-  const rows: RowData[] = [
-    ...LIVE_NAMES.map((name, j) => ({
-      name,
-      status: 'active' as Status,
-      pct: live.pcts[j],
-      size: LIVE_SIZES[j],
-      speed: fmtSpeed(live.speeds[j]),
-      conn: '1',
-      eta: fmtEta(LIVE_BYTES[j] * (1 - live.pcts[j] / 100), live.speeds[j]),
-      selected: j === 0,
-    })),
-    {
-      name: 'debian-13.1.0-amd64-netinst.iso',
-      status: 'seeding',
-      pct: 100,
-      size: '680 MiB',
-      speed: '-',
-      conn: '0:34',
-      eta: '-',
-    },
-    {
-      name: 'raspios-bookworm-arm64-full.img.xz',
-      status: 'waiting',
-      pct: 0,
-      size: '0 B',
-      speed: '-',
-      conn: '-',
-      eta: '-',
-    },
-    {
-      name: 'libreoffice-25.8.1-macos-aarch64.dmg',
-      status: 'waiting',
-      pct: 0,
-      size: '0 B',
-      speed: '-',
-      conn: '-',
-      eta: '-',
-    },
-    {
-      name: 'linuxmint-22.1-cinnamon-64bit.iso',
-      status: 'paused',
-      pct: 35.7,
-      size: '2.8 GiB',
-      speed: '-',
-      conn: '-',
-      eta: '-',
-    },
-    {
-      name: 'freebsd-14.3-memstick-amd64.img',
-      status: 'paused',
-      pct: 0,
-      size: '0 B',
-      speed: '-',
-      conn: '-',
-      eta: '-',
-    },
-    {
-      name: 'mirrorlist-nope.iso',
-      status: 'error',
-      pct: 0,
-      size: '0 B',
-      speed: '-',
-      conn: '-',
-      eta: '-',
-    },
-    {
-      name: 'gparted-live-1.7.0-amd64.iso',
-      status: 'done',
-      pct: 100,
-      size: '527 MiB',
-      speed: '-',
-      conn: '-',
-      eta: '-',
-    },
-  ];
+  const rows: RowData[] = ITEMS.map((item, i) => {
+    const { kind, pct, speed } = scene.live[i];
+    return {
+      name: item.name,
+      status: kind,
+      pct,
+      // `FmtBytes(s.Total())`, whatever the status. A download that failed
+      // before it read a content length has no total, which is the `0 B` the
+      // real screen prints on its error row; a queued one restored from the
+      // session does have one (tui-storybook/frames/screens-list-all.json).
+      size: kind === 'error' ? '0 B' : fmtSize(item.bytes),
+      // SPEED is the download column. A seeding torrent's upload is in the
+      // header total, the way the real screen prints it.
+      speed: kind === 'active' ? fmtSpeed(speed) : '-',
+      conn: kind === 'active' || kind === 'seeding' ? item.conn : '-',
+      // Remaining bytes over the current speed, so the countdown runs at one
+      // second per second instead of drifting against the bar beside it.
+      eta: kind === 'active' ? fmtEta(item.bytes * (1 - pct / 100), speed) : '-',
+      selected: i === 0,
+    };
+  });
 
   // aria2's own bucketing (rpc tellActive/tellWaiting/tellStopped): seeding is
   // still active, paused counts as waiting, and stopped holds done + error.

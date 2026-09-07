@@ -2,7 +2,7 @@
 // mock beside it: identical on the server and on first client paint, then live.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render } from '@/test/render';
-import { fmtSpeed, PopupMock } from './popup-mock';
+import { PopupMock, figureFor, fmtSpeed } from './popup-mock';
 import { fabVariants } from './ui/fab';
 import { iconButtonVariants } from './ui/icon-button';
 import { setLocale } from '../i18n';
@@ -89,6 +89,9 @@ describe('PopupMock', () => {
   it('wears the real popup\'s controls, at the real popup\'s size', () => {
     const { container } = render(<PopupMock />);
     const shell = container.firstElementChild!;
+    // 380x600, the surface Chrome opens: the real shell is fixed there
+    // (extension/src/popup/app.tsx) and what does not fit scrolls in the list.
+    // A caller with less room than 380 overrides the width through `className`.
     expect(shell).toHaveClass('h-[600px]', 'w-[380px]');
 
     // the hero's whole-queue action is the extension's success FAB — the muted
@@ -149,11 +152,26 @@ describe('speaking the page language', () => {
 });
 
 describe('the extension formatter it mirrors', () => {
-  it('formats a speed in B, KiB and MiB, and nothing as zero', () => {
-    expect(fmtSpeed(0)).toBe('0 B/s');
-    expect(fmtSpeed(-1)).toBe('0 B/s');
+  it('formats a speed in B, KiB and MiB, and idle as a dash', () => {
+    // `-`, not `0 B/s`: that is what the extension's own fmtSpeed returns
+    // (extension/src/lib/aria2/format.ts), and the terminal's FmtSpeed too.
+    expect(fmtSpeed(0)).toBe('-');
+    expect(fmtSpeed(-1)).toBe('-');
     expect(fmtSpeed(512)).toBe('512 B/s');
     expect(fmtSpeed(2048)).toBe('2 KiB/s');
     expect(fmtSpeed(1048576 * 3.25)).toBe('3.3 MiB/s');
+  });
+});
+
+describe('what a row prints where a speed would go', () => {
+  it('shows the speed while it moves, and what is on disk when it does not', () => {
+    // The popup shows the head of the queue, so a queued or failed download
+    // never reaches these rows through the component.
+    expect(figureFor(0, 'active', 9.8 * 1048576)).toBe('↓ 9.8 MiB/s');
+    expect(figureFor(1, 'seeding', 5 * 1048576)).toBe('↑ 5.0 MiB/s');
+    expect(figureFor(4, 'paused', 0)).toBe('680 MiB');
+    expect(figureFor(11, 'done', 0)).toBe('527 MiB');
+    expect(figureFor(8, 'waiting', 0)).toBe('0 B');
+    expect(figureFor(10, 'error', 0)).toBe('0 B');
   });
 });

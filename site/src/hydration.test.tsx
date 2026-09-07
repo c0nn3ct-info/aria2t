@@ -14,14 +14,14 @@ import { createRoot, hydrateRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from '@/test/render';
 import { LOCALES, setLocale } from '@/i18n';
-import { HomePage } from '@/pages/home';
+import { LandingPage } from '@/pages/landing';
 import { InstallPage } from '@/pages/install';
 import { ExtensionPage } from '@/pages/extension';
 import { PrivacyPage } from '@/pages/privacy';
 import { LicensePage } from '@/pages/license';
 
 const PAGES = [
-  ['home', HomePage],
+  ['home', LandingPage],
   ['install', InstallPage],
   ['extension', ExtensionPage],
   ['privacy', PrivacyPage],
@@ -81,6 +81,6 @@ describe('every locale', () => {
   // splits the same way, and only in that language.
   it.each(LOCALES)('hydrates the home page in %s', async (locale) => {
     setLocale(locale);
-    expect(await roundTrip(<HomePage />)).toEqual([]);
+    expect(await roundTrip(<LandingPage />)).toEqual([]);
   });
 });

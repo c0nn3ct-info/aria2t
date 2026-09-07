@@ -8,7 +8,9 @@ import { t } from '../i18n';
 
 export type Surface = 'terminal' | 'extension';
 
-export const SURFACES: readonly Surface[] = ['terminal', 'extension'];
+// Extension first: it is the surface both pages open on, and a group of toggle
+// buttons should lead with the one that is pressed.
+export const SURFACES: readonly Surface[] = ['extension', 'terminal'];
 
 const ICON = {
   terminal: TerminalSquare,
@@ -41,7 +43,9 @@ export function SurfaceSwitch({ value, onChange, className }: Props) {
             aria-pressed={active}
             onClick={() => onChange(s)}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-label-medium transition-colors',
+              // 44px tall: the comp draws this control at 46, and anything under 44
+              // is below every touch-target floor.
+              'inline-flex min-h-[44px] items-center gap-1.5 rounded-pill px-4 text-label-medium transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
               active
                 ? 'bg-secondary-container text-secondary-on-container'

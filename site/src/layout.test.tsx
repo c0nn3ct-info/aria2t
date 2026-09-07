@@ -18,6 +18,20 @@ describe('Layout', () => {
     expect(screen.getByRole('contentinfo')).toBeInTheDocument();
   });
 
+  it('drops the reading column when a page lays itself out edge to edge', () => {
+    render(
+      <Layout current="home" bleed>
+        <p>hero</p>
+      </Layout>,
+    );
+    const main = screen.getByRole('main');
+    expect(main.className).not.toMatch(/max-w-/);
+    expect(main.className).not.toMatch(/px-/);
+    // the chrome around it is unchanged
+    expect(screen.getByRole('banner')).toBeInTheDocument();
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+  });
+
   it('links home, to GitHub and to every page', () => {
     render(
       <Layout current="install">

@@ -338,6 +338,67 @@
     --surface-container-highest: 190 16% 21%;
   }
 
+  /* Blue — the landing page's palette, taken from the Claude Design comp:
+   * #a8c7fa as primary, #c6b2ff as tertiary, over the comp's violet-tinted
+   * near-blacks (#0b0b0f ground, #14131a cards, #22222c rules). It reaches
+   * further than the other two accents on purpose: those tint an otherwise
+   * neutral page, while this one *is* the comp's palette, so it also carries
+   * the greys the comp draws its type and its rules in.
+   *
+   * Element-scoped, not `:root`-scoped like purple and cyan: the landing sets
+   * it together with `data-theme="dark"` on one wrapper, so the palette applies
+   * to that subtree and the rest of the site keeps its own. */
+  [data-accent='blue'] {
+    --primary: 217 60% 42%;
+    --on-primary: 0 0% 100%;
+    --primary-container: 217 90% 92%;
+    --on-primary-container: 217 80% 22%;
+    --secondary-container: 217 55% 85%;
+    --on-secondary-container: 217 60% 20%;
+    --tertiary: 256 45% 50%;
+    --on-tertiary: 0 0% 100%;
+    --tertiary-container: 256 80% 93%;
+    --on-tertiary-container: 256 55% 26%;
+    --surface-container-low:     217 40% 96%;
+    --surface-container:         217 42% 93%;
+    --surface-container-high:    217 44% 90%;
+    --surface-container-highest: 217 44% 86%;
+    --surface-variant:           217 30% 88%;
+    --outline-variant:           217 26% 82%;
+    --background:                217 30% 99%;
+    --surface:                   217 30% 99%;
+  }
+  [data-accent='blue'][data-theme='dark'],
+  [data-accent='blue'].dark {
+    --background:                240 15%  5%;
+    --surface:                   240 15%  5%;
+    --on-surface:                248 31% 95%;
+    --on-surface-variant:        247 11% 69%;
+    --outline:                   244 11% 25%;
+    --outline-variant:           240 13% 15%;
+    --surface-variant:           245 12% 21%;
+    --surface-container-lowest:  240 14%  4%;
+    --surface-container-low:     249 16%  9%;
+    --surface-container:         245 15% 11%;
+    --surface-container-high:    240 12% 14%;
+    --surface-container-highest: 245 12% 21%;
+    --primary:                   217 89% 82%;
+    --on-primary:                219 84% 20%;
+    --primary-container:         218 47% 25%;
+    --on-primary-container:      222 100% 92%;
+    --secondary-container:       240 12% 14%;
+    --on-secondary-container:    248 31% 95%;
+    --tertiary:                  256 100% 85%;
+    --on-tertiary:               255 45% 18%;
+    --tertiary-container:        255 38% 27%;
+    --on-tertiary-container:     259 100% 94%;
+    --success-container:         148 37% 17%;
+    --on-success-container:      139 58% 86%;
+    --success-text:              145 47% 66%;
+    --warning-container:          43 51% 15%;
+    --on-warning-container:       43 74% 77%;
+  }
+
   /* System dark + accent: light accent has higher specificity than the base
    * media-query dark, so re-apply dark accent tokens here. */
   @media (prefers-color-scheme: dark) {
@@ -399,6 +460,19 @@
       'Noto Sans CJK SC', sans-serif;
     font-feature-settings: 'cv11', 'ss01';
     -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer base {
+  /* Two surfaces the browser draws that no palette had claimed yet. Both are
+     visible on every page, and both read as vendor default until they are
+     told which system they belong to. */
+  ::selection {
+    background-color: hsl(var(--primary) / 0.3);
+    color: hsl(var(--on-surface));
+  }
+  html {
+    scrollbar-color: hsl(var(--outline)) transparent;
   }
 }
 
@@ -519,6 +593,65 @@
   40% { transform: translateX(70%); width: 50%; }
   60% { transform: translateX(110%); width: 30%; }
   100% { transform: translateX(170%); width: 30%; }
+}
+
+/* ── band entrances ─────────────────────────────────────────────────────────
+ *
+ * Tied to where the element is, not to a clock. A fixed-duration entrance has
+ * no relationship to the scroll: at an ordinary wheel speed every element
+ * begins well below the fold and finishes above the top of the screen, so
+ * whatever the reader catches is an arbitrary phase of it that then snaps to
+ * done. That decoupling is what reads as jerky, and no easing fixes it, because
+ * the eye tracks position while the animation tracks time.
+ *
+ * A `view()` timeline makes progress a function of position instead. Scroll
+ * fast, slow, or stop, and the element is in exactly the state its place on
+ * screen calls for. The cascade down a list stops being a stack of timed delays
+ * and becomes what it looks like: each row arriving as it gets there.
+ * `src/lib/use-enter.ts` plays the same two gestures off a timer where these
+ * timelines do not exist.
+ *
+ * Transform and opacity only, both composited: everything else pays in paint.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    [data-enter],
+    [data-enter-stagger] > * {
+      animation: enter-rise linear both;
+      animation-timeline: view();
+      /* Measured against the whole overlap rather than the element's own
+       * height, so a tall panel and a short row take a comparable run of
+       * scroll instead of the big one crawling. */
+      animation-range: cover 0% cover 22%;
+    }
+    /* A sequence arrives along the line it is read on. */
+    [data-enter='wipe'],
+    [data-enter-stagger='wipe'] > * {
+      animation-name: enter-line;
+    }
+    [dir='rtl'] [data-enter='wipe'],
+    [dir='rtl'] [data-enter-stagger='wipe'] > * {
+      animation-name: enter-line-rtl;
+    }
+  }
+}
+@keyframes enter-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+}
+@keyframes enter-line {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+@keyframes enter-line-rtl {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
 }
 
 @layer base {
