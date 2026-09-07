@@ -68,6 +68,10 @@ const DROP = 0.45;
 const ADVANCE = 0.65;
 const IDLE = 0.45;
 const STEP = 1 / 120;
+/** A frame that costs this long, in ms, is a machine drawing in software. */
+const SLOW_FRAME = 80;
+/** How many of those in a row before the loop leaves the scene as a still. */
+const SLOW_STREAK = 5;
 
 const DEG = Math.PI / 180;
 
@@ -1024,6 +1028,13 @@ export function bootHeroScene(
   } else {
     let last = performance.now();
     let acc = 0;
+    // A machine with no GPU falls back to software GL, where one frame of this
+    // scene costs longer than the frame it is drawing. The loop then never
+    // hands the main thread back: measured in a headless Chrome on SwiftShader,
+    // the page never reaches network idle at all. So it watches what a frame
+    // costs and stops, leaving the last one painted - the same still image
+    // reduced motion gets.
+    let slow = 0;
     const frame = (now: number) => {
       if (!alive) return;
       raf = requestAnimationFrame(frame);
@@ -1035,7 +1046,13 @@ export function bootHeroScene(
         sim(STEP);
         acc -= STEP;
       }
+      const t0 = performance.now();
       renderer.render(scene, camera);
+      if (performance.now() - t0 < SLOW_FRAME) {
+        slow = 0;
+        return;
+      }
+      if (++slow >= SLOW_STREAK) alive = false;
     };
     raf = requestAnimationFrame(frame);
   }

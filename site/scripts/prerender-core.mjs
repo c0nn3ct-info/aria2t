@@ -331,7 +331,15 @@ export async function main() {
   const port = 4321 + Math.floor(Math.random() * 1000);
   const server = await startServer(port);
   const executablePath = findSystemChrome();
-  const launchOpts = { headless: true };
+  // No WebGL: the prerender captures DOM, and a canvas contributes none of it.
+  // Left on, the hero's scene renders through SwiftShader on a machine with no
+  // GPU, which is what a CI runner is; that saturates the main thread and the
+  // navigation never reaches network idle. Measured on a runner: a 30s
+  // timeout on the first page. Without it, idle in about a second.
+  const launchOpts = {
+    headless: true,
+    args: ['--disable-gpu', '--disable-software-rasterizer'],
+  };
   if (executablePath) {
     launchOpts.executablePath = executablePath;
     console.log(`using system Chrome: ${executablePath}`);

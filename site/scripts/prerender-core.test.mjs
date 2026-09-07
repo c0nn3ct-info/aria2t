@@ -267,7 +267,12 @@ describe('main', () => {
     // And it always closes what it opened.
     expect(closed.browser).toBe(1);
     expect(closed.server).toBe(1);
-    expect(launch).toHaveBeenCalledWith({ headless: true });
+    // No WebGL: a canvas contributes nothing to a DOM capture, and left on it
+    // pins the main thread on a machine with no GPU.
+    expect(launch).toHaveBeenCalledWith({
+      headless: true,
+      args: ['--disable-gpu', '--disable-software-rasterizer'],
+    });
   });
 
   it('uses a system Chrome when it finds one', async () => {

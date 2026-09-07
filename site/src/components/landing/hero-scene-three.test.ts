@@ -9,6 +9,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const renders = { count: 0 };
+/** What one `render()` costs, in ms of the fake clock the suite installs. */
+const renderCost = { ms: 0 };
 const sizes: [number, number][] = [];
 const disposed = { count: 0 };
 
@@ -24,6 +26,7 @@ vi.mock('three', async (importOriginal) => {
     }
     render() {
       renders.count++;
+      fakeNow += renderCost.ms;
     }
     dispose() {
       disposed.count++;
@@ -54,6 +57,9 @@ function fakeContext(): CanvasRenderingContext2D {
   }) as unknown as CanvasRenderingContext2D;
 }
 
+/** The clock `performance.now` reads, so a frame's cost is what the fake
+ *  renderer says it is rather than what this machine happens to take. */
+let fakeNow = 0;
 let frames: FrameRequestCallback[] = [];
 let resizeCb: (() => void) | undefined;
 let ioCb: ((e: { isIntersecting: boolean }[]) => void) | undefined;
@@ -80,6 +86,9 @@ beforeEach(() => {
   sizes.length = 0;
   frames = [];
   clock = 0;
+  fakeNow = 0;
+  renderCost.ms = 0;
+  vi.spyOn(performance, 'now').mockImplementation(() => fakeNow);
   resizeCb = undefined;
   ioCb = undefined;
   reduced.value = false;
@@ -225,6 +234,39 @@ describe('bootHeroScene', () => {
     const before = renders.count;
     step(30);
     expect(renders.count).toBe(before);
+    handle.dispose();
+  });
+
+  it('leaves the scene as a still on a machine drawing in software', async () => {
+    // Five frames costing more than the frame they draw: the loop stops rather
+    // than pinning the main thread, which is what kept a GPU-less runner from
+    // ever reaching network idle.
+    const { handle } = await boot();
+    step(6);
+    const fast = renders.count;
+    expect(fast).toBeGreaterThan(0);
+
+    renderCost.ms = 200;
+    step(6);
+    const slow = renders.count;
+    expect(slow).toBe(fast + 5);
+
+    renderCost.ms = 0;
+    step(6);
+    expect(renders.count).toBe(slow);
+    handle.dispose();
+  });
+
+  it('forgives a slow frame that does not become a streak', async () => {
+    const { handle } = await boot();
+    for (let i = 0; i < 15; i++) {
+      renderCost.ms = i % 3 === 0 ? 200 : 0;
+      step(1);
+    }
+    const before = renders.count;
+    renderCost.ms = 0;
+    step(3);
+    expect(renders.count).toBe(before + 3);
     handle.dispose();
   });
 
