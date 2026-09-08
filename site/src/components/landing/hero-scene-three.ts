@@ -13,10 +13,12 @@ import {
   BoxGeometry,
   BufferGeometry,
   CanvasTexture,
+  CapsuleGeometry,
   Color,
   CylinderGeometry,
   DirectionalLight,
   EdgesGeometry,
+  ExtrudeGeometry,
   Fog,
   Group,
   HemisphereLight,
@@ -30,6 +32,7 @@ import {
   PointLight,
   QuadraticBezierCurve3,
   Scene,
+  Shape,
   SphereGeometry,
   TorusGeometry,
   Vector3,
@@ -37,15 +40,81 @@ import {
 } from 'three';
 import { mulberry32 } from '@/lib/mock-motion';
 
-// The page around this canvas is the comp's dark stage (`data-theme="dark"`
-// plus `data-accent="blue"`), so the scene is lit for that ground and not for
-// the site's default neutral one. BG has to equal what the page paints — the fog and the pylons' sinking supports fade into it, and a canvas
-// that fades to a slightly different black leaves a visible rectangle.
-const BG = 0x0b0b0f;
-const PRIMARY = 0xa8c7fa;
-const VIOLET = 0xc6b2ff;
-const CYAN = 0x7dcfee;
-const MAGENTA = 0xbb9af7;
+// The scene used to assume the page around this canvas was always the comp's
+// dark stage. It now reads which theme is actually active and builds one of
+// two palettes: dark is the comp's original fixed set below; light derives
+// its background/primary/tertiary from the same `[data-accent='blue']` CSS
+// tokens the surrounding bands use (`globals.css`), so the WebGL ground and
+// the page's own background can never drift the way two hand-picked hex
+// constants could. `cyan`/`magenta`/the card-face colors have no CSS token —
+// they are scene-only accents — and are tuned by eye for each stage.
+interface Palette {
+  bg: number;
+  primary: number;
+  tertiary: number;
+  cyan: number;
+  magenta: number;
+  /** The face `typeTexture` paints each file-type icon onto. */
+  cardBg: string;
+  /** The extension label drawn on that face. */
+  label: string;
+}
+
+const DARK: Palette = {
+  bg: 0x0b0b0f,
+  primary: 0xa8c7fa,
+  tertiary: 0xc6b2ff,
+  cyan: 0x7dcfee,
+  magenta: 0xbb9af7,
+  cardBg: '#0f1726',
+  label: '#e8f4ff',
+};
+
+/**
+ * Parses a `"H S% L%"` custom property (the format every token in
+ * `globals.css` is written in) into the fractions `Color.setHSL` wants.
+ * Returns null when the property is unset or unparseable — the jsdom test
+ * host has no stylesheet loaded by default, and `isDark`/`currentPalette`
+ * both fall back to the dark palette in that case, which is what every
+ * pre-existing test in this file already boots against.
+ */
+function readHSL(name: string): [h: number, s: number, l: number] | null {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const m = /^([\d.]+)\s+([\d.]+)%\s+([\d.]+)%$/.exec(raw);
+  if (!m) return null;
+  return [parseFloat(m[1]), parseFloat(m[2]) / 100, parseFloat(m[3]) / 100];
+}
+
+function hslHex([h, s, l]: [number, number, number]): number {
+  return new Color().setHSL(h / 360, s, l).getHex();
+}
+
+/** Whether the page is currently resolved dark — the one thing both the
+ * scene and `hero-scene.tsx`'s reboot-on-flip watcher need to agree on. */
+export function isDark(): boolean {
+  const bg = readHSL('--background');
+  return !bg || bg[2] < 0.5;
+}
+
+function currentPalette(): Palette {
+  if (isDark()) return DARK;
+  const primary = readHSL('--primary');
+  const tertiary = readHSL('--tertiary');
+  return {
+    bg: hslHex(readHSL('--background')!),
+    primary: primary ? hslHex(primary) : DARK.primary,
+    tertiary: tertiary ? hslHex(tertiary) : DARK.tertiary,
+    cyan: 0x1f8fae,
+    magenta: 0x7a4fc9,
+    cardBg: '#e9f0fb',
+    label: '#16223a',
+  };
+}
+
+/** `rgba()` string for a canvas 2D stroke/fill from a three.js hex color. */
+function hexRgba(hex: number, alpha: number): string {
+  return `rgba(${(hex >> 16) & 255},${(hex >> 8) & 255},${hex & 255},${alpha})`;
+}
 
 const CUBE = 0.78;
 const LX = 4;
@@ -58,6 +127,8 @@ const SZ = CUBE / LZ;
 const BUILD_Y = 1.85;
 const BELT_Y = 0.32;
 const SLOT = 0.94;
+/** Opacity of a glow shell relative to the core it wraps. */
+const HALO = 0.42;
 const START_X = 5.6;
 /** Belt slots a cube rides before it leaves the frame. */
 const LINE = 13;
@@ -184,15 +255,21 @@ const easeIn = (t: number) => t * t;
  * reverse the `.iso` and `.mp4` baked into these faces. The icons survive a
  * mirror; Latin text does not.
  */
-function typeTexture(type: FileType, mirrorText: boolean): CanvasTexture {
+function typeTexture(
+  type: FileType,
+  mirrorText: boolean,
+  cardBg: string,
+  cyanBorder: number,
+  label: string,
+): CanvasTexture {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   // A fresh canvas always yields a 2D context in a browser that got this far
   // (the wrapper only boots when WebGL exists).
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = '#0f1726';
+  ctx.fillStyle = cardBg;
   ctx.fillRect(0, 0, 256, 256);
-  ctx.strokeStyle = 'rgba(125,207,238,0.45)';
+  ctx.strokeStyle = hexRgba(cyanBorder, 0.45);
   ctx.lineWidth = 5;
   ctx.strokeRect(9, 9, 238, 238);
   ctx.strokeStyle = type.color;
@@ -267,7 +344,7 @@ function typeTexture(type: FileType, mirrorText: boolean): CanvasTexture {
         ctx.stroke();
       }
   }
-  ctx.fillStyle = '#e8f4ff';
+  ctx.fillStyle = label;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = '500 34px ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -315,6 +392,18 @@ interface Flight {
   t: number;
   curve: QuadraticBezierCurve3;
   idx: number;
+}
+
+/** One belt slat: a fixed graphite crossbar plus a glowing light-line insert
+ * that fades with distance the way the old bare glow rung did. */
+interface Rung {
+  group: Group;
+  bottom: Mesh<BufferGeometry, MeshStandardMaterial>;
+  accent: Mesh<BufferGeometry, MeshBasicMaterial>;
+  /** Oversized additive shell around the accent — the glow's spill. */
+  halo: Mesh<BufferGeometry, MeshBasicMaterial>;
+  /** Peak opacity for the accent — brighter on the periodic highlighted slats. */
+  base: number;
 }
 
 interface Pylon {
@@ -380,6 +469,8 @@ export function bootHeroScene(
   // No `preserveDrawingBuffer`: the comp set it so the design tool could
   // capture a thumbnail, and it costs a retained copy of the framebuffer
   // every frame. Nothing here reads pixels back.
+  const { bg: BG, primary: PRIMARY, tertiary: VIOLET, cyan: CYAN, magenta: MAGENTA, cardBg: CARD_BG, label: LABEL } =
+    currentPalette();
   const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   const scene = new Scene();
@@ -427,34 +518,58 @@ export function bootHeroScene(
   scene.add(halo);
 
   // ---------- conveyor
-  const belt = new Mesh(
-    new BoxGeometry(27, 0.1, 1.2),
-    new MeshStandardMaterial({ color: 0x191a2c, roughness: 0.66, metalness: 0.26 }),
-  );
-  belt.position.set(5, BELT_Y - 0.05, 0);
-  world.add(belt);
-  for (const z of [-0.62, 0.62]) {
-    const rail = new Mesh(
-      new BoxGeometry(27, 0.045, 0.055),
-      new MeshStandardMaterial({ color: VIOLET, emissive: VIOLET, emissiveIntensity: 1.25, roughness: 0.3, metalness: 0.4 }),
-    );
-    rail.position.set(5, BELT_Y + 0.012, z);
-    world.add(rail);
-    const rg = new Mesh(new BoxGeometry(27, 0.18, 0.2), glowMat(VIOLET, 0.13));
-    rg.position.copy(rail.position);
-    world.add(rg);
+  //
+  // The GLB exporter lost the node transforms, but kept the source geometry's
+  // proportions: each tread fills about 75% of its pitch, overhangs the belt
+  // body slightly and repeats on the return run. Rebuild that silhouette here
+  // at the hero's much longer scale instead of replaying 47 coincident nodes.
+  const carbon = new MeshStandardMaterial({ color: 0x151a26, roughness: 0.55, metalness: 0.3 });
+  const graphite = new MeshStandardMaterial({ color: 0x252c3e, roughness: 0.42, metalness: 0.35 });
+  const beltBody = new Mesh(new BoxGeometry(27, 0.36, 1.08), carbon);
+  beltBody.name = 'belt_body';
+  beltBody.position.set(5, BELT_Y - 0.2, 0);
+  world.add(beltBody);
+
+  // A shallow inset on the near and far faces gives the body the same closed
+  // tread-loop read as the source model. It deliberately contains no drums,
+  // axles or idlers: the user wants the belt itself, without visible rollers.
+  const beltSideGeo = new BoxGeometry(27, 0.2, 0.025);
+  for (const z of [-0.55, 0.55]) {
+    const side = new Mesh(beltSideGeo, graphite);
+    side.name = 'belt_side';
+    side.position.set(5, BELT_Y - 0.2, z);
+    world.add(side);
   }
-  const rungs: Mesh<BoxGeometry, MeshBasicMaterial>[] = [];
-  const rungGeo = new BoxGeometry(0.055, 0.02, 1.05);
+
+  const rungs: Rung[] = [];
+  const slatGeo = roundedBox(0.38, 0.075, 1.16, 0.055, 0.016);
+  const accentGeo = roundedBox(0.2, 0.014, 1.02, 0.035, 0.006);
+  // There is no bloom pass in this scene, so the accent glows the way the cubes
+  // and the emitters do: an additive core under an oversized, fainter additive
+  // shell that spills past the slat and softens its edge.
+  const accentHaloGeo = roundedBox(0.46, 0.01, 1.26, 0.09, 0.004);
   for (let i = 0; i < 54; i++) {
-    const r = new Mesh(rungGeo, new MeshBasicMaterial({ color: VIOLET, transparent: true, opacity: 0.4 }));
-    r.position.set(i * (SLOT / 2) - 8, BELT_Y + 0.012, 0);
-    world.add(r);
-    rungs.push(r);
+    const group = new Group();
+    group.name = `belt_tread_${i}`;
+    const top = new Mesh(slatGeo, graphite);
+    const bottom = new Mesh(slatGeo, graphite);
+    bottom.position.y = -0.44;
+    group.add(top, bottom);
+    const bright = i % 3 === 0;
+    const color = Math.floor(i / 3) % 2 === 0 ? VIOLET : PRIMARY;
+    const base = bright ? 0.55 : 0.16;
+    const accent = new Mesh(accentGeo, glowMat(color, base));
+    accent.position.y = 0.075;
+    const halo = new Mesh(accentHaloGeo, glowMat(color, base * HALO));
+    halo.position.y = 0.079;
+    group.add(accent, halo);
+    group.position.set(i * (SLOT / 2) - 8, BELT_Y - 0.04, 0);
+    world.add(group);
+    rungs.push({ group, bottom, accent, halo, base });
   }
 
   // ---------- finished cubes (opaque)
-  const texes = TYPES.map((type) => typeTexture(type, mirrorText));
+  const texes = TYPES.map((type) => typeTexture(type, mirrorText, CARD_BG, CYAN, LABEL));
   const cubeGeo = new BoxGeometry(CUBE, CUBE, CUBE);
   const cubeEdgeGeo = new EdgesGeometry(cubeGeo);
   const live: Cube[] = [];
@@ -561,142 +676,183 @@ export function bootHeroScene(
     return m;
   });
 
-  // ---------- pylons: octagonal segmented towers, no spikes, opaque
-  const shellMat = new MeshStandardMaterial({ color: 0x342c4e, roughness: 0.44, metalness: 0.4 });
-  const shellDark = new MeshStandardMaterial({ color: 0x241e39, roughness: 0.5, metalness: 0.36 });
+  // ---------- pylons: the "Кластер" cyberpunk-pylon body with the "Пилюля"
+  // (pill) head, ported from
+  // .claude/Киберпанк пилоны_ четыре варианта/pylon-cluster-model.js and
+  // trimmed to exactly the one head this scene uses — this file's coverage
+  // gate is 100% branches, and a parameter no call site here ever varies is
+  // exactly the kind of dead branch that gate catches (see e.g. `extrudeY`,
+  // which drops the reference's own default bevel since `roundedBox` always
+  // forwards a concrete one, and `arcRing`, which drops the reference's own
+  // `spin` param since this head never spins its rings).
+  // `carbon`/`graphite` are declared above (the conveyor uses them too); one
+  // more structural neutral (`bone`) and the two accent materials this design
+  // uses are remapped onto the scene's own palette instead — periwinkle ->
+  // primary, lilac -> the existing violet trace — so the pylon recolors with
+  // everything else on a theme flip.
+  const bone = new MeshStandardMaterial({ color: 0xd8e0f2, emissive: 0x9db4e6, emissiveIntensity: 0.2, roughness: 0.34, metalness: 0.14 });
+  const tracePrimary = new MeshStandardMaterial({ color: PRIMARY, emissive: PRIMARY, emissiveIntensity: 1.1, roughness: 0.25, metalness: 0.3 });
   const traceMag = new MeshStandardMaterial({ color: MAGENTA, emissive: MAGENTA, emissiveIntensity: 1.25, roughness: 0.25, metalness: 0.3 });
   const traceViolet = new MeshStandardMaterial({ color: VIOLET, emissive: VIOLET, emissiveIntensity: 1.2, roughness: 0.25, metalness: 0.3 });
   const traceCyan = new MeshStandardMaterial({ color: CYAN, emissive: CYAN, emissiveIntensity: 1.05, roughness: 0.25, metalness: 0.3 });
-  const outlineViolet = new LineBasicMaterial({ color: VIOLET, transparent: true, opacity: 0.38 });
 
-  const buildPylon = (): { group: Group; emitter: Pylon['emitter']; emGlow: Pylon['emGlow']; tipY: number } => {
-    const p = new Group();
-    const traceOf = (i: number) => (i % 2 ? traceViolet : traceMag);
-    const TIER = 0.66;
-    const CAP = 0.07;
-
-    // base: plate, two neon rings, four anchors
-    const plate = new Mesh(new CylinderGeometry(1.06, 1.14, 0.07, 56), shellDark);
-    plate.position.y = 0.035;
-    p.add(plate);
-    for (const [r, alt] of [[0.99, 0], [0.79, 1]]) {
-      const mat = alt ? traceMag : traceViolet;
-      const ring = new Mesh(new TorusGeometry(r, 0.018, 10, 72), mat);
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = 0.085 + alt * 0.008;
-      p.add(ring);
-      const rg = new Mesh(new TorusGeometry(r, 0.075, 10, 72), glowMat(alt ? MAGENTA : VIOLET, 0.17));
-      rg.rotation.x = Math.PI / 2;
-      rg.position.y = ring.position.y;
-      p.add(rg);
+  /** M3-style rounded-rect profile, extruded along Y and based at y = 0. */
+  function roundedRectShape(w: number, d: number, r: number): Shape {
+    const x = w / 2;
+    const z = d / 2;
+    const rr = Math.max(0.001, Math.min(r, Math.min(x, z) - 0.001));
+    const shape = new Shape();
+    shape.moveTo(-x + rr, -z);
+    shape.lineTo(x - rr, -z);
+    shape.absarc(x - rr, -z + rr, rr, -Math.PI / 2, 0, false);
+    shape.lineTo(x, z - rr);
+    shape.absarc(x - rr, z - rr, rr, 0, Math.PI / 2, false);
+    shape.lineTo(-x + rr, z);
+    shape.absarc(-x + rr, z - rr, rr, Math.PI / 2, Math.PI, false);
+    shape.lineTo(-x, -z + rr);
+    shape.absarc(-x + rr, -z + rr, rr, Math.PI, Math.PI * 1.5, false);
+    return shape;
+  }
+  function baseAtZero(g: BufferGeometry): BufferGeometry {
+    g.computeBoundingBox();
+    g.translate(0, -g.boundingBox!.min.y, 0);
+    return g;
+  }
+  function extrudeY(shape: Shape, height: number, bevel: number): BufferGeometry {
+    const b = Math.min(bevel, height / 3);
+    const g = new ExtrudeGeometry(shape, {
+      depth: Math.max(0.004, height - b * 2),
+      bevelEnabled: b > 0,
+      bevelThickness: b,
+      bevelSize: b,
+      bevelSegments: 3,
+      curveSegments: 10,
+      steps: 1,
+    });
+    g.rotateX(-Math.PI / 2);
+    return baseAtZero(g);
+  }
+  function roundedBox(w: number, h: number, d: number, r: number, bevel = 0.014): BufferGeometry {
+    return extrudeY(roundedRectShape(w, d, r), h, bevel);
+  }
+  function arcRing(radius: number, tube: number, arc: number): TorusGeometry {
+    const g = new TorusGeometry(radius, tube, 10, Math.max(10, Math.round(arc * 44)), arc);
+    g.rotateX(-Math.PI / 2);
+    return g;
+  }
+  function pylonMesh(
+    name: string,
+    geo: BufferGeometry,
+    material: MeshStandardMaterial,
+    x = 0,
+    y = 0,
+    z = 0,
+  ): Mesh {
+    const m = new Mesh(geo, material);
+    m.name = name;
+    m.position.set(x, y, z);
+    return m;
+  }
+  function onFaces(parent: Group, n: number, cb: (face: Group, side: number) => void): void {
+    for (let s = 0; s < n; s++) {
+      const face = new Group();
+      face.rotation.y = (s / n) * Math.PI * 2;
+      cb(face, s);
+      parent.add(face);
     }
-    for (let i = 0; i < 4; i++) {
-      const ang = (Math.PI * 2 * i) / 4 + Math.PI / 4;
-      const anchor = new Mesh(new BoxGeometry(0.3, 0.14, 0.18), shellMat);
-      anchor.position.set(Math.cos(ang) * 0.93, 0.12, Math.sin(ang) * 0.93);
-      anchor.rotation.y = -ang;
-      p.add(anchor);
-      const al = new Mesh(new BoxGeometry(0.22, 0.032, 0.032), traceViolet);
-      al.position.set(Math.cos(ang) * 0.93, 0.2, Math.sin(ang) * 0.93);
-      al.rotation.y = -ang;
-      p.add(al);
-    }
-
-    // four stacked tiers, each with circuit strips on all faces
-    for (let t = 0; t < 4; t++) {
-      const w = 0.68 - t * 0.05;
-      const y = 0.24 + TIER / 2 + t * (TIER + CAP);
-      const body = new Mesh(new BoxGeometry(w, TIER, w), shellMat);
-      body.position.y = y;
-      p.add(body);
-      const bodyEdge = new LineSegments(new EdgesGeometry(new BoxGeometry(w, TIER, w)), outlineViolet);
-      bodyEdge.position.y = y;
-      p.add(bodyEdge);
-      const cap = new Mesh(new BoxGeometry(w + 0.09, CAP, w + 0.09), shellDark);
-      cap.position.y = y + TIER / 2 + CAP / 2;
-      p.add(cap);
-      const capEdge = new LineSegments(new EdgesGeometry(new BoxGeometry(w + 0.09, CAP, w + 0.09)), outlineViolet);
-      capEdge.position.y = cap.position.y;
-      p.add(capEdge);
-      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([sx, sz], fi) => {
-        const mat = traceOf(t + fi);
-        const strip = new Mesh(new BoxGeometry(sx ? 0.016 : 0.032, TIER * 0.68, sz ? 0.016 : 0.032), mat);
-        strip.position.set(sx ? sx * (w / 2 + 0.009) : 0, y, sz ? sz * (w / 2 + 0.009) : 0);
-        p.add(strip);
-        const sg = new Mesh(
-          new BoxGeometry(sx ? 0.06 : 0.1, TIER * 0.72, sz ? 0.06 : 0.1),
-          glowMat(mat === traceMag ? MAGENTA : VIOLET, 0.1),
-        );
-        sg.position.copy(strip.position);
-        p.add(sg);
-        const elbow = new Mesh(new BoxGeometry(sx ? 0.014 : 0.11, 0.02, sz ? 0.014 : 0.11), mat);
-        elbow.position.set(strip.position.x, y + TIER * 0.34, strip.position.z);
-        if (sx) elbow.scale.z = 7;
-        p.add(elbow);
-      });
-    }
-
-    // crown: four prongs and the emitter the parts come from
-    const topY = 0.24 + 4 * (TIER + CAP);
-    for (let i = 0; i < 4; i++) {
-      const ang = (Math.PI * 2 * i) / 4 + Math.PI / 4;
-      const prong = new Mesh(new BoxGeometry(0.12, 0.36, 0.12), shellMat);
-      prong.position.set(Math.cos(ang) * 0.18, topY + 0.18, Math.sin(ang) * 0.18);
-      prong.rotation.y = -ang;
-      p.add(prong);
-      const pl = new Mesh(new BoxGeometry(0.034, 0.3, 0.034), i % 2 ? traceViolet : traceMag);
-      pl.position.set(Math.cos(ang) * 0.235, topY + 0.18, Math.sin(ang) * 0.235);
-      p.add(pl);
-      const plg = new Mesh(new BoxGeometry(0.1, 0.32, 0.1), glowMat(i % 2 ? VIOLET : MAGENTA, 0.12));
-      plg.position.copy(pl.position);
-      p.add(plg);
-    }
-    const emitter = new Mesh(new SphereGeometry(0.16, 20, 16), traceMag);
-    emitter.position.y = topY + 0.44;
-    p.add(emitter);
-    const emGlow = new Mesh(new SphereGeometry(0.36, 20, 16), glowMat(MAGENTA, 0.2));
-    emGlow.position.y = emitter.position.y;
-    p.add(emGlow);
-
-    // support: segments that darken as they sink out of frame, with faint
-    // energy lines carried over from the tiers
-    for (let s = 0; s < 7; s++) {
-      const f = s / 6;
-      const h = 0.55;
-      const y = -0.12 - s * h;
-      // the support sinks into the page background and is gone by the last segment
-      const col = new Color(0x241e39).lerp(new Color(BG), Math.min(1, f * 1.5));
-      const segMesh = new Mesh(
-        new CylinderGeometry(0.55 + s * 0.03, 0.58 + s * 0.03, h, 32),
-        new MeshStandardMaterial({
-          color: col,
-          roughness: 0.55,
-          metalness: 0.3,
-          transparent: true,
-          opacity: Math.max(0, 1 - Math.pow(f, 0.85) * 1.15),
-        }),
+  }
+  /** The head's mounting collar — a glow ring under a plain disc. */
+  function collar(g: Group, w: number, wide: number): void {
+    g.add(pylonMesh('head_collar_glow', roundedBox(w * wide * 1.07, w * 0.06, w * wide * 1.07, w * 0.4), tracePrimary, 0, -w * 0.05, 0));
+    g.add(pylonMesh('head_collar', roundedBox(w * wide, w * 0.14, w * wide, w * 0.36), graphite, 0, 0, 0));
+  }
+  /** "Пилюля" (pill) head: a capsule cap with a domed top and four light bars. */
+  function headPill(g: Group, w: number): void {
+    collar(g, w, 1.1);
+    g.add(pylonMesh('head_pill', new CylinderGeometry(w * 0.42, w * 0.42, w * 1.08, 44), carbon, 0, w * 0.68, 0));
+    g.add(
+      pylonMesh('head_pill_dome', new SphereGeometry(w * 0.42, 44, 22, 0, Math.PI * 2, 0, Math.PI / 2), carbon, 0, w * 1.22, 0),
+    );
+    g.add(pylonMesh('head_pill_ring', arcRing(w * 0.435, w * 0.026, Math.PI * 2), traceViolet, 0, w * 0.36, 0));
+    onFaces(g, 4, (face, s) => {
+      face.add(
+        pylonMesh(
+          `head_pill_bar_${s}`,
+          new CapsuleGeometry(w * 0.022, w * 0.46, 4, 14),
+          s % 2 ? traceViolet : tracePrimary,
+          0,
+          w * 0.89,
+          w * 0.432,
+        ),
       );
-      segMesh.position.y = y;
-      p.add(segMesh);
-      if (s < 5) {
-        for (let i = 0; i < 4; i++) {
-          const ang = (Math.PI * 2 * i) / 4 + Math.PI / 4;
-          const r = 0.57 + s * 0.03;
-          const fade = Math.pow(Math.max(0, 1 - f * 1.25), 1.6);
-          const seam = new Mesh(
-            new BoxGeometry(0.03, h * 0.7, 0.03),
-            new MeshBasicMaterial({ color: i % 2 ? VIOLET : MAGENTA, transparent: true, opacity: 0.75 * fade }),
-          );
-          seam.position.set(Math.cos(ang) * r, y, Math.sin(ang) * r);
-          p.add(seam);
-          const sg = new Mesh(new BoxGeometry(0.1, h * 0.72, 0.1), glowMat(i % 2 ? VIOLET : MAGENTA, 0.1 * fade));
-          sg.position.copy(seam.position);
-          p.add(sg);
-        }
-      }
-    }
+      face.add(
+        pylonMesh(`head_pill_louver_${s}`, roundedBox(w * 0.16, w * 0.045, w * 0.05, w * 0.02, w * 0.012), graphite, 0, w * 1.24, w * 0.36),
+      );
+    });
+    g.add(pylonMesh('head_pill_dot', new CylinderGeometry(w * 0.1, w * 0.11, w * 0.05, 28), bone, 0, w * 1.55, 0));
+  }
 
-    return { group: p, emitter, emGlow, tipY: emitter.position.y };
+  const HEAD_W = 0.3;
+  const buildPylon = (): { group: Group; emitter: Pylon['emitter']; emGlow: Pylon['emGlow']; tipY: number } => {
+    const g = new Group();
+
+    // base: plinth, four capsule feet, riser
+    g.add(pylonMesh('plinth', roundedBox(1.18, 0.16, 1.18, 0.3), graphite, 0, 0, 0));
+    g.add(pylonMesh('plinth_trim', roundedBox(1.26, 0.022, 1.26, 0.33), tracePrimary, 0, -0.016, 0));
+    onFaces(g, 4, (face, s) => {
+      face.add(pylonMesh(`foot_${s}`, new CapsuleGeometry(0.05, 0.1, 4, 14), carbon, 0.42, 0.04, 0.42));
+    });
+    g.add(pylonMesh('plinth_riser', roundedBox(0.72, 0.12, 0.72, 0.2), carbon, 0, 0.17, 0));
+
+    // seven offset blocks, each spun a little further than the last, with
+    // circuit strips and louvers alternating by parity
+    const blocks = [[0.7, 0.3], [0.66, 0.26], [0.6, 0.3], [0.54, 0.24], [0.48, 0.28], [0.4, 0.22], [0.33, 0.26]];
+    let y = 0.29;
+    let spin = 0;
+    blocks.forEach(([w, h], i) => {
+      const block = new Group();
+      block.rotation.y = spin;
+      block.position.y = y;
+      block.add(pylonMesh(`block_body_${i}`, roundedBox(w, h, w, w * 0.22), carbon));
+      block.add(
+        pylonMesh(`block_seam_${i}`, roundedBox(w * 1.03, 0.018, w * 1.03, w * 0.23), i % 2 ? tracePrimary : traceViolet, 0, h, 0),
+      );
+      onFaces(block, 4, (face, s) => {
+        if ((s + i) % 2 === 0) {
+          face.add(
+            pylonMesh(`block_strip_${i}`, roundedBox(0.026, h * 0.62, 0.02, 0.012, 0.005), traceViolet, w * 0.3, h * 0.2, w * 0.5 + 0.003),
+          );
+        }
+        face.add(
+          pylonMesh(`block_louver_${i}`, roundedBox(w * 0.42, 0.016, 0.024, 0.008, 0.005), graphite, -w * 0.12, h * 0.62, w * 0.5 + 0.003),
+        );
+        face.add(
+          pylonMesh(`block_louver2_${i}`, roundedBox(w * 0.42, 0.016, 0.024, 0.008, 0.005), graphite, -w * 0.12, h * 0.44, w * 0.5 + 0.003),
+        );
+      });
+      g.add(block);
+      y += h + 0.018;
+      spin += 0.34;
+    });
+
+    // the pill head, mounted on top of the block stack
+    const host = new Group();
+    host.position.y = y;
+    g.add(host);
+    headPill(host, HEAD_W);
+
+    // the parts that build the belt's cube fly from here, and this is the
+    // point beads home in on and flash when absorbed — just above the pill's
+    // own top cap (head_pill_dot, at headWidth * 1.55)
+    const topY = y + HEAD_W * 1.72;
+    const emitter = new Mesh(new SphereGeometry(0.1, 20, 16), tracePrimary);
+    emitter.position.y = topY;
+    g.add(emitter);
+    const emGlow = new Mesh(new SphereGeometry(0.26, 20, 16), glowMat(PRIMARY, 0.2));
+    emGlow.position.y = topY;
+    g.add(emGlow);
+
+    return { group: g, emitter, emGlow, tipY: topY };
   };
 
   const pylons: Pylon[] = [];
@@ -705,13 +861,18 @@ export function bootHeroScene(
   //
   // The comp shrank the second to 0.86 "for depth", which the geometry does not
   // support: after the world transform their distances from the camera are
-  // 16.9 and 17.3 units, 2% apart. A 14% reduction on a 2% difference does not
-  // read as distance, it reads as a smaller machine.
+  // close but not equal, and a size cut on top of that read as a smaller
+  // machine, not a farther one.
   //
-  // Bases must still clear the belt band. The plate radius is 1.14, the band is
-  // |z| < 0.62, and at |z| of 2.15 and 2.0 both leave a gap (1.01 and 0.86).
-  for (const [x, z] of [[4.5, -2.15], [7.9, 2.0]]) {
+  // The diagonal isometric view needs the machines to bracket the conveyor in
+  // depth as well as in screen space: the first stands behind the far edge and
+  // the second in front of the near edge. Their x offset keeps both silhouettes
+  // clear while their equal scale lets perspective alone describe the depth.
+  // The plinth trim is ~0.63 wide and the tread edge is |z| = 0.58, so these
+  // positions also leave a clean physical gap on both sides.
+  for (const [name, x, z] of [['pylon_far', 4.5, -2.15], ['pylon_near', 7.9, 2.0]] as const) {
     const p = buildPylon();
+    p.group.name = name;
     p.group.position.set(x, -0.2, z);
     world.add(p.group);
     pylons.push({
@@ -890,7 +1051,12 @@ export function bootHeroScene(
     } else if (state.phase === 'advance') {
       const e = easeInOut(Math.min(1, state.clock / ADVANCE));
       for (const s of live) s.g.position.x = s.x - SLOT * e;
-      rungs.forEach((r, i) => void (r.position.x = i * (SLOT / 2) - 8 - SLOT * e));
+      rungs.forEach((r, i) => {
+        // The upper run carries the cubes toward -X; the return run travels in
+        // the opposite direction like a real continuous tread loop.
+        r.group.position.x = i * (SLOT / 2) - 8 - SLOT * e;
+        r.bottom.position.x = SLOT * 2 * e;
+      });
       if (state.clock >= ADVANCE) {
         for (let i = live.length - 1; i >= 0; i--) {
           const s = live[i];
@@ -904,7 +1070,10 @@ export function bootHeroScene(
           }
         }
         while (retired.length > 1) freeCube(retired.shift()!);
-        rungs.forEach((r, i) => void (r.position.x = i * (SLOT / 2) - 8));
+        rungs.forEach((r, i) => {
+          r.group.position.x = i * (SLOT / 2) - 8;
+          r.bottom.position.x = 0;
+        });
         state.phase = 'idle';
         state.clock = 0;
       }
@@ -915,9 +1084,13 @@ export function bootHeroScene(
     }
 
     // Rungs fade with distance; cubes keep full presence and ride out of frame.
+    // On top of that fade a slow wave runs down the line, so the lit slats read
+    // as travelling light rather than paint that happens to be bright.
     for (const r of rungs) {
-      const f = Math.max(0, 1 - Math.max(0, r.position.x) / 22);
-      r.material.opacity = 0.05 + 0.26 * f;
+      const f = Math.max(0, 1 - Math.max(0, r.group.position.x) / 22);
+      const lit = r.base * (0.19 + 0.81 * f) * (0.76 + 0.36 * Math.sin(state.time * 2.1 - r.group.position.x * 0.55));
+      r.accent.material.opacity = lit;
+      r.halo.material.opacity = lit * HALO;
     }
 
     for (let i = state.flights.length - 1; i >= 0; i--) {

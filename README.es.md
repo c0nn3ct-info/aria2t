@@ -35,7 +35,7 @@ Aria2t es un gestor de descargas para aria2 con interfaces para el terminal y el
 ## ✨ Características
 
 - **Compatibilidad con todas las fuentes de aria2** — espejos de URL, `.torrent`, `.metalink`, enlaces magnet y archivos de entrada de aria2.
-- **Extensión de navegador** — una extensión de Chrome envía las descargas del navegador y los enlaces magnet al mismo demonio, con filtros por tamaño, dominio o tipo de archivo. Instalación en <https://aria2t.c0nn3ct.info/extension>.
+- **Extensión de navegador** — una extensión de Chrome envía las descargas del navegador y los enlaces magnet al mismo demonio, con filtros por tamaño, dominio o tipo de archivo. Instalación en <https://aria2t.c0nn3ct.info/install/>.
 - **Arranque sin configuración** — Aria2t encuentra `aria2c`, lanza un demonio privado y gestiona todo su ciclo de vida; un aria2 externo se conecta con la opción `--url`.
 - **Gestión de descargas** — pausa y reanudación de una o de todas, eliminación, reordenación de la cola, límites de velocidad por descarga o según un horario.
 - **Detalles de cada descarga** — mapa de piezas, peers y velocidad de los espejos, progreso por archivo, ratio y control del seeding de BitTorrent.

@@ -7,12 +7,14 @@
 // supplied here: a 2D context for the canvas textures, and the observers and
 // frame clock the loop runs on.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Scene } from 'three';
 
 const renders = { count: 0 };
 /** What one `render()` costs, in ms of the fake clock the suite installs. */
 const renderCost = { ms: 0 };
 const sizes: [number, number][] = [];
 const disposed = { count: 0 };
+let lastScene: Scene | undefined;
 
 vi.mock('three', async (importOriginal) => {
   const three = (await importOriginal()) as Record<string, unknown>;
@@ -24,7 +26,8 @@ vi.mock('three', async (importOriginal) => {
     setSize(w: number, h: number) {
       sizes.push([w, h]);
     }
-    render() {
+    render(scene: Scene) {
+      lastScene = scene;
       renders.count++;
       fakeNow += renderCost.ms;
     }
@@ -83,6 +86,7 @@ function step(n: number, ms = 20): void {
 beforeEach(() => {
   renders.count = 0;
   disposed.count = 0;
+  lastScene = undefined;
   sizes.length = 0;
   frames = [];
   clock = 0;
@@ -165,6 +169,23 @@ describe('bootHeroScene', () => {
     // reaching the first paint at all is what proves it terminates.
     const { handle } = await boot();
     expect(renders.count).toBe(1);
+    handle.dispose();
+  });
+
+  it('builds a closed slatted belt without rollers and brackets it with the pylons', async () => {
+    const { handle } = await boot();
+    const belt = lastScene!.getObjectByName('belt_body');
+    const tread = lastScene!.getObjectByName('belt_tread_0');
+    const far = lastScene!.getObjectByName('pylon_far');
+    const near = lastScene!.getObjectByName('pylon_near');
+    const names: string[] = [];
+    lastScene!.traverse((object) => names.push(object.name));
+
+    expect(belt).toBeDefined();
+    expect(tread?.children).toHaveLength(4);
+    expect(far?.position.z).toBeLessThan(0);
+    expect(near?.position.z).toBeGreaterThan(0);
+    expect(names.some((name) => /roller|drum|idler/.test(name))).toBe(false);
     handle.dispose();
   });
 
@@ -343,6 +364,53 @@ describe('the framing', () => {
 
   it('keeps its own aim when the line comes back as nonsense', async () => {
     const { handle } = await boot(1440, 800, { alignTipsNdc: () => Number.NaN });
+    expect(renders.count).toBeGreaterThan(0);
+    handle.dispose();
+  });
+});
+
+describe('isDark', () => {
+  afterEach(() => {
+    document.documentElement.style.removeProperty('--background');
+  });
+
+  it('defaults to dark when the background token is unset (this suite loads no stylesheet)', async () => {
+    const { isDark } = await import('./hero-scene-three');
+    expect(isDark()).toBe(true);
+  });
+
+  it('reads light off a bright --background token', async () => {
+    document.documentElement.style.setProperty('--background', '217 30% 99%');
+    const { isDark } = await import('./hero-scene-three');
+    expect(isDark()).toBe(false);
+  });
+
+  it('reads dark off a dim --background token', async () => {
+    document.documentElement.style.setProperty('--background', '240 15% 5%');
+    const { isDark } = await import('./hero-scene-three');
+    expect(isDark()).toBe(true);
+  });
+});
+
+describe('bootHeroScene in light mode', () => {
+  afterEach(() => {
+    document.documentElement.style.removeProperty('--background');
+    document.documentElement.style.removeProperty('--primary');
+    document.documentElement.style.removeProperty('--tertiary');
+  });
+
+  it('boots fine off the light tokens, with no dark-only fallback needed', async () => {
+    document.documentElement.style.setProperty('--background', '217 30% 99%');
+    document.documentElement.style.setProperty('--primary', '217 60% 42%');
+    document.documentElement.style.setProperty('--tertiary', '256 45% 50%');
+    const { handle } = await boot();
+    expect(renders.count).toBeGreaterThan(0);
+    handle.dispose();
+  });
+
+  it('boots fine in light mode even when --primary/--tertiary are unset', async () => {
+    document.documentElement.style.setProperty('--background', '217 30% 99%');
+    const { handle } = await boot();
     expect(renders.count).toBeGreaterThan(0);
     handle.dispose();
   });

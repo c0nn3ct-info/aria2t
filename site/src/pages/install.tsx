@@ -10,10 +10,10 @@ import {
   Info,
   MonitorCheck,
   PlayCircle,
+  Puzzle,
   RefreshCw,
   Terminal,
   Trash2,
-  Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
@@ -88,10 +88,6 @@ export function InstallPage() {
               <MonitorCheck className="mt-0.5 h-4 w-4 shrink-0" />
               {t('install.before.terminal')}
             </li>
-            <li className="flex items-start gap-2">
-              <Wrench className="mt-0.5 h-4 w-4 shrink-0" />
-              {t('install.before.go')}
-            </li>
           </ul>
         </Card>
       </section>
@@ -156,10 +152,6 @@ export function InstallPage() {
                 </a>
               </Button>
             </div>
-
-            <p>{t('install.step2.body2')}</p>
-            <CodeBlock>{`git clone ${GITHUB_URL}.git
-cd aria2t/tui && go build -o aria2t ./cmd/aria2t`}</CodeBlock>
           </div>
         </Section>
 
@@ -170,6 +162,30 @@ cd aria2t/tui && go build -o aria2t ./cmd/aria2t`}</CodeBlock>
             <p>{t('install.step3.body2')}</p>
             <CodeBlock>./aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret</CodeBlock>
             <p>{t('install.step3.body3')}</p>
+          </div>
+        </Section>
+
+        <Section header={t('install.step4.title')} icon={Puzzle}>
+          <div className="space-y-5 px-2 pb-3 pt-2 text-body-large text-on-surface-variant">
+            <p>{t('install.step4.body1')}</p>
+
+            <div className="space-y-2">
+              <h3 className="flex items-center gap-2 text-title-small text-on-surface">
+                <Terminal className="h-4 w-4" />
+                macOS / Linux
+              </h3>
+              <CodeBlock>{`curl -fsSL https://aria2t.c0nn3ct.info/install.sh | sh -s -- <extension-id>`}</CodeBlock>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="flex items-center gap-2 text-title-small text-on-surface">
+                <AppWindow className="h-4 w-4" />
+                Windows (PowerShell)
+              </h3>
+              <CodeBlock>{`$env:ARIA2T_EXT_ID='<extension-id>'; iwr -useb https://aria2t.c0nn3ct.info/windows.ps1 | iex`}</CodeBlock>
+            </div>
+
+            <p>{t('install.step4.id_note')}</p>
           </div>
         </Section>
       </div>

@@ -30,6 +30,8 @@ import {
   ITEMS,
   WAVE_MAX,
   fmtSize,
+  toggleAll,
+  toggleItem,
   useQueueScene,
   type IconKind,
   type Kind,
@@ -87,8 +89,9 @@ export function fmtSpeed(bps: number): string {
  * no speed to show, so it shows what is on disk instead - and one that has not
  * started has nothing on disk either, which is what aria2 reports as 0 B.
  *
- * Exported so its own test can name each case; the component reaches all of
- * them, since the list holds the whole queue.
+ * Exported so its own test can name every case directly: the popup only ever
+ * renders the four rows `VISIBLE` names, none of which is waiting, errored,
+ * or finished at the moment it opens.
  */
 export function figureFor(i: number, kind: Kind, speed: number): string {
   if (kind === 'active') return `↓ ${fmtSpeed(speed)}`;
@@ -97,8 +100,14 @@ export function figureFor(i: number, kind: Kind, speed: number): string {
   return fmtSize(ITEMS[i].bytes);
 }
 
+/** Which of the shared queue's downloads the popup shows. Four, not the
+ * first four: index 3 (Nature.Docs, also active) is skipped so the row set
+ * reads active/seeding/active/paused instead of three actives and a paused. */
+const VISIBLE: readonly number[] = [0, 1, 2, 4];
+
 export function PopupMock({ className }: { className?: string }) {
   const scene = useQueueScene();
+  const anyRunning = scene.live.some((l) => l.kind === 'active' || l.kind === 'seeding');
 
   return (
     <div
@@ -164,10 +173,16 @@ export function PopupMock({ className }: { className?: string }) {
               </div>
             </div>
             {/* green = the action that stops what is running, per the hero's
-                own colour rule */}
-            <span aria-hidden className={fabVariants({ color: 'success', size: 'regular' })}>
-              <Pause />
-            </span>
+                own colour rule. Real: it pauses every active/seeding row and,
+                clicked again, brings back only the ones it paused. */}
+            <button
+              type="button"
+              onClick={toggleAll}
+              aria-label={t(anyRunning ? 'popup.pause' : 'popup.resume')}
+              className={fabVariants({ color: 'success', size: 'regular' })}
+            >
+              {anyRunning ? <Pause /> : <Play />}
+            </button>
           </div>
         </Card>
       </section>
@@ -177,21 +192,33 @@ export function PopupMock({ className }: { className?: string }) {
           <span className="text-label-small uppercase text-on-surface-variant">
             {t('popup.downloads')}
           </span>
-          <span className={buttonVariants({ variant: 'text', size: 'xs' })}>
+          {/* A real, focusable button - this is a screen the mock has no
+              other view of, so the click has nowhere to go. */}
+          <button type="button" className={buttonVariants({ variant: 'text', size: 'xs' })}>
             {t('popup.viewAll')}
             <ArrowRight className="rtl:-scale-x-100" aria-hidden />
-          </span>
+          </button>
         </div>
 
-        {/* Scrolls, as the real one does (a `ScrollArea` in app.tsx).
-            `overscroll-contain` hands the page back at either end, so a touch
-            drag over the popup does not trap the visitor inside it. */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {/* Scrolls, as the real one does (a `ScrollArea` in app.tsx) - only in
+            principle now that four rows fit the 600px shell with nothing left
+            over. `overscroll-contain` used to sit here on the theory that it
+            hands scrolling back to the page at either end; `contain` does the
+            opposite; it stops a scroll from *ever* reaching the page once
+            this element is at its own limit - which, at zero overflow, it
+            always is. The wheel test that caught it: hover the list, scroll,
+            and the page under it does not move at all. Left at the default
+            (`auto`), a wheel over an empty list scrolls the page normally,
+            and the list still scrolls itself first if it ever holds enough
+            rows to overflow again. */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <ul className="space-y-1">
-            {ITEMS.map((item, i) => {
+            {VISIBLE.map((i) => {
+              const item = ITEMS[i];
               const Icon = ICON[item.icon];
               const { kind, pct, speed } = scene.live[i];
               const figure = figureFor(i, kind, speed);
+              const canToggle = kind === 'active' || kind === 'seeding' || kind === 'paused';
               return (
                 <li key={item.name} className="flex items-center gap-3 rounded-lg px-4 py-3">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-surface-container-high text-on-surface-variant">
@@ -227,13 +254,27 @@ export function PopupMock({ className }: { className?: string }) {
                     </span>
                   </span>
                   {/* the one action a row offers, on a tonal surface so it reads
-                      as something to press rather than a glyph */}
-                  <span
-                    aria-hidden
-                    className={iconButtonVariants({ variant: 'filled-tonal', size: 's' })}
-                  >
-                    {kind === 'active' || kind === 'seeding' ? <Pause /> : <Play />}
-                  </span>
+                      as something to press rather than a glyph. Real for a
+                      moving or paused row - pause/resume that one download in
+                      place. A waiting/errored/finished row has no action this
+                      mock can perform, so it stays a plain glyph. */}
+                  {canToggle ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleItem(i)}
+                      aria-label={`${t(kind === 'paused' ? 'popup.resume' : 'popup.pause')}: ${item.name}`}
+                      className={iconButtonVariants({ variant: 'filled-tonal', size: 's' })}
+                    >
+                      {kind === 'paused' ? <Play /> : <Pause />}
+                    </button>
+                  ) : (
+                    <span
+                      aria-hidden
+                      className={iconButtonVariants({ variant: 'filled-tonal', size: 's' })}
+                    >
+                      <Play />
+                    </span>
+                  )}
                 </li>
               );
             })}
@@ -244,20 +285,24 @@ export function PopupMock({ className }: { className?: string }) {
       {/* Add at its content width, the panel taking the rest of the row. The
           real popup's is a <footer>; here it would be a second contentinfo
           landmark on a page that already has one, so it stays a plain row.
-          Both controls are drawn with the button styles and rendered as spans,
-          the way every row's controls are: a screen reader on a marketing page
-          should not be offered fourteen buttons that do nothing. */}
-      <div aria-hidden className="mt-auto flex shrink-0 items-center gap-2 px-4 py-3">
-        <span className={cn(buttonVariants({ variant: 'filled', size: 's' }), 'min-w-0')}>
+          Both are real, focusable buttons - opening the add dialog or the
+          full panel is a screen this mock has no other view of, so a click
+          has nowhere to go. */}
+      <div className="mt-auto flex shrink-0 items-center gap-2 px-4 py-3">
+        <button
+          type="button"
+          className={cn(buttonVariants({ variant: 'filled', size: 's' }), 'min-w-0')}
+        >
           <Plus />
           <span className="truncate">{t('popup.add')}</span>
-        </span>
-        <span
+        </button>
+        <button
+          type="button"
           className={cn(buttonVariants({ variant: 'filled-tonal', size: 's' }), 'min-w-0 flex-1')}
         >
           <span className="truncate">{t('popup.panel')}</span>
           <ExternalLink />
-        </span>
+        </button>
       </div>
     </div>
   );

@@ -1,14 +1,16 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { InstallPage } from './install';
 
-// The whole /install route, rendered inside the site's real `Layout`.
+// The whole /install route, rendered inside the site's real `Layout`. This is
+// the site's one setup guide now that the extension has no page of its own —
+// step 4 is the native-host command that page used to own.
 //
 // `InstallPage` takes no props: every string comes from the i18n singleton,
 // every colour from the tokens `applyTheme`/`applyAccent` write onto <html>,
 // and the preview's toolbar already drives all three of theme, accent and
 // locale. So there is nothing worth a control here, and the one axis a story
 // can still vary is the width the page is laid out at — which is the axis this
-// page has rules for: `sm:grid-cols-2` on the closing cards, and eight `<pre>`
+// page has rules for: `sm:grid-cols-2` on the closing cards, and nine `<pre>`
 // blocks holding commands longer than a phone is wide.
 const meta = {
   title: 'Pages/Install',
@@ -36,12 +38,12 @@ const PHONE = {
 
 /**
  * The route as the site ships it: the *Before you start* card (aria2 itself, a
- * 256-colour terminal, Go only if you build from source), then the three
- * numbered `Section`s — install aria2 → get the binary → first run — each with
- * a copyable command per platform, the outlined *GitHub Releases* link, and the
- * Updating / Uninstalling cards two-up at the foot.
+ * 256-colour terminal), then four numbered `Section`s — install aria2 → get
+ * the binary → first run → the browser extension's native host — each with a
+ * copyable command per platform, the outlined *GitHub Releases* link on step
+ * 2, and the Updating / Uninstalling cards two-up at the foot.
  *
- * The interactive parts are the eight code blocks and that one link. Each block
+ * The interactive parts are the nine code blocks and that one link. Each block
  * pins a copy `IconButton` in its `pe-12` gutter; the button swaps to a check
  * for 1.6 s and announces the change through an `aria-live` region, since
  * relabelling a button announces nothing on its own.
@@ -55,8 +57,9 @@ export const Default: Story = {};
  * The same page at 390 px, where the responsive rules earn their keep: the
  * closing cards drop from `sm:grid-cols-2` to one column, the measure loses its
  * `max-w-3xl` slack, and the long commands — `curl -fsSL
- * https://aria2t.c0nn3ct.info/install.sh | bash`, the two-line `git clone`
- * build — scroll inside their own `<pre>` instead of widening the page.
+ * https://aria2t.c0nn3ct.info/install.sh | bash`, the native-host command with
+ * its `<extension-id>` placeholder — scroll inside their own `<pre>` instead of
+ * widening the page.
  *
  * The viewport frame is a canvas tool, so this is a Canvas-tab story: Docs
  * renders it at full width like the one above.

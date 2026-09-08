@@ -1,12 +1,11 @@
 // The animated extension popup on the home page. Same contract as the TUI list
 // mock beside it: identical on the server and on first client paint, then live.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render } from '@/test/render';
+import { act, render, screen, userEvent } from '@/test/render';
 import { PopupMock, figureFor, fmtSpeed } from './popup-mock';
 import { fabVariants } from './ui/fab';
 import { iconButtonVariants } from './ui/icon-button';
-import { setLocale } from '../i18n';
-import { ITEMS } from '@/lib/queue-scene';
+import { setLocale, t } from '../i18n';
 
 const webdriver = { value: false };
 
@@ -87,8 +86,14 @@ describe('PopupMock', () => {
   // way it stays one is by drawing each control with the primitive the real one
   // uses. Pin that: a control rebuilt by hand here would drift the next time
   // the extension's own changed.
-  it('wears the real popup\'s controls, at the real popup\'s size', () => {
-    const { container } = render(<PopupMock />);
+  //
+  // Isolated: this reasons about which row is a real button versus a plain
+  // glyph, which depends on every row's exact kind — a fresh module import is
+  // the only way to see the seed's own five, unmoved by another test's timers.
+  it('wears the real popup\'s controls, at the real popup\'s size', async () => {
+    vi.resetModules();
+    const { PopupMock: Fresh } = await import('./popup-mock');
+    const { container } = render(<Fresh />);
     const shell = container.firstElementChild!;
     // 380x600, the surface Chrome opens: the real shell is fixed there
     // (extension/src/popup/app.tsx) and what does not fit scrolls in the list.
@@ -98,15 +103,16 @@ describe('PopupMock', () => {
     // the hero's whole-queue action is the extension's success FAB — the muted
     // container pair, not a flat `bg-success` tile
     const fab = fabVariants({ color: 'success', size: 'regular' });
-    expect([...container.querySelectorAll('span')].some((s) => s.className === fab)).toBe(true);
+    expect([...container.querySelectorAll('button')].some((b) => b.className === fab)).toBe(true);
 
-    // and a row's pause is the extension's tonal icon button, one per row.
-    // Every download, not the first few: the real list scrolls inside the
-    // 600px shell rather than stopping at what fits.
+    // and a row's pause is the extension's tonal icon button, one per row —
+    // four, all of them moving or paused at the moment the scene opens, so
+    // every one is a real button.
     const tonal = iconButtonVariants({ variant: 'filled-tonal', size: 's' });
-    expect(container.querySelectorAll('li').length).toBe(ITEMS.length);
+    expect(container.querySelectorAll('li').length).toBe(4);
     for (const li of container.querySelectorAll('li')) {
-      expect([...li.children].some((c) => c.className === tonal)).toBe(true);
+      const control = [...li.children].find((c) => c.className === tonal)!;
+      expect(control.tagName).toBe('BUTTON');
     }
   });
 
@@ -119,6 +125,86 @@ describe('PopupMock', () => {
     });
     // no act() warning and no throw is the assertion here
     expect(true).toBe(true);
+  });
+
+  // Isolated for the same reason as the controls test above: these read a
+  // specific row's kind before and after a click, which only the seed's own
+  // five (unmoved by another test's timers) make predictable.
+  describe('a fully interactive mock', () => {
+    it('pauses and resumes one row without touching the others', async () => {
+      vi.resetModules();
+      const { PopupMock: Fresh } = await import('./popup-mock');
+      render(<Fresh />);
+
+      const row = screen.getByRole('button', {
+        name: `${t('popup.pause')}: ubuntu-24.04.2-desktop-amd64.iso`,
+      });
+      await userEvent.click(row);
+      expect(
+        screen.getByRole('button', { name: `${t('popup.resume')}: ubuntu-24.04.2-desktop-amd64.iso` }),
+      ).toBeInTheDocument();
+      // a row that was seeding, untouched by the click on a different row
+      expect(screen.getByText('seeding')).toBeInTheDocument();
+
+      await userEvent.click(
+        screen.getByRole('button', { name: `${t('popup.resume')}: ubuntu-24.04.2-desktop-amd64.iso` }),
+      );
+      expect(
+        screen.getByRole('button', { name: `${t('popup.pause')}: ubuntu-24.04.2-desktop-amd64.iso` }),
+      ).toBeInTheDocument();
+    });
+
+    it('pauses everything moving from the hero, then brings back only what it paused', async () => {
+      vi.resetModules();
+      const { PopupMock: Fresh } = await import('./popup-mock');
+      render(<Fresh />);
+
+      const pauseAll = screen.getByRole('button', { name: t('popup.pause') });
+      await userEvent.click(pauseAll);
+      // every row that was moving is paused now, so the hero has nothing
+      // left to pause and offers to bring them back instead
+      expect(screen.getByRole('button', { name: t('popup.resume') })).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole('button', { name: t('popup.resume') }));
+      expect(screen.getByRole('button', { name: t('popup.pause') })).toBeInTheDocument();
+    });
+
+    it('leaves View all, Add and Panel real but going nowhere', async () => {
+      vi.resetModules();
+      const { PopupMock: Fresh } = await import('./popup-mock');
+      const { container } = render(<Fresh />);
+      const before = container.textContent;
+
+      for (const name of [t('popup.viewAll'), t('popup.add'), t('popup.panel')]) {
+        const button = screen.getByRole('button', { name: new RegExp(name) });
+        expect(button.tagName).toBe('BUTTON');
+        await userEvent.click(button);
+      }
+      // real, focusable, and clicking every one of them changed nothing
+      expect(container.textContent).toBe(before);
+    });
+
+    it('turns a finished row back into a plain glyph, not a dead button', async () => {
+      vi.resetModules();
+      const { PopupMock: Fresh } = await import('./popup-mock');
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { container } = render(<Fresh />);
+      // long enough for the .iso at the head of the queue to finish; see
+      // "wraps a download that reaches the end" above for the same maths
+      await act(async () => {
+        vi.advanceTimersByTime(600_000);
+      });
+      expect(screen.getByText('done')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', {
+          name: `${t('popup.resume')}: ubuntu-24.04.2-desktop-amd64.iso`,
+        }),
+      ).toBeNull();
+      // still drawn with the real popup's tonal button styling, just inert
+      const tonal = iconButtonVariants({ variant: 'filled-tonal', size: 's' });
+      const glyph = [...container.querySelectorAll('span')].find((s) => s.className === tonal);
+      expect(glyph).toHaveAttribute('aria-hidden');
+    });
   });
 });
 

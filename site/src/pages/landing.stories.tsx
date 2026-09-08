@@ -5,12 +5,12 @@ import { LandingPage } from './landing';
 // ways into the queue, a live minute of throughput, the file picker, the piece
 // map, the limits panel and the FAQ.
 //
-// It takes no props, like every other `Pages/*` file. The page pins its own
-// stage - `data-theme="dark" data-accent="blue"` on its root - so unlike the
-// other pages the theme and accent toolbars do not move it; the locale toolbar
-// does, and `ar`/`fa` also flip `<html dir>`, which every band mirrors without
-// a `rtl:` override except the four places a glyph or a scene has to turn
-// around.
+// It takes no props, like every other `Pages/*` file. Blue is the site's
+// permanent accent (set once in `main.tsx`, outside this component), and the
+// page follows the theme toolbar like every other `Pages/*` story; the locale
+// toolbar moves it too, and `ar`/`fa` also flip `<html dir>`, which every band
+// mirrors without a `rtl:` override except the four places a glyph or a scene
+// has to turn around.
 //
 // Bands arrive as they come up, on a `view()` timeline where the browser has
 // one. Scroll the canvas rather than the Docs page to see that.

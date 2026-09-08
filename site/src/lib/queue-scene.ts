@@ -71,7 +71,8 @@ const WAVE_N = 60;
  */
 export const WAVE_MAX = 44 * MiB;
 
-/** The queue. The first five are what the popup has room for. */
+/** The queue. The popup shows four of the first five — see `VISIBLE` in
+ * popup-mock.tsx for which one it skips and why. */
 export const ITEMS: readonly Item[] = [
   { name: 'ubuntu-24.04.2-desktop-amd64.iso', bytes: 5.4 * GiB, target: 9.8 * MiB, icon: 'disc', torrent: false, conn: '1' },
   { name: 'Fedora-Workstation-Live-42.torrent', bytes: 2.3 * GiB, target: 9.6 * MiB, icon: 'folder', torrent: true, conn: '4:31' },
@@ -193,6 +194,69 @@ function beat(): void {
   if (document.hidden) return;
   snapshot = step(snapshot, Math.random);
   for (const l of listeners) l();
+}
+
+function notify(live: readonly Live[]): void {
+  snapshot = { ...snapshot, live, ...totals(live) };
+  for (const l of listeners) l();
+}
+
+/** A paused row resumes into what it was paused out of: seeding for a
+ * torrent that had already finished downloading (its bar is still at 100),
+ * active for anything still in flight. Nothing else records that history, so
+ * the bar itself is the only signal available at resume time. */
+function resumeKind(pct: number): Kind {
+  return pct >= 100 ? 'seeding' : 'active';
+}
+
+/**
+ * The one action a popup row offers, made real: pause a moving download,
+ * resume a paused one. A waiting/error/done row has nothing this mock can
+ * toggle, so it is left alone rather than pretending otherwise.
+ */
+export function toggleItem(i: number): void {
+  const l = snapshot.live[i];
+  const live = [...snapshot.live];
+  if (l.kind === 'active' || l.kind === 'seeding') {
+    live[i] = { kind: 'paused', pct: l.pct, speed: 0 };
+  } else if (l.kind === 'paused') {
+    const kind = resumeKind(l.pct);
+    live[i] = { kind, pct: l.pct, speed: targetFor(i, kind) };
+  } else {
+    return;
+  }
+  notify(live);
+}
+
+/** Indices `toggleAll` paused, so resuming brings back only those — a row
+ * that was already paused before the click stays exactly how it was. */
+let autoPaused = new Set<number>();
+
+/**
+ * The hero's whole-queue action, made real: pause everything moving, or
+ * bring back only what this same action paused.
+ */
+export function toggleAll(): void {
+  const live = [...snapshot.live];
+  if (autoPaused.size > 0) {
+    for (const i of autoPaused) {
+      const l = live[i];
+      if (l.kind !== 'paused') continue;
+      const kind = resumeKind(l.pct);
+      live[i] = { kind, pct: l.pct, speed: targetFor(i, kind) };
+    }
+    autoPaused = new Set();
+  } else {
+    const paused = new Set<number>();
+    live.forEach((l, i) => {
+      if (l.kind === 'active' || l.kind === 'seeding') {
+        paused.add(i);
+        live[i] = { kind: 'paused', pct: l.pct, speed: 0 };
+      }
+    });
+    autoPaused = paused;
+  }
+  notify(live);
 }
 
 function subscribe(listener: () => void): () => void {

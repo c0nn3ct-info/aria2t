@@ -35,7 +35,7 @@ Aria2t is a download manager for aria2 with terminal and browser interfaces. It 
 ## ✨ Features
 
 - **All aria2 sources:** URL mirrors, `.torrent`, `.metalink`, magnet links, and aria2 input files.
-- **Browser extension:** a Chrome extension sends browser downloads and magnet links to the same daemon, filtered by size, domain, or file type. Install it from <https://aria2t.c0nn3ct.info/extension>.
+- **Browser extension:** a Chrome extension sends browser downloads and magnet links to the same daemon, filtered by size, domain, or file type. Install it from <https://aria2t.c0nn3ct.info/install/>.
 - **Managed daemon:** Aria2t finds `aria2c`, starts a private daemon, and handles its lifecycle. Use `--url` to connect to an existing server.
 - **Download controls:** pause, resume, remove, reorder, and set speed limits per download or by schedule.
 - **Download details:** piece map, peers, mirror speeds, per-file progress, ratio, and BitTorrent seeding controls.

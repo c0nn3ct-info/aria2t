@@ -5,9 +5,10 @@ import { Stack } from '@/storybook/layout';
 import { Layout } from './layout';
 
 // The frame every page renders inside: the skip link, the sticky header
-// (wordmark, GitHub link, language switcher), the `<main>` measure and the
-// three-column footer. Only `children` varies between these stories — the
-// chrome is the subject, so the bodies below stay deliberately plain.
+// (wordmark, page nav, GitHub link, language switcher), the `<main>` measure
+// and the four-column footer (brand block, Product, Resources, Contacts). Only
+// `children` varies between these stories — the chrome is the subject, so the
+// bodies below stay deliberately plain.
 const meta = {
   title: 'Blocks/Layout',
   component: Layout,
@@ -18,7 +19,7 @@ const meta = {
   argTypes: {
     current: {
       description:
-        'Which page is being rendered. Nothing in the nav marks it active today, so the control changes nothing on screen — it exists so callers keep naming where they are.',
+        'Which page is being rendered. Its matching link in the header nav (≥sm) and the footer carries aria-current="page" and switches to the on-surface (rather than on-surface-variant) text colour.',
     },
   },
   tags: ['autodocs'],
@@ -115,8 +116,9 @@ export const LongPage: Story = {
 /**
  * The skip link — the first focusable thing on every page and `sr-only` until
  * it takes focus, so a keyboard user reaches the content without tabbing
- * through the wordmark, the GitHub link and the language menu first. This
- * story focuses it, which is the only way to see it at all.
+ * through the wordmark, the header's page links, the GitHub link and the
+ * language menu first. This story focuses it, which is the only way to see it
+ * at all.
  */
 export const SkipLink: Story = {
   render: (args) => (

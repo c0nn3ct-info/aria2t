@@ -13,14 +13,16 @@ beforeEach(() => {
   document.body.innerHTML = '';
   document.documentElement.className = '';
   document.documentElement.removeAttribute('data-theme');
+  document.documentElement.removeAttribute('data-accent');
 });
 
 describe('mountPage', () => {
-  it('applies the system theme, starts analytics and renders into an empty root', () => {
+  it('applies the system theme, the blue accent, starts analytics and renders into an empty root', () => {
     document.body.innerHTML = '<div id="root"></div>';
     mountPage(<p>page</p>);
 
     expect(document.documentElement.classList.contains('light')).toBe(true);
+    expect(document.documentElement.getAttribute('data-accent')).toBe('blue');
     expect(initAmplitude).toHaveBeenCalled();
     expect(createRoot).toHaveBeenCalledWith(document.getElementById('root'));
     expect(hydrateRoot).not.toHaveBeenCalled();

@@ -37,7 +37,7 @@ describe('translation', () => {
   it('resolves a key in every locale', () => {
     for (const l of LOCALES) {
       setLocale(l);
-      expect(t('nav.install')).not.toBe('nav.install');
+      expect(t('nav.docs')).not.toBe('nav.docs');
     }
   });
 

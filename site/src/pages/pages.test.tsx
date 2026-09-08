@@ -6,14 +6,12 @@ import { LOCALES, setLocale } from '@/i18n';
 import en from '@/i18n/en.json';
 import { LandingPage } from './landing';
 import { InstallPage } from './install';
-import { ExtensionPage } from './extension';
 import { PrivacyPage } from './privacy';
 import { LicensePage } from './license';
 
 const PAGES = [
   ['home', LandingPage],
   ['install', InstallPage],
-  ['extension', ExtensionPage],
   ['privacy', PrivacyPage],
   ['license', LicensePage],
 ] as const;
@@ -46,10 +44,7 @@ describe.each(PAGES)('%s page', (name, Page) => {
   });
 });
 
-describe.each([
-  ['install', InstallPage],
-  ['extension', ExtensionPage],
-] as const)('%s page code blocks', (name, Page) => {
+describe.each([['install', InstallPage]] as const)('%s page code blocks', (name, Page) => {
   it('copies a command and says so, then goes back', async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });

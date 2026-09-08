@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LOCALES } from '../src/i18n/index.ts';
 
-const PAGES = ['home', 'install', 'extension', 'privacy', 'license'];
+const PAGES = ['home', 'install', 'privacy', 'license'];
 
 const written = new Map();
 const writeFile = vi.fn((path, body) => {

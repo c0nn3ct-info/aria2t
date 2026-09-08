@@ -345,10 +345,10 @@
    * neutral page, while this one *is* the comp's palette, so it also carries
    * the greys the comp draws its type and its rules in.
    *
-   * Element-scoped, not `:root`-scoped like purple and cyan: the landing sets
-   * it together with `data-theme="dark"` on one wrapper, so the palette applies
-   * to that subtree and the rest of the site keeps its own. */
-  [data-accent='blue'] {
+   * `:root`-scoped like purple and cyan, not element-scoped: `main.tsx` sets
+   * `data-accent="blue"` once at mount for the whole site, so header, footer
+   * and every page pick it up the same way any other accent would. */
+  :root[data-accent='blue'] {
     --primary: 217 60% 42%;
     --on-primary: 0 0% 100%;
     --primary-container: 217 90% 92%;
@@ -368,8 +368,8 @@
     --background:                217 30% 99%;
     --surface:                   217 30% 99%;
   }
-  [data-accent='blue'][data-theme='dark'],
-  [data-accent='blue'].dark {
+  :root[data-accent='blue'][data-theme='dark'],
+  :root[data-accent='blue'].dark {
     --background:                240 15%  5%;
     --surface:                   240 15%  5%;
     --on-surface:                248 31% 95%;
@@ -441,6 +441,35 @@
       --surface-container-highest: 190 16% 21%;
       --surface-variant: 0 0% 28%;
       --outline-variant: 0 0% 28%;
+    }
+    :root[data-accent='blue']:not([data-theme='light']) {
+      --background:                240 15%  5%;
+      --surface:                   240 15%  5%;
+      --on-surface:                248 31% 95%;
+      --on-surface-variant:        247 11% 69%;
+      --outline:                   244 11% 25%;
+      --outline-variant:           240 13% 15%;
+      --surface-variant:           245 12% 21%;
+      --surface-container-lowest:  240 14%  4%;
+      --surface-container-low:     249 16%  9%;
+      --surface-container:         245 15% 11%;
+      --surface-container-high:    240 12% 14%;
+      --surface-container-highest: 245 12% 21%;
+      --primary:                   217 89% 82%;
+      --on-primary:                219 84% 20%;
+      --primary-container:         218 47% 25%;
+      --on-primary-container:      222 100% 92%;
+      --secondary-container:       240 12% 14%;
+      --on-secondary-container:    248 31% 95%;
+      --tertiary:                  256 100% 85%;
+      --on-tertiary:               255 45% 18%;
+      --tertiary-container:        255 38% 27%;
+      --on-tertiary-container:     259 100% 94%;
+      --success-container:         148 37% 17%;
+      --on-success-container:      139 58% 86%;
+      --success-text:              145 47% 66%;
+      --warning-container:          43 51% 15%;
+      --on-warning-container:       43 74% 77%;
     }
   }
 }

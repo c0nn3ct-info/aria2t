@@ -128,3 +128,108 @@ describe('the queue', () => {
     expect(b.result.current).toBe(last);
   });
 });
+
+// Last, because it resets the module registry: every test above shares one
+// module-level store (the whole point of it), and none of them advance the
+// clock past a few seconds without immediately asserting only relative
+// motion — but toggleItem/toggleAll need the *exact* pcts the seed declares
+// (63, 100, 23, ...), which only holds before any beat() has run. A fresh
+// import, never ticked, is the only way to get that.
+describe('toggleItem and toggleAll', () => {
+  it('pauses a moving row in place and resumes it back to what it was', async () => {
+    vi.resetModules();
+    const { useQueueScene: fresh, toggleItem } = await import('./queue-scene');
+    const { result } = renderHook(() => fresh());
+
+    const before = result.current.down;
+    act(() => toggleItem(0));
+    expect(result.current.live[0]).toMatchObject({ kind: 'paused', pct: 63, speed: 0 });
+    expect(result.current.down).toBeLessThan(before);
+
+    act(() => toggleItem(0));
+    // Resumed rather than warmed up, so the speed is exactly the target
+    // rather than wherever a random walk left it.
+    expect(result.current.live[0]).toMatchObject({ kind: 'active', pct: 63, speed: ITEMS[0].target });
+  });
+
+  it('resumes a paused torrent into seeding when its bar was already full', async () => {
+    vi.resetModules();
+    const { useQueueScene: fresh, toggleItem } = await import('./queue-scene');
+    const { result } = renderHook(() => fresh());
+
+    act(() => toggleItem(1)); // seeding -> paused
+    expect(result.current.live[1]).toMatchObject({ kind: 'paused', pct: 100, speed: 0 });
+    act(() => toggleItem(1)); // paused -> seeding, not active: its bar never left 100
+    expect(result.current.live[1]).toMatchObject({
+      kind: 'seeding',
+      pct: 100,
+      speed: ITEMS[1].target * 0.52,
+    });
+  });
+
+  it('leaves a waiting, errored, or finished row untouched', async () => {
+    vi.resetModules();
+    const { useQueueScene: fresh, toggleItem } = await import('./queue-scene');
+    const { result } = renderHook(() => fresh());
+    const before = result.current;
+
+    act(() => {
+      toggleItem(8); // waiting
+      toggleItem(10); // error
+      toggleItem(11); // done
+    });
+    // No listener fired, so useSyncExternalStore never handed back a new
+    // snapshot - the strongest way to show these three did nothing at all.
+    expect(result.current).toBe(before);
+  });
+
+  it('pauses everything moving, then resumes only the rows it paused', async () => {
+    vi.resetModules();
+    const { useQueueScene: fresh, toggleAll } = await import('./queue-scene');
+    const { result } = renderHook(() => fresh());
+
+    act(() => toggleAll());
+    const s = result.current;
+    // Every row the seed declared active or seeding.
+    for (const i of [0, 2, 3, 5, 6]) expect(s.live[i].kind).toBe('paused');
+    for (const i of [1, 7]) expect(s.live[i].kind).toBe('paused');
+    // Rows the seed already had paused are undisturbed.
+    expect(s.live[4]).toMatchObject({ kind: 'paused', pct: 18, speed: 0 });
+    expect(s.live[9]).toMatchObject({ kind: 'paused', pct: 36, speed: 0 });
+    expect(s.down).toBe(0);
+    expect(s.up).toBe(0);
+
+    act(() => toggleAll());
+    const r = result.current;
+    for (const i of [0, 2, 3, 5, 6]) {
+      expect(r.live[i]).toMatchObject({ kind: 'active', speed: ITEMS[i].target });
+    }
+    for (const i of [1, 7]) {
+      expect(r.live[i]).toMatchObject({ kind: 'seeding', speed: ITEMS[i].target * 0.52 });
+    }
+    // Still exactly how the seed left them - toggleAll never touched these.
+    expect(r.live[4]).toMatchObject({ kind: 'paused', pct: 18, speed: 0 });
+    expect(r.live[9]).toMatchObject({ kind: 'paused', pct: 36, speed: 0 });
+  });
+
+  it('skips a row already resumed by hand before the second click', async () => {
+    vi.resetModules();
+    const { useQueueScene: fresh, toggleAll, toggleItem } = await import('./queue-scene');
+    const { result } = renderHook(() => fresh());
+
+    act(() => toggleAll()); // pauses 0, 1, 2, 3, 5, 6, 7
+    act(() => toggleItem(0)); // resumed by its own row button, ahead of the rest
+    expect(result.current.live[0].kind).toBe('active');
+
+    act(() => toggleAll()); // resumes what it paused and is still paused
+    // Untouched: toggleItem already moved it, so the guard on an
+    // already-non-paused row left it exactly where the row button put it.
+    expect(result.current.live[0]).toMatchObject({ kind: 'active', speed: ITEMS[0].target });
+    for (const i of [2, 3, 5, 6]) {
+      expect(result.current.live[i]).toMatchObject({ kind: 'active', speed: ITEMS[i].target });
+    }
+    for (const i of [1, 7]) {
+      expect(result.current.live[i]).toMatchObject({ kind: 'seeding', speed: ITEMS[i].target * 0.52 });
+    }
+  });
+});

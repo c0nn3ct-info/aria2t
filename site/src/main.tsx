@@ -1,12 +1,13 @@
 import { StrictMode, type ReactNode } from 'react';
 import { createRoot, hydrateRoot } from 'react-dom/client';
 import '@/styles/globals.css';
-import { applyTheme, watchSystemTheme } from '@/lib/theme';
+import { applyAccent, applyTheme, watchSystemTheme } from '@/lib/theme';
 import { initAmplitude } from '@/lib/analytics';
 
 export function mountPage(page: ReactNode): void {
   applyTheme('system');
   watchSystemTheme('system');
+  applyAccent('blue');
   initAmplitude();
 
   const root = document.getElementById('root');

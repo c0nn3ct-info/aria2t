@@ -48,6 +48,7 @@ export function HeroScene({ 'aria-label': label, alignTipsNdc, className }: Prop
     if (!canRunScene()) return;
     let alive = true;
     let handle: HeroSceneHandle | undefined;
+    let observer: MutationObserver | undefined;
     import('./hero-scene-three')
       .then((m) => {
         // Unmounted while the chunk was loading: never boot into a dead node.
@@ -56,16 +57,30 @@ export function HeroScene({ 'aria-label': label, alignTipsNdc, className }: Prop
         // The hero mirrors this canvas on a right-to-left page; tell the
         // scene so the text it bakes into its textures is flipped back.
         const rtl = document.documentElement.dir === 'rtl';
-        handle = m.bootHeroScene(host.current!, canvas.current!, {
-          mirrorText: rtl,
-          alignTipsNdc: align.current,
+        const opts = { mirrorText: rtl, alignTipsNdc: align.current };
+        const boot = () => {
+          handle?.dispose();
+          handle = m.bootHeroScene(host.current!, canvas.current!, opts);
+        };
+        boot();
+        // The palette is chosen at boot; a live theme flip (the OS switching
+        // while the tab is open) is rare enough that a full reboot is simpler
+        // and safer than threading live recoloring through every material.
+        let lastDark = m.isDark();
+        observer = new MutationObserver(() => {
+          const dark = m.isDark();
+          if (dark === lastDark) return;
+          lastDark = dark;
+          boot();
         });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
       })
       // A chunk that fails to load (offline, an ad blocker) costs the
       // animation, not the page: the backdrop's gradients stay.
       .catch(() => undefined);
     return () => {
       alive = false;
+      observer?.disconnect();
       handle?.dispose();
     };
   }, []);

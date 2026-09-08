@@ -9,21 +9,37 @@ import type { HeroSceneHandle } from './hero-scene-three';
 const boot = vi.fn();
 const dispose = vi.fn();
 const debug = vi.fn(() => ({}) as ReturnType<HeroSceneHandle['debug']>);
+const dark = { value: true };
 
 vi.mock('./hero-scene-three', () => ({
   bootHeroScene: (...args: unknown[]) => {
     boot(...args);
     return { dispose, debug } satisfies HeroSceneHandle;
   },
+  isDark: () => dark.value,
 }));
 
 /** The chunk loads in a microtask; let it. */
 const settle = () => act(async () => void (await Promise.resolve()));
 
+let mutationCb: MutationCallback | undefined;
+
 beforeEach(() => {
   boot.mockClear();
   dispose.mockClear();
+  dark.value = true;
+  mutationCb = undefined;
   vi.stubGlobal('WebGLRenderingContext', class {});
+  vi.stubGlobal(
+    'MutationObserver',
+    class {
+      constructor(cb: MutationCallback) {
+        mutationCb = cb;
+      }
+      observe() {}
+      disconnect() {}
+    },
+  );
 });
 
 afterEach(() => {
@@ -84,6 +100,27 @@ describe('HeroScene', () => {
     expect(dispose).toHaveBeenCalledTimes(1);
   });
 
+  it('reboots the scene when the resolved theme actually flips', async () => {
+    const { HeroScene } = await import('./hero-scene');
+    render(<HeroScene aria-label="scene" />);
+    await settle();
+    expect(boot).toHaveBeenCalledTimes(1);
+
+    dark.value = false;
+    mutationCb!([], {} as MutationObserver);
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(boot).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a class mutation that does not change the resolved theme', async () => {
+    const { HeroScene } = await import('./hero-scene');
+    render(<HeroScene aria-label="scene" />);
+    await settle();
+
+    mutationCb!([], {} as MutationObserver);
+    expect(boot).toHaveBeenCalledTimes(1);
+    expect(dispose).not.toHaveBeenCalled();
+  });
 });
 
 describe('LandingHero', () => {

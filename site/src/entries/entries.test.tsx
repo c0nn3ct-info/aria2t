@@ -8,7 +8,6 @@ vi.mock('../main', () => ({ mountPage: (p: unknown) => void mounted.push(p) }));
 const ENTRIES = [
   ['home', () => import('./home')],
   ['install', () => import('./install')],
-  ['extension', () => import('./extension')],
   ['privacy', () => import('./privacy')],
   ['license', () => import('./license')],
 ] as const;

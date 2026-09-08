@@ -24,12 +24,11 @@ const RELEASES_URL = `${GITHUB_URL}/releases`;
 const PAGE_PATH = {
   home: '/',
   install: '/install/',
-  extension: '/extension/',
   privacy: '/privacy/',
   license: '/license/',
 };
 
-const PRIORITY = { home: '1.0', install: '0.8', extension: '0.8', privacy: '0.5', license: '0.5' };
+const PRIORITY = { home: '1.0', install: '0.8', privacy: '0.5', license: '0.5' };
 
 const LOCALES = ['en', 'ru', 'zh-CN', 'es', 'ar', 'fa'];
 
@@ -254,7 +253,7 @@ export function startServer(port) {
 }
 
 export function buildSitemap(lastmod) {
-  const pages = ['home', 'install', 'extension', 'privacy', 'license'];
+  const pages = ['home', 'install', 'privacy', 'license'];
   const locales = LOCALES;
   const urls = [];
   for (const page of pages) {
@@ -347,7 +346,7 @@ export async function main() {
   const browser = await puppeteer.launch(launchOpts);
 
   try {
-    const pages = ['home', 'install', 'extension', 'privacy', 'license'];
+    const pages = ['home', 'install', 'privacy', 'license'];
     const locales = LOCALES;
 
     for (const page of pages) {

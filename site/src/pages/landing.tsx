@@ -3,7 +3,10 @@
 // footer, the same install and store CTAs and the same eight FAQ entries.
 //
 // Every band lays itself out edge to edge, so the layout is asked for its
-// chrome without its reading column (`bleed`).
+// chrome without its reading column (`bleed`). Blue is the site's permanent
+// accent (`main.tsx` sets it once at mount), so this page needs no wrapper of
+// its own for it — and follows the real system light/dark preference like
+// every other page.
 import { FaqBand } from '@/components/landing/faq-band';
 import { FilesSection } from '@/components/landing/files-section';
 import { LandingHero } from '@/components/landing/hero';
@@ -21,25 +24,15 @@ export function LandingPage() {
   // `src/lib/use-enter.ts` for which path runs where.
   useSectionEntrance();
   return (
-    // The comp is a dark stage in one palette from the header to the footer, so
-    // the page declares that palette once and every band inherits it. Both
-    // attributes are the site's own token hooks, not a private stylesheet:
-    // `data-theme="dark"` re-resolves the M3 tokens to their dark values for
-    // this subtree, and `data-accent="blue"` swaps in the comp's blue and
-    // violet (see the `[data-accent='blue']` block in globals.css). Everything
-    // inside, from Button and Badge to the popup and terminal mocks and the
-    // site header and footer, picks both up without knowing this page exists.
-    <div data-theme="dark" data-accent="blue">
-      <Layout current="home" bleed>
-        <LandingHero />
-        <SurfacesSection />
-        <QueueSection />
-        <StatsSection />
-        <FilesSection />
-        <PiecesSection />
-        <LimitsSection />
-        <FaqBand />
-      </Layout>
-    </div>
+    <Layout current="home" bleed>
+      <LandingHero />
+      <SurfacesSection />
+      <QueueSection />
+      <StatsSection />
+      <FilesSection />
+      <PiecesSection />
+      <LimitsSection />
+      <FaqBand />
+    </Layout>
   );
 }

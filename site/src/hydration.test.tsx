@@ -16,14 +16,12 @@ import { act } from '@/test/render';
 import { LOCALES, setLocale } from '@/i18n';
 import { LandingPage } from '@/pages/landing';
 import { InstallPage } from '@/pages/install';
-import { ExtensionPage } from '@/pages/extension';
 import { PrivacyPage } from '@/pages/privacy';
 import { LicensePage } from '@/pages/license';
 
 const PAGES = [
   ['home', LandingPage],
   ['install', InstallPage],
-  ['extension', ExtensionPage],
   ['privacy', PrivacyPage],
   ['license', LicensePage],
 ] as const;
