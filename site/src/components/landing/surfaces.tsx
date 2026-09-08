@@ -45,7 +45,8 @@ function Extension() {
   return (
     <>
       <div className="-mx-5 overflow-x-auto px-5 sm:hidden">
-        <div className="min-w-[380px]">
+        {/* 382: the 380 surface plus the pixel of site framing on each edge. */}
+        <div className="min-w-[382px]">
           <PopupMock />
         </div>
       </div>

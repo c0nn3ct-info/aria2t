@@ -6,6 +6,7 @@ import { PopupMock, figureFor, fmtSpeed } from './popup-mock';
 import { fabVariants } from './ui/fab';
 import { iconButtonVariants } from './ui/icon-button';
 import { setLocale } from '../i18n';
+import { ITEMS } from '@/lib/queue-scene';
 
 const webdriver = { value: false };
 
@@ -99,9 +100,11 @@ describe('PopupMock', () => {
     const fab = fabVariants({ color: 'success', size: 'regular' });
     expect([...container.querySelectorAll('span')].some((s) => s.className === fab)).toBe(true);
 
-    // and a row's pause is the extension's tonal icon button, one per row
+    // and a row's pause is the extension's tonal icon button, one per row.
+    // Every download, not the first few: the real list scrolls inside the
+    // 600px shell rather than stopping at what fits.
     const tonal = iconButtonVariants({ variant: 'filled-tonal', size: 's' });
-    expect(container.querySelectorAll('li').length).toBe(5);
+    expect(container.querySelectorAll('li').length).toBe(ITEMS.length);
     for (const li of container.querySelectorAll('li')) {
       expect([...li.children].some((c) => c.className === tonal)).toBe(true);
     }
@@ -130,24 +133,33 @@ describe('speaking the page language', () => {
     const text = container.textContent ?? '';
     // uppercased by CSS, so the DOM still holds the sentence case
     expect(text).toContain('Передача данных');
-    // three downloading rows -> the `few` plural, not the bare form
-    expect(text).toContain('Загружаются 3');
+    // the plural form Russian needs, not the bare noun. The count itself is
+    // the shared queue's, which other tests in this file advance, so the
+    // assertion is on the words rather than on the number.
+    expect(text).toMatch(/Загружа(ются|ется)/);
     expect(text).toContain('Загрузки');
     expect(text).toContain('активна');
     expect(text).toContain('Добавить');
   });
 
-  it('mirrors for a right-to-left locale without pinning its own direction', () => {
+  it('states its own direction, the way the real popup does', () => {
     setLocale('ar');
     const { container } = render(<PopupMock />);
     const text = container.textContent ?? '';
     expect(text).toContain('حالة النقل');
-    expect(text).toContain('3 قيد التنزيل');
-    // the shell must not force LTR, or the popup would not mirror with the page
-    expect(container.firstElementChild?.getAttribute('dir')).toBeNull();
+    expect(text).toContain('قيد التنزيل');
+    // `root.dir = isRtl(lng)` in extension/src/lib/theme.ts: the popup takes
+    // its direction from the extension's own UI language, not from whatever
+    // surrounds it. Inheriting left it unmirrored inside the browser frame,
+    // whose chrome is pinned left-to-right.
+    expect(container.firstElementChild).toHaveAttribute('dir', 'rtl');
     // a measurement still reads left-to-right inside a mirrored line
     const ltr = [...container.querySelectorAll('[dir="ltr"]')].map((e) => e.textContent);
     expect(ltr.some((x) => x?.includes('MiB/s'))).toBe(true);
+
+    setLocale('en');
+    const en = render(<PopupMock />);
+    expect(en.container.firstElementChild).toHaveAttribute('dir', 'ltr');
   });
 });
 

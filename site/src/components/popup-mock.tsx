@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { AmbientWave } from '@/components/ambient-wave';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { fabVariants } from '@/components/ui/fab';
 import { iconButtonVariants } from '@/components/ui/icon-button';
@@ -34,7 +34,7 @@ import {
   type IconKind,
   type Kind,
 } from '@/lib/queue-scene';
-import { t } from '../i18n';
+import { getLocale, isRtl, t } from '../i18n';
 import { cn } from '@/lib/utils';
 
 // Status → tone, from the extension's own status-word.tsx. Seeding is
@@ -73,9 +73,6 @@ const ICON: Record<IconKind, LucideIcon> = {
   archive: FileArchive,
 };
 
-/** What the popup has room for; the manager page has the rest. */
-const SHOWN = 5;
-
 // The extension's own fmtSpeed (extension/src/lib/aria2/format.ts): one decimal
 // from MiB up, none below.
 export function fmtSpeed(bps: number): string {
@@ -90,9 +87,8 @@ export function fmtSpeed(bps: number): string {
  * no speed to show, so it shows what is on disk instead - and one that has not
  * started has nothing on disk either, which is what aria2 reports as 0 B.
  *
- * Exported for its own test: the popup shows the head of the queue, and none of
- * those five downloads is queued or failed, so the mock cannot reach the last
- * branch through the component.
+ * Exported so its own test can name each case; the component reaches all of
+ * them, since the list holds the whole queue.
  */
 export function figureFor(i: number, kind: Kind, speed: number): string {
   if (kind === 'active') return `↓ ${fmtSpeed(speed)}`;
@@ -106,6 +102,12 @@ export function PopupMock({ className }: { className?: string }) {
 
   return (
     <div
+      // The popup states its own direction, the way the real one does:
+      // `root.dir = isRtl(lng)` in extension/src/lib/theme.ts, from the
+      // extension's UI language rather than from anything around it. Inheriting
+      // instead left it left-to-right inside the browser frame, whose chrome is
+      // pinned that way, while the same popup drawn on its own mirrored.
+      dir={isRtl(getLocale()) ? 'rtl' : 'ltr'}
       className={cn(
         // The real surface is 380 wide with these paddings
         // (extension/src/popup/app.tsx); everything below is measured off it.
@@ -117,10 +119,15 @@ export function PopupMock({ className }: { className?: string }) {
         // fit scrolls, in the list, the way it does in the extension - a taller
         // mock would be showing a window Chrome will not open.
         //
+        // `box-content` is what makes those the surface rather than the box:
+        // the border below is the site's own framing, and with the default
+        // border-box it ate a pixel off each edge, leaving every measurement
+        // inside 2px short of the real popup's.
+        //
         // `max-w-full` is what happens when the caller has less room than 380:
         // the popup narrows instead of being clipped or pushing its container
         // open. The home hero's frame is under 380 on a phone.
-        'pointer-events-auto flex h-[600px] w-[380px] max-w-full select-none flex-col rounded-lg border border-outline-variant bg-background text-on-surface shadow-e3',
+        'pointer-events-auto box-content flex h-[600px] w-[380px] max-w-full select-none flex-col rounded-lg border border-outline-variant bg-background text-on-surface shadow-e3',
         className,
       )}
     >
@@ -181,7 +188,7 @@ export function PopupMock({ className }: { className?: string }) {
             drag over the popup does not trap the visitor inside it. */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <ul className="space-y-1">
-            {ITEMS.slice(0, SHOWN).map((item, i) => {
+            {ITEMS.map((item, i) => {
               const Icon = ICON[item.icon];
               const { kind, pct, speed } = scene.live[i];
               const figure = figureFor(i, kind, speed);
@@ -236,16 +243,21 @@ export function PopupMock({ className }: { className?: string }) {
 
       {/* Add at its content width, the panel taking the rest of the row. The
           real popup's is a <footer>; here it would be a second contentinfo
-          landmark on a page that already has one, so it stays a plain row. */}
-      <div className="mt-auto flex shrink-0 items-center gap-2 px-4 py-3">
-        <Button variant="filled" size="s" className="pointer-events-none min-w-0" tabIndex={-1}>
+          landmark on a page that already has one, so it stays a plain row.
+          Both controls are drawn with the button styles and rendered as spans,
+          the way every row's controls are: a screen reader on a marketing page
+          should not be offered fourteen buttons that do nothing. */}
+      <div aria-hidden className="mt-auto flex shrink-0 items-center gap-2 px-4 py-3">
+        <span className={cn(buttonVariants({ variant: 'filled', size: 's' }), 'min-w-0')}>
           <Plus />
           <span className="truncate">{t('popup.add')}</span>
-        </Button>
-        <Button variant="filled-tonal" size="s" className="pointer-events-none min-w-0 flex-1" tabIndex={-1}>
+        </span>
+        <span
+          className={cn(buttonVariants({ variant: 'filled-tonal', size: 's' }), 'min-w-0 flex-1')}
+        >
           <span className="truncate">{t('popup.panel')}</span>
           <ExternalLink />
-        </Button>
+        </span>
       </div>
     </div>
   );
