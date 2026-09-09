@@ -31,6 +31,30 @@
     --background: 220 25% 99%;
     --on-background: 220 15% 10%;
     --surface: 220 25% 99%;
+    /* How hard the hero's washes over its WebGL scene are pulled.
+     *
+     * Those washes are a contrast device, and which way they have to work
+     * flips with the theme. On the dark stage the copy is light on dark and
+     * the machines are lit, so the scene has to be pushed down for the text
+     * to win — hence alphas up past 0.9, and hence the comments in `hero.tsx`
+     * about half the picture going black. On the light stage the copy is dark
+     * on light and the machines are near-white and low-contrast already: the
+     * text wins with no help, and the same wash is a white fog over white
+     * machinery that greys out every crate and every trim line. So light
+     * scales them back and keeps only as much as the belt's near-black
+     * chassis passing behind the source chips actually needs.
+     *
+     * The corner pocket goes further than the rest. It exists purely to sit
+     * on the glare of the nearest crates, and on a white stage there is no
+     * glare to sit on — only fog to add.
+     *
+     * The band's edge and seam fades are deliberately NOT scaled by these:
+     * dissolving the scene where it runs off the band is the same job in
+     * both themes, and the bottom one has to reach the page's own colour
+     * either way or the next section starts on a sliced conveyor. */
+    --hero-wash: 0.5;
+    --hero-pocket: 0.08;
+
     --on-surface: 220 15% 10%;
     --surface-container-lowest: 0 0% 100%;
     --surface-container-low: 220 32% 96%;
@@ -96,6 +120,11 @@
   [data-theme='dark'],
   :root.dark {
     --background: 0 0% 7%;
+    /* The washes were authored at full strength for this stage; see the note
+     * in the light block above. */
+    --hero-wash: 1;
+    --hero-pocket: 1;
+
     --on-background: 0 0% 92%;
     --surface: 0 0% 7%;
     --on-surface: 0 0% 92%;
@@ -143,6 +172,11 @@
     :root:not([data-theme='light']) {
       color-scheme: dark;
       --background: 0 0% 7%;
+      /* The washes were authored at full strength for this stage; see the note
+       * in the light block above. */
+      --hero-wash: 1;
+      --hero-pocket: 1;
+
       --on-background: 0 0% 92%;
       --surface: 0 0% 7%;
       --on-surface: 0 0% 92%;

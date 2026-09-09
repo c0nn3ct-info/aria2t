@@ -1,20 +1,21 @@
 // The hero's assembly line: two neon pylons feed particles into a transparent
 // blueprint volume; when the blueprint is full the particles compact into one
-// solid file cube (icon + extension), the cube drops onto the belt and the line
+// solid, type-specific file crate, the crate drops onto the belt and the line
 // steps toward the viewer. Nothing rotates. Deterministic: a fixed 1/120 step,
-// with the order and the labels drawn from mulberry32 — the same PRNG the two
+// with the order drawn from mulberry32 — the same PRNG the two
 // live mocks seed from (src/lib/mock-motion.ts).
 //
 // This module is loaded on demand by `hero-scene.tsx`, so three.js stays out
 // of the page's main chunk; the wrapper also decides whether to boot at all
 // (WebGL present, not the prerender).
+import type { Blending } from 'three';
 import {
   AdditiveBlending,
+  Box3,
   BoxGeometry,
   BufferGeometry,
   CanvasTexture,
   CapsuleGeometry,
-  Color,
   CylinderGeometry,
   DirectionalLight,
   EdgesGeometry,
@@ -24,9 +25,11 @@ import {
   HemisphereLight,
   LineBasicMaterial,
   LineSegments,
+  Material,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  NormalBlending,
   PerspectiveCamera,
   PlaneGeometry,
   PointLight,
@@ -39,84 +42,27 @@ import {
   WebGLRenderer,
 } from 'three';
 import { mulberry32 } from '@/lib/mock-motion';
+import { crateIconShapes } from './hero-crate-icons';
+import { ballToCube, morphAt } from './hero-fly-morph';
 
-// The scene used to assume the page around this canvas was always the comp's
-// dark stage. It now reads which theme is actually active and builds one of
-// two palettes: dark is the comp's original fixed set below; light derives
-// its background/primary/tertiary from the same `[data-accent='blue']` CSS
-// tokens the surrounding bands use (`globals.css`), so the WebGL ground and
-// the page's own background can never drift the way two hand-picked hex
-// constants could. `cyan`/`magenta`/the card-face colors have no CSS token —
-// they are scene-only accents — and are tuned by eye for each stage.
-interface Palette {
-  bg: number;
-  primary: number;
-  tertiary: number;
-  cyan: number;
-  magenta: number;
-  /** The face `typeTexture` paints each file-type icon onto. */
-  cardBg: string;
-  /** The extension label drawn on that face. */
-  label: string;
-}
-
-const DARK: Palette = {
-  bg: 0x0b0b0f,
-  primary: 0xa8c7fa,
-  tertiary: 0xc6b2ff,
-  cyan: 0x7dcfee,
-  magenta: 0xbb9af7,
-  cardBg: '#0f1726',
-  label: '#e8f4ff',
-};
-
-/**
- * Parses a `"H S% L%"` custom property (the format every token in
- * `globals.css` is written in) into the fractions `Color.setHSL` wants.
- * Returns null when the property is unset or unparseable — the jsdom test
- * host has no stylesheet loaded by default, and `isDark`/`currentPalette`
- * both fall back to the dark palette in that case, which is what every
- * pre-existing test in this file already boots against.
- */
-function readHSL(name: string): [h: number, s: number, l: number] | null {
-  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  const m = /^([\d.]+)\s+([\d.]+)%\s+([\d.]+)%$/.exec(raw);
-  if (!m) return null;
-  return [parseFloat(m[1]), parseFloat(m[2]) / 100, parseFloat(m[3]) / 100];
-}
-
-function hslHex([h, s, l]: [number, number, number]): number {
-  return new Color().setHSL(h / 360, s, l).getHex();
-}
-
-/** Whether the page is currently resolved dark — the one thing both the
- * scene and `hero-scene.tsx`'s reboot-on-flip watcher need to agree on. */
-export function isDark(): boolean {
-  const bg = readHSL('--background');
-  return !bg || bg[2] < 0.5;
-}
-
-function currentPalette(): Palette {
-  if (isDark()) return DARK;
-  const primary = readHSL('--primary');
-  const tertiary = readHSL('--tertiary');
-  return {
-    bg: hslHex(readHSL('--background')!),
-    primary: primary ? hslHex(primary) : DARK.primary,
-    tertiary: tertiary ? hslHex(tertiary) : DARK.tertiary,
-    cyan: 0x1f8fae,
-    magenta: 0x7a4fc9,
-    cardBg: '#e9f0fb',
-    label: '#16223a',
-  };
-}
-
-/** `rgba()` string for a canvas 2D stroke/fill from a three.js hex color. */
-function hexRgba(hex: number, alpha: number): string {
-  return `rgba(${(hex >> 16) & 255},${(hex >> 8) & 255},${hex & 255},${alpha})`;
-}
+// Which stage this scene stands on — and so every colour in it — lives in
+// `hero-scene-palette.ts`. Re-exported here because `hero-scene.tsx` reaches
+// this module through a dynamic `import()` and reads `isDark` off it to notice
+// a live theme flip; importing the palette module from the wrapper directly
+// would pull three.js's `Color` back into the page's main chunk, which is the
+// one thing this split exists to prevent.
+export { isDark } from './hero-scene-palette';
+import { scenePalette } from './hero-scene-palette';
 
 const CUBE = 0.78;
+/** The crate model's body: a 0.8 cube, which its 0.028 bevel draws 0.856
+ * across (see `roundedBox`). `CRATE_SCALE` maps that onto the blueprint cube,
+ * which lands the whole crate — plinth base to lid plate — at `CUBE` tall. */
+const CRATE_BODY = 0.8;
+const CRATE_BEVEL = 0.028;
+const CRATE_SCALE = CUBE / (CRATE_BODY + 2 * CRATE_BEVEL);
+/** Mid-height of the crate model's solid: plinth base 0, lid plate top 0.854. */
+const CRATE_MID = 0.427;
 const LX = 4;
 const LY = 3;
 const LZ = 4;
@@ -127,6 +73,21 @@ const SZ = CUBE / LZ;
 const BUILD_Y = 1.85;
 const BELT_Y = 0.32;
 const SLOT = 0.94;
+/** One slat pitch, and the strip of them the tread is cut into. `TREADS` is a
+ * multiple of six, the period of the slats' lit pattern, so the strip can be
+ * recycled through itself without the pattern jumping. */
+const TREAD = SLOT / 2;
+const TREADS = 72;
+const STRIP = TREADS * TREAD;
+/** Near end of the tread strip, where a recycled slat re-enters. */
+const TREAD_X0 = -8;
+/** The belt body under it: long enough that its far end is always deeper than
+ * the fog, since an ultra-wide frame sees a long way down the line. The fog is
+ * what ends the line rather than the frame's edge - it dies into the page at
+ * the same depth whatever the window does, where a wash at the window's edge
+ * would have to know where the machines are standing not to dim them too. */
+const BELT_LEN = 36;
+const BELT_MID = TREAD_X0 - 0.5 + BELT_LEN / 2;
 /** Opacity of a glow shell relative to the core it wraps. */
 const HALO = 0.42;
 const START_X = 5.6;
@@ -158,24 +119,39 @@ const DEG = Math.PI / 180;
 // there is no breakpoint where the hero jumps:
 //
 //   portrait (aspect 0.95 and below) - a phone or a narrow window, where the
-//     copy runs the full width. The machines stand just above the middle of
-//     the frame, right of centre, with the belt crossing under the copy: the
-//     same reading the desktop has, rotated. Aiming lower than the machines
-//     tilts the camera down and lifts them in frame, which is why the target
-//     sits above them.
-//   wide (aspect 1.90 and above) - the machines right of centre with the copy
-//     over the empty left. At 1440x720 this resolves to exactly the 30 degree
+//     copy runs the full width and the machinery gets the strip under it. The
+//     machines stand right of centre with the belt crossing out of the
+//     bottom-left corner: the same reading the desktop has, rotated. Aiming
+//     lower than the machines tilts the camera down and lifts them in frame,
+//     which is why the target sits above them, and its x sits *past* the
+//     station they flank - 6.6 against 5.6 - which is what carries the pair
+//     back towards the middle of a narrow frame.
+//   wide (aspect 1.90 and above) - the machines beside the copy column with
+//     the belt crossing the rest. At 1440x720 this resolves to a 21.6 degree
 //     field and the aim point the composition was drawn at.
 //
-// Past ZOOM_STOP an ultra-wide window stops narrowing the field, or the
-// vertical would squeeze until the pylons clipped.
+// Both H are the composition's own, divided by 1.4: the scene was drawn at a
+// 30 degree wide field and read too small on the page - a belt of crates whose
+// pictograms were a few pixels each, with a third of the frame empty to the
+// right of the machines. Zooming in costs the far end of the belt, which the
+// fog was already taking, and nothing else.
 //
-// Solved, not guessed: projecting the pylons, the blueprint and the belt
-// through this maths over every hero shape from 320x620 to 2560x800 holds the
-// pylon tips on the heading line at every shape, nothing clipped closer than
-// 0.23 of a half-frame, and the belt leaving the band between 35% and 96% of
-// its height depending on how tall the copy makes it. Below the belt the band
-// is empty on purpose: that is what the closing fade is for.
+// Narrower than the portrait anchor it is the *vertical* field that is held
+// (see `framingFor`), and past ZOOM_STOP an ultra-wide window stops narrowing
+// the field at all, or the vertical would squeeze until the pylons clipped.
+//
+// These are the composition's starting point, not its answer: `place` in
+// `resize` stands the pair against what the page actually leaves it - beside
+// the copy column, under the line the hero states, inside the frame - and
+// eases the field back out until it fits. Which is why 1024, where the copy
+// column takes three fifths of the band, draws the machines smaller instead of
+// standing them in the sentences, and a 320px phone draws them smaller again
+// instead of pushing them through the bottom edge. Checked by projecting both
+// machines over every hero shape from 320x620 to 3440x1440, at every line and
+// column edge the hero hands over at that shape (`holds both machines in frame
+// and clear of the copy at every hero shape`). The belt is deliberately not
+// held: it runs out of the frame's bottom-left corner by design, and the
+// closing fade is what swallows it.
 interface Framing {
   /** Horizontal half-extent. */
   h: number;
@@ -183,23 +159,26 @@ interface Framing {
 }
 const PORTRAIT: Framing & { aspect: number } = {
   aspect: 0.97,
-  h: 0.3,
-  target: { x: 5.75, y: 1.9, z: -2.5 },
+  h: 0.21,
+  target: { x: 6.6, y: 1.9, z: -2.5 },
 };
 const WIDE: Framing & { aspect: number } = {
   aspect: 1.9,
-  h: Math.tan(15 * DEG) * 2.0,
+  h: Math.tan(10.8 * DEG) * 2.0,
   target: { x: 3.1, y: 1.05, z: 0.8 },
 };
 const ZOOM_STOP = 2.6;
 
 const mix = (a: number, b: number, k: number) => a + (b - a) * k;
 
-function framingFor(aspect: number): { fov: number; target: { x: number; y: number; z: number } } {
+function framingFor(aspect: number): Framing {
   const k = Math.max(0, Math.min(1, (aspect - PORTRAIT.aspect) / (WIDE.aspect - PORTRAIT.aspect)));
-  const h = mix(PORTRAIT.h, WIDE.h, k);
+  // Narrower than the portrait anchor the *vertical* field is what is held,
+  // not the horizontal one: a phone band is as tall as it is wide, and a
+  // fixed H there shrinks the machines by exactly as much as the frame
+  // narrows. `place` eases whatever does not fit back out again.
   return {
-    fov: (2 * Math.atan(h / Math.min(aspect, ZOOM_STOP))) / DEG,
+    h: aspect < PORTRAIT.aspect ? PORTRAIT.h * (aspect / PORTRAIT.aspect) : mix(PORTRAIT.h, WIDE.h, k),
     target: {
       x: mix(PORTRAIT.target.x, WIDE.target.x, k),
       y: mix(PORTRAIT.target.y, WIDE.target.y, k),
@@ -209,17 +188,14 @@ function framingFor(aspect: number): { fov: number; target: { x: number; y: numb
 }
 
 interface FileType {
-  ext: string;
-  kind: 'image' | 'video' | 'disc' | 'archive' | 'doc';
-  color: string;
+  kind: 'image' | 'video' | 'audio' | 'doc';
 }
 
 const TYPES: readonly FileType[] = [
-  { ext: '.png', kind: 'image', color: '#7dcfee' },
-  { ext: '.mp4', kind: 'video', color: '#bb9af7' },
-  { ext: '.iso', kind: 'disc', color: '#a8c7fa' },
-  { ext: '.zip', kind: 'archive', color: '#c6b2ff' },
-  { ext: '.pdf', kind: 'doc', color: '#9ece6a' },
+  { kind: 'image' },
+  { kind: 'video' },
+  { kind: 'audio' },
+  { kind: 'doc' },
 ];
 
 interface Cell {
@@ -247,142 +223,45 @@ export function fillOrder(): Cell[] {
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const easeIn = (t: number) => t * t;
 
-/**
- * Paints a file-type icon and its extension onto a 256x256 canvas texture.
- *
- * `mirrorText` pre-flips the extension label. A right-to-left page mirrors the
- * whole canvas so the belt runs the other way, and that mirror would otherwise
- * reverse the `.iso` and `.mp4` baked into these faces. The icons survive a
- * mirror; Latin text does not.
- */
-function typeTexture(
-  type: FileType,
-  mirrorText: boolean,
-  cardBg: string,
-  cyanBorder: number,
-  label: string,
-): CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = c.height = 256;
-  // A fresh canvas always yields a 2D context in a browser that got this far
-  // (the wrapper only boots when WebGL exists).
-  const ctx = c.getContext('2d')!;
-  ctx.fillStyle = cardBg;
-  ctx.fillRect(0, 0, 256, 256);
-  ctx.strokeStyle = hexRgba(cyanBorder, 0.45);
-  ctx.lineWidth = 5;
-  ctx.strokeRect(9, 9, 238, 238);
-  ctx.strokeStyle = type.color;
-  ctx.fillStyle = type.color;
-  ctx.lineWidth = 7;
-  ctx.lineJoin = 'round';
-  switch (type.kind) {
-    case 'image':
-      ctx.strokeRect(58, 62, 140, 106);
-      ctx.beginPath();
-      ctx.arc(96, 96, 13, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(70, 156);
-      ctx.lineTo(112, 116);
-      ctx.lineTo(146, 156);
-      ctx.lineTo(168, 132);
-      ctx.lineTo(190, 156);
-      ctx.closePath();
-      ctx.fill();
-      break;
-    case 'video':
-      ctx.strokeRect(58, 66, 140, 100);
-      ctx.beginPath();
-      ctx.moveTo(112, 92);
-      ctx.lineTo(112, 140);
-      ctx.lineTo(154, 116);
-      ctx.closePath();
-      ctx.fill();
-      break;
-    case 'disc':
-      ctx.beginPath();
-      ctx.arc(128, 114, 54, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(128, 114, 16, 0, Math.PI * 2);
-      ctx.stroke();
-      break;
-    case 'archive':
-      ctx.strokeRect(64, 60, 128, 110);
-      ctx.beginPath();
-      ctx.moveTo(128, 60);
-      ctx.lineTo(128, 170);
-      ctx.stroke();
-      ctx.lineWidth = 5;
-      for (let y = 74; y < 166; y += 18) {
-        ctx.beginPath();
-        ctx.moveTo(116, y);
-        ctx.lineTo(140, y);
-        ctx.stroke();
-      }
-      break;
-    default:
-      ctx.beginPath();
-      ctx.moveTo(76, 54);
-      ctx.lineTo(150, 54);
-      ctx.lineTo(184, 88);
-      ctx.lineTo(184, 174);
-      ctx.lineTo(76, 174);
-      ctx.closePath();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(150, 54);
-      ctx.lineTo(150, 88);
-      ctx.lineTo(184, 88);
-      ctx.stroke();
-      ctx.lineWidth = 5;
-      for (const y of [116, 136, 156]) {
-        ctx.beginPath();
-        ctx.moveTo(96, y);
-        ctx.lineTo(164, y);
-        ctx.stroke();
-      }
-  }
-  ctx.fillStyle = label;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = '500 34px ui-monospace, SFMono-Regular, Menlo, monospace';
-  ctx.save();
-  if (mirrorText) {
-    ctx.translate(256, 0);
-    ctx.scale(-1, 1);
-  }
-  ctx.fillText(type.ext, 128, 210);
-  ctx.restore();
-  const t = new CanvasTexture(c);
-  t.anisotropy = 4;
-  return t;
-}
-
-function haloTexture(): CanvasTexture {
+function haloTexture([inner, mid]: readonly [string, string]): CanvasTexture {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const ctx = c.getContext('2d')!;
   const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  g.addColorStop(0, 'rgba(125,207,238,0.4)');
-  g.addColorStop(0.42, 'rgba(187,154,247,0.14)');
+  g.addColorStop(0, inner);
+  g.addColorStop(0.42, mid);
   g.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 256, 256);
   return new CanvasTexture(c);
 }
 
-const glowMat = (color: number, opacity: number) =>
-  new MeshBasicMaterial({ color, transparent: true, opacity, blending: AdditiveBlending, depthWrite: false });
+/**
+ * One of the scene's glow meshes. Every additive surface in here goes through
+ * this, which is why the two stages cost exactly one branch each: `blending`
+ * is set once at construction, so the five places that animate a glow's
+ * `opacity` at runtime need to know nothing about the stage.
+ *
+ * The authored alphas are shared between stages deliberately. Additive over
+ * near-black and normal over near-white land at comparable subtlety at the
+ * low end, and at the high end — the lit slats' 0.55 — normal blending reads
+ * *stronger*, which is what a daylight trace wants: saturated ink rather than
+ * a bloom that has nothing left to add to.
+ */
+const glowMat = (color: number, opacity: number, blending: Blending) =>
+  new MeshBasicMaterial({ color, transparent: true, opacity, blending, depthWrite: false });
 
 type Phase = 'fill' | 'compact' | 'drop' | 'advance' | 'idle';
 
-interface Cube {
+interface CrateVisual {
   g: Group;
-  mesh: Mesh<BoxGeometry, MeshStandardMaterial>;
-  edges: LineSegments<EdgesGeometry, LineBasicMaterial>;
-  glow: Mesh<BoxGeometry, MeshBasicMaterial>;
+  /** The crate's lit trim, flashed as it lands. Every other material it wears
+   * is one of the scene's shared neutrals. */
+  accent: MeshStandardMaterial;
+  glow: MeshBasicMaterial;
+}
+
+interface Cube extends CrateVisual {
   slot: number;
   x: number;
 }
@@ -394,19 +273,25 @@ interface Flight {
   idx: number;
 }
 
-/** One belt slat: a fixed graphite crossbar plus a glowing light-line insert
- * that fades with distance the way the old bare glow rung did. */
+/** One slat of the tread's upper run: a graphite crossbar plus a glowing
+ * light-line insert that fades with distance. */
 interface Rung {
   group: Group;
-  bottom: Mesh<BufferGeometry, MeshStandardMaterial>;
   accent: Mesh<BufferGeometry, MeshBasicMaterial>;
   /** Oversized additive shell around the accent — the glow's spill. */
   halo: Mesh<BufferGeometry, MeshBasicMaterial>;
   /** Peak opacity for the accent — brighter on the periodic highlighted slats. */
   base: number;
+  /** The spill's own peak. Not `base * HALO`: the line is trim and the spill
+   * around it is a bloom, and the two convert to a light stage by different
+   * factors, so each carries its already-converted peak and they share only
+   * the wave that animates them. */
+  haloBase: number;
 }
 
 interface Pylon {
+  /** The machine itself, for measuring where it stands in the frame. */
+  group: Group;
   /** Crown position inside the world group, where the parts fly from. */
   tip: Vector3;
   /** The same point in world space, for projecting against the camera. */
@@ -444,12 +329,9 @@ export interface HeroSceneHandle {
  * Builds the scene into `canvas`, sized to `host`, and starts animating. The
  * returned handle stops everything and frees the renderer.
  *
- * Pass `mirrorText` when the page mirrors the canvas, so the labels baked into
- * the cube faces still read forwards.
+ * The crates use geometry-only pictograms and require no texture options.
  */
 export interface HeroSceneOptions {
-  /** Pre-flip the labels baked into the cube faces; see `typeTexture`. */
-  mirrorText?: boolean;
   /**
    * Where the pylon tips should sit, in normalised device coordinates: +1 is
    * the top edge of the canvas, -1 the bottom. The hero hands over the
@@ -459,34 +341,83 @@ export interface HeroSceneOptions {
    * interpolated default.
    */
   alignTipsNdc?: () => number | null;
+  /**
+   * The right edge of the copy column, in the same coordinates, past which the
+   * machines must stand. Returning null says the copy is stacked above the
+   * scene instead of beside it, and the machines have the band's whole width.
+   */
+  copyEdgeNdc?: () => number | null;
 }
 
 export function bootHeroScene(
   host: HTMLElement,
   canvas: HTMLCanvasElement,
-  { mirrorText = false, alignTipsNdc }: HeroSceneOptions = {},
+  { alignTipsNdc, copyEdgeNdc }: HeroSceneOptions = {},
 ): HeroSceneHandle {
   // No `preserveDrawingBuffer`: the comp set it so the design tool could
   // capture a thumbnail, and it costs a retained copy of the framebuffer
   // every frame. Nothing here reads pixels back.
-  const { bg: BG, primary: PRIMARY, tertiary: VIOLET, cyan: CYAN, magenta: MAGENTA, cardBg: CARD_BG, label: LABEL } =
-    currentPalette();
+  const P = scenePalette();
+  const { bg: BG, cyan: CYAN, magenta: MAGENTA, green: GREEN } = P;
+  /** The machines' own trim colours. On the dark stage these *are* the page's
+   * accents; on the light one they are the models' vivid periwinkle and
+   * lilac, because a white ground gives a trace no brightness to win on and
+   * saturation is all that is left. */
+  const { traceA: TRACE_A, traceB: TRACE_B } = P;
+  /** How hard anything self-lit burns on this stage. The light models drop
+   * their accent emissive strength from 0.72 to 0.16 — glow is what a dark
+   * stage has instead of daylight, and on a bright one the same value reads as
+   * a blown-out smear. Every emissive number below is authored for the dark
+   * stage and scaled by this, so there is one ratio to tune rather than a
+   * second set of a dozen constants. */
+  const EM = P.additive ? 1 : 0.22;
+  /** The trim's own burn. Higher than `EM` on a light stage: the strips are
+   * the only colour the machines have and have to read as lit, where a part
+   * is a white shell that wants its emissive out of the way. */
+  const TRIM_EM = P.trimEmissive;
+  /** An authored metalness, corrected for this stage. Nothing here has an
+   * environment map, so metal has nothing to reflect and only darkens; see
+   * `Palette.metalScale`. */
+  const mt = (m: number) => m * P.metalScale;
+  const BLEND = P.additive ? AdditiveBlending : NormalBlending;
+  /** An authored glow alpha, converted to this stage. Every alpha below is
+   * written for the dark stage's additive blend; `ga` is what makes the same
+   * number read at the same strength once it is blended normally over white
+   * instead (see `Palette.glowAlpha`). Applied at the authored sites rather
+   * than inside `stageGlow`, because the alphas that animate are read back
+   * out of constants and would otherwise scale twice. */
+  const ga = (a: number) => Math.min(1, a * P.glowAlpha);
+  /** The same, for a bloom — the oversized shell around something bright,
+   * which is light that escaped and so needs dark to escape into. See
+   * `Palette.bloomAlpha`. */
+  const ba = (a: number) => Math.min(1, a * P.bloomAlpha);
+  /** The same, for a trim line's spill — the soft widening beside the line
+   * that is what actually makes a painted strip read as a lit one. See
+   * `Palette.spillAlpha`. */
+  const sa = (a: number) => Math.min(1, a * P.spillAlpha);
+  /** `glowMat` bound to this stage's blend, so the seven glow sites below read
+   * the same either way. */
+  const stageGlow = (color: number, opacity: number) => glowMat(color, opacity, BLEND);
   const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   const scene = new Scene();
-  scene.fog = new Fog(BG, 13, 24);
+  scene.fog = new Fog(BG, 13, 26);
   const camera = new PerspectiveCamera(30, WIDE.aspect, 0.1, 160);
   camera.position.set(-1.6, 4.3, 11.6);
   camera.lookAt(WIDE.target.x, WIDE.target.y, WIDE.target.z);
 
-  scene.add(new HemisphereLight(PRIMARY, 0x05050a, 0.5));
-  const key = new DirectionalLight(0xffffff, 1.05);
+  // Neither authoring GLB carries a light or a camera, so the rig is the
+  // scene's own on both stages — and it cannot be shared. The light models'
+  // shells sit at metalness 0.06 and near-white, where the dark stage's rim
+  // intensities clip them to flat paper.
+  scene.add(new HemisphereLight(P.rig.sky, P.rig.ground, P.rig.hemi));
+  const key = new DirectionalLight(0xffffff, P.rig.key);
   key.position.set(2.6, 6.4, 5.8);
   scene.add(key);
-  const rimA = new PointLight(MAGENTA, 22, 20);
+  const rimA = new PointLight(P.rig.rimAColor, P.rig.rimA, 20);
   rimA.position.set(3.4, 2.8, 2.4);
   scene.add(rimA);
-  const rimB = new PointLight(CYAN, 16, 18);
+  const rimB = new PointLight(P.rig.rimBColor, P.rig.rimB, 18);
   rimB.position.set(0.4, 1.4, 2.8);
   scene.add(rimB);
 
@@ -500,9 +431,9 @@ export function bootHeroScene(
   const halo = new Mesh(
     new PlaneGeometry(9, 9),
     new MeshBasicMaterial({
-      map: haloTexture(),
+      map: haloTexture(P.haloStops),
       transparent: true,
-      blending: AdditiveBlending,
+      blending: BLEND,
       depthWrite: false,
       depthTest: false,
       opacity: 0.45,
@@ -523,21 +454,40 @@ export function bootHeroScene(
   // proportions: each tread fills about 75% of its pitch, overhangs the belt
   // body slightly and repeats on the return run. Rebuild that silhouette here
   // at the hero's much longer scale instead of replaying 47 coincident nodes.
-  const carbon = new MeshStandardMaterial({ color: 0x151a26, roughness: 0.55, metalness: 0.3 });
-  const graphite = new MeshStandardMaterial({ color: 0x252c3e, roughness: 0.42, metalness: 0.35 });
-  const beltBody = new Mesh(new BoxGeometry(27, 0.36, 1.08), carbon);
+  // The structural neutrals every machine in this scene is built from, and
+  // they are the authoring models' own materials: `carbon` and `graphite` are
+  // the GLB's two shell materials converted out of linear light, `bone` is its
+  // pictogram material, `belt` is the rubber of the tread. The belt, the
+  // pylons and the crates all share them, so nothing here is per-instance —
+  // but all four *do* flip with the stage, because `.claude/3d/light` is a
+  // separately authored material set rather than a tint of the dark one: the
+  // shells inverting to near-white is the whole difference between a machine
+  // standing in daylight and a machine cut out of the page.
+  const carbon = new MeshStandardMaterial(P.carbon);
+  const graphite = new MeshStandardMaterial(P.graphite);
+  const bone = new MeshStandardMaterial(P.bone);
+  // The chassis: the closed loop the slats ride on. Near-black on the dark
+  // stage, where the belt reads as light slats crossing a dark frame; pale
+  // glass on the light one, where that same black is a wedge heavy enough to
+  // take over the band. Transparent, so it renders after the return run and
+  // the tread loop shows faintly through its housing.
+  const belt = new MeshStandardMaterial(P.belt);
+  const beltBody = new Mesh(new BoxGeometry(BELT_LEN, 0.36, 1.08), belt);
   beltBody.name = 'belt_body';
-  beltBody.position.set(5, BELT_Y - 0.2, 0);
+  beltBody.position.set(BELT_MID, BELT_Y - 0.2, 0);
   world.add(beltBody);
 
   // A shallow inset on the near and far faces gives the body the same closed
   // tread-loop read as the source model. It deliberately contains no drums,
   // axles or idlers: the user wants the belt itself, without visible rollers.
-  const beltSideGeo = new BoxGeometry(27, 0.2, 0.025);
+  const beltSideGeo = new BoxGeometry(BELT_LEN, 0.2, 0.025);
   for (const z of [-0.55, 0.55]) {
+    // Shell, not chassis: a thin inset strip that keeps its closed-tread-loop
+    // read on the dark stage and, on the light one, draws the pale line down
+    // the black frame that the models detail their chassis with.
     const side = new Mesh(beltSideGeo, graphite);
     side.name = 'belt_side';
-    side.position.set(5, BELT_Y - 0.2, z);
+    side.position.set(BELT_MID, BELT_Y - 0.2, z);
     world.add(side);
   }
 
@@ -548,59 +498,226 @@ export function bootHeroScene(
   // and the emitters do: an additive core under an oversized, fainter additive
   // shell that spills past the slat and softens its edge.
   const accentHaloGeo = roundedBox(0.46, 0.01, 1.26, 0.09, 0.004);
-  for (let i = 0; i < 54; i++) {
+  // The lower run is its own strip rather than a second slat parented to each
+  // upper one: it travels the other way, and `layTread` can only keep both
+  // runs continuous if it moves them independently.
+  const returnRun = new Group();
+  returnRun.name = 'belt_return';
+  returnRun.position.y = BELT_Y - 0.48;
+  world.add(returnRun);
+  for (let i = 0; i < TREADS; i++) {
     const group = new Group();
     group.name = `belt_tread_${i}`;
-    const top = new Mesh(slatGeo, graphite);
-    const bottom = new Mesh(slatGeo, graphite);
-    bottom.position.y = -0.44;
-    group.add(top, bottom);
+    group.add(new Mesh(slatGeo, graphite));
     const bright = i % 3 === 0;
-    const color = Math.floor(i / 3) % 2 === 0 ? VIOLET : PRIMARY;
-    const base = bright ? 0.55 : 0.16;
-    const accent = new Mesh(accentGeo, glowMat(color, base));
+    const color = Math.floor(i / 3) % 2 === 0 ? TRACE_B : TRACE_A;
+    const peak = bright ? 0.55 : 0.16;
+    const base = ga(peak);
+    const accent = new Mesh(accentGeo, stageGlow(color, base));
     accent.position.y = 0.075;
-    const halo = new Mesh(accentHaloGeo, glowMat(color, base * HALO));
+    const haloBase = sa(peak * HALO);
+    const halo = new Mesh(accentHaloGeo, stageGlow(color, haloBase));
     halo.position.y = 0.079;
     group.add(accent, halo);
-    group.position.set(i * (SLOT / 2) - 8, BELT_Y - 0.04, 0);
+    group.position.set(i * TREAD + TREAD_X0, BELT_Y - 0.04, 0);
     world.add(group);
-    rungs.push({ group, bottom, accent, halo, base });
+    rungs.push({ group, accent, halo, base, haloBase });
+    returnRun.add(partMesh(`belt_return_${i}`, slatGeo, graphite, i * TREAD + TREAD_X0, 0, 0));
   }
 
-  // ---------- finished cubes (opaque)
-  const texes = TYPES.map((type) => typeTexture(type, mirrorText, CARD_BG, CYAN, LABEL));
+  /**
+   * Lays both runs of the tread out for a travel of `shift`, in world units
+   * along -X. A slat that would run off the near end is recycled to the far
+   * end instead of the strip ever being put back where it started: the belt
+   * used to be re-laid at its original x after every advance, which snapped
+   * the whole tread back a slot and read as the line twitching backwards.
+   * `TREADS` is a multiple of the six-slat lit pattern, so a recycled slat
+   * lands where an identically lit one would have been.
+   */
+  const layTread = (shift: number) => {
+    const s = ((shift % STRIP) + STRIP) % STRIP;
+    for (let i = 0; i < rungs.length; i++) {
+      const x = i * TREAD + TREAD_X0 - s;
+      rungs[i].group.position.x = x < TREAD_X0 ? x + STRIP : x;
+    }
+    // Every slat on the lower run is the same plain graphite, evenly spaced,
+    // so moving that strip within a single pitch is all the return needs to
+    // read as continuous travel the other way.
+    returnRun.position.x = s % TREAD;
+  };
+
+  // ---------- finished file crates (opaque)
+  //
+  // A port of the authoring model
+  // `.claude/Киберпанк пилоны_ четыре варианта/icon-crate-audio.glb`: a plinth
+  // under a lit flange, a softly rounded carbon body, an inset panel with a
+  // lit frame and a pictogram on each of the four sides, and a raised lid
+  // plate with a pictogram of its own. The model is *universal* — it carries
+  // all four pictograms at once, one per side plus four on the lid, and a
+  // different accent per side — but a crate on this belt is one file, so here
+  // every side and the lid carry the same pictogram and the whole shell takes
+  // that type's accent.
+  //
+  // Every number below is the model's own, in model units, read out of the
+  // GLB: heights and offsets from each node's accessor bounds through its
+  // world matrix, bevels from the extrusion's y levels, corner radii from
+  // where a rounded profile's straight run ends. They land on `roundedBox`
+  // exactly, because the model was built by the same M3-style rounded-rect
+  // extrusion this file already carries for the pylons — every part of it is
+  // a ratio of the 0.8 body: the plinth 1.14 of it, its flange 1.19, the lid
+  // plate 0.84, a panel 0.8, a frame rail 0.86 long and 0.02 thick.
+  //
+  // Widths are the *extruded* value, not the measured one: three.js bulges an
+  // extrusion out by `bevelSize` between its end caps, so a part measures
+  // 2 × bevel wider than the box it was asked for (the 0.8 body draws 0.856,
+  // its 0.912 plinth draws 0.9347) and a radius measures one bevel larger.
+  // Feeding measurements straight back in would fatten the whole crate.
+  //
+  // Four of the model's groups are deliberately left out, because they are
+  // *inside* the shell and never reach daylight: twelve edge rails and eight
+  // corner nodes that run along the body's corner-radius centres and its top
+  // and bottom faces, every one of them a clear 0.014 under the surface, and a
+  // lid trim whose 0.728 square is swallowed by the body's own 0.8 top face. Which is why the model reads as a dark shell with lit panels rather
+  // than a wireframe cage. Its floor halo — a lilac ring 1.41 across — is left
+  // out too, for a different reason: it is a display-stand element that would
+  // overhang the belt and, worse, fly along with the crate on the drop. The
+  // additive `crate_glow` shell this scene animates does that job instead.
   const cubeGeo = new BoxGeometry(CUBE, CUBE, CUBE);
   const cubeEdgeGeo = new EdgesGeometry(cubeGeo);
+  const crateBodyGeo = roundedBox(CRATE_BODY, CRATE_BODY, CRATE_BODY, 0.12, CRATE_BEVEL);
+  const cratePlinthGeo = roundedBox(0.912, 0.034, 0.912, 0.24, 0.014);
+  const cratePlinthTrimGeo = roundedBox(0.952, 0.016, 0.952, 0.256, 0.014);
+  const crateLidGeo = roundedBox(0.672, 0.016, 0.672, 0.104, 0.014);
+  const cratePanelGeo = roundedBox(0.64, 0.02, 0.64, 0.092, 0.006);
+  const crateFrameHGeo = roundedBox(0.688, 0.012, 0.016, 0.007, 0.014);
+  const crateFrameVGeo = roundedBox(0.016, 0.012, 0.688, 0.007, 0.014);
+  const crateGlowGeo = roundedBox(0.86, 0.868, 0.86, 0.19, 0.02);
+
+  // One pictogram geometry per type, shared by every crate carrying it: the
+  // artwork is identical between instances and only the materials differ, so
+  // nothing here is built or freed as the belt runs. Extruded to the model's
+  // own 0.03 of total depth — 0.023 plus a 0.0035 bevel at each end, which is
+  // what widens the 0.412 shapes in `hero-crate-icons` to the model's 0.419 —
+  // and re-based so the glyph's back face sits at z = 0.
+  const iconGeo = new Map<FileType['kind'], BufferGeometry>();
+  for (const { kind } of TYPES) {
+    const geometry = new ExtrudeGeometry(crateIconShapes(kind), {
+      depth: 0.023,
+      bevelEnabled: true,
+      bevelThickness: 0.0035,
+      bevelSize: 0.0035,
+      bevelSegments: 2,
+    });
+    geometry.computeBoundingBox();
+    geometry.translate(0, 0, -geometry.boundingBox!.min.z);
+    iconGeo.set(kind, geometry);
+  }
+
+  /**
+   * A `roundedBox` plate stood up on a crate's side: its front face at `z`,
+   * its thickness running back from there, its centre at `x`, `y`. The model's
+   * panels and frames are plates extruded the same way and rotated onto the
+   * sides, so this is the one transform that ports them.
+   */
+  const cratePlate = (
+    name: string,
+    geometry: BufferGeometry,
+    material: Material,
+    x: number,
+    y: number,
+    z: number,
+  ): Mesh => {
+    const plate = partMesh(name, geometry, material, x, y, z);
+    plate.rotation.x = -Math.PI / 2;
+    return plate;
+  };
+
+  // The model's own pairing, remapped onto this scene's accents: its jade
+  // audio face onto the green, its lilac doc face onto the violet trace, its
+  // periwinkle image face onto the cyan. Video is lilac in the model too, and
+  // four types have to be told apart at a glance, so it takes the magenta.
+  // `PRIMARY` is deliberately not in here — it is a pale blue a shade off
+  // `bone`, and a frame in it would swallow the pictogram inside it.
+  const typeColors = [CYAN, MAGENTA, GREEN, TRACE_B] as const;
+  /** Resting emissive on a crate's lit trim, and how far above it the trim
+   * flashes as the crate compacts out of the blueprint and lands. */
+  const ACCENT_EMISSIVE = 0.55 * TRIM_EM;
+  const ACCENT_FLASH = 0.7 * TRIM_EM;
+  const makeCrateVisual = (typeIndex: number): CrateVisual => {
+    const type = TYPES[typeIndex];
+    const color = typeColors[typeIndex];
+    const accent = new MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: ACCENT_EMISSIVE,
+      roughness: 0.3,
+      metalness: 0,
+    });
+    // A shell wrapping the whole crate (0.86 around a 0.8 body), so it is a
+    // bloom and not the floor mark its name suggests: converted up for a
+    // white stage it wraps every crate in a saturated haze and the shells
+    // come out pastel instead of white.
+    const glow = stageGlow(color, ba(0.08));
+    const g = new Group();
+    g.name = `crate_${type.kind}`;
+    g.scale.setScalar(CRATE_SCALE);
+    // Model coordinates from here down: the shell holds the crate's own
+    // mid-height on the group's origin, which is where the blueprint cube's
+    // centre was, and the group's scale does the rest.
+    const shell = new Group();
+    shell.position.y = -CRATE_MID;
+    g.add(shell);
+
+    shell.add(
+      partMesh('crate_glow', crateGlowGeo, glow, 0, -0.006, 0),
+      partMesh('crate_plinth', cratePlinthGeo, graphite, 0, 0, 0),
+      partMesh('crate_plinth_trim', cratePlinthTrimGeo, accent, 0, 0.026, 0),
+      partMesh('crate_body', crateBodyGeo, carbon, 0, 0.046, 0),
+      partMesh('crate_lid', crateLidGeo, graphite, 0, 0.838, 0),
+    );
+
+    for (let side = 0; side < 4; side++) {
+      const face = new Group();
+      face.name = `crate_face_${type.kind}_${side}`;
+      face.rotation.y = side * (Math.PI / 2);
+      // The panel sits 0.008 inside the body's face; the frame rails stand
+      // 0.002 proud of it and overhang the panel on all four sides, so their
+      // ends float clear of the body where its corners curve away — the lit
+      // rectangle the model reads by.
+      face.add(
+        cratePlate('crate_panel', cratePanelGeo, graphite, 0, 0.446, 0.42),
+        cratePlate('crate_frame', crateFrameHGeo, accent, 0, 0.782, 0.43),
+        cratePlate('crate_frame', crateFrameHGeo, accent, 0, 0.11, 0.43),
+        cratePlate('crate_frame', crateFrameVGeo, accent, -0.336, 0.446, 0.43),
+        cratePlate('crate_frame', crateFrameVGeo, accent, 0.336, 0.446, 0.43),
+      );
+      face.add(partMesh(`crate_icon_${type.kind}`, iconGeo.get(type.kind)!, bone, 0, 0.446, 0.42));
+      shell.add(face);
+    }
+
+    // Sunk into the lid until only the model's own 0.007 of relief is left: a
+    // pictogram printed on the lid rather than a block sitting on it. Rotating
+    // about -X (not +X) sends the glyph's own up-direction away from the
+    // camera, so it reads the right way up on a lid seen from above.
+    const lidIcon = partMesh(`crate_icon_${type.kind}`, iconGeo.get(type.kind)!, bone, 0, 0.831, 0);
+    lidIcon.rotation.x = -Math.PI / 2;
+    shell.add(lidIcon);
+    return { g, accent, glow };
+  };
+
   const live: Cube[] = [];
   const retired: Cube[] = [];
-  const makeCube = (): Cube => {
-    const g = new Group();
-    const mesh = new Mesh(
-      cubeGeo,
-      new MeshStandardMaterial({
-        color: 0xffffff,
-        map: texes[0],
-        emissive: PRIMARY,
-        emissiveIntensity: 0.1,
-        roughness: 0.45,
-        metalness: 0.16,
-      }),
-    );
-    const edges = new LineSegments(cubeEdgeGeo, new LineBasicMaterial({ color: CYAN, transparent: true, opacity: 0.65 }));
-    const glow = new Mesh(new BoxGeometry(CUBE * 1.1, CUBE * 1.1, CUBE * 1.1), glowMat(CYAN, 0.08));
-    g.add(mesh, edges, glow);
-    world.add(g);
-    return { g, mesh, edges, glow, slot: 0, x: START_X };
+  const makeCube = (typeIndex: number): Cube => {
+    const crate = makeCrateVisual(typeIndex);
+    world.add(crate.g);
+    return { ...crate, slot: 0, x: START_X };
   };
   // Once a second cube has left the frame the older one is destroyed — nothing
   // invisible stays in memory.
   const freeCube = (s: Cube) => {
     world.remove(s.g);
-    s.mesh.material.dispose();
-    s.edges.material.dispose();
-    s.glow.geometry.dispose();
-    s.glow.material.dispose();
+    s.accent.dispose();
+    s.glow.dispose();
   };
 
   // ---------- blueprint volume + assembling particles
@@ -653,7 +770,7 @@ export function bootHeroScene(
       blueprint.add(b);
     });
   }
-  const bpFloor = new Mesh(new PlaneGeometry(CUBE * 1.7, CUBE * 1.7), glowMat(VIOLET, 0.07));
+  const bpFloor = new Mesh(new PlaneGeometry(CUBE * 1.7, CUBE * 1.7), stageGlow(TRACE_B, ba(0.07)));
   bpFloor.rotation.x = -Math.PI / 2;
   bpFloor.position.y = -CUBE / 2 - 0.02;
   blueprint.add(bpFloor);
@@ -662,7 +779,18 @@ export function bootHeroScene(
   const setBlueprint = (k: number) => bpMats.forEach((m, i) => void (m.opacity = bpBase[i] * k));
 
   // Particles that make up the cube (opaque, only faintly lit).
-  const matPart = new MeshStandardMaterial({ color: 0x2b3f5e, emissive: CYAN, emissiveIntensity: 0.22, roughness: 0.5, metalness: 0.25 });
+  /** A part in flight, and the same material once it has landed in the
+   * blueprint: `PART_EMISSIVE` is its resting burn and `PART_FLASH` the
+   * overshoot it compacts through. Both are animated below, so they are
+   * constants rather than literals at the write sites. */
+  const PART_EMISSIVE = 0.22 * EM;
+  const PART_FLASH = 0.7 * EM;
+  /** The landing crate's bloom shell: the peak it flashes to as it lands, the
+   * fade off that peak, and where it rests. */
+  const DROP_PEAK = ba(0.3);
+  const DROP_FADE = ba(0.18);
+  const DROP_REST = ba(0.08);
+  const matPart = new MeshStandardMaterial({ color: P.part, emissive: CYAN, emissiveIntensity: PART_EMISSIVE, roughness: 0.5, metalness: mt(0.25) });
   const partGeo = new BoxGeometry(SX * 0.9, SY * 0.9, SZ * 0.9);
   const partX = (p: Cell) => -CUBE / 2 + SX / 2 + p.x * SX;
   const partY = (p: Cell) => -CUBE / 2 + SY / 2 + p.y * SY;
@@ -685,16 +813,20 @@ export function bootHeroScene(
   // which drops the reference's own default bevel since `roundedBox` always
   // forwards a concrete one, and `arcRing`, which drops the reference's own
   // `spin` param since this head never spins its rings).
-  // `carbon`/`graphite` are declared above (the conveyor uses them too); one
-  // more structural neutral (`bone`) and the two accent materials this design
-  // uses are remapped onto the scene's own palette instead — periwinkle ->
-  // primary, lilac -> the existing violet trace — so the pylon recolors with
-  // everything else on a theme flip.
-  const bone = new MeshStandardMaterial({ color: 0xd8e0f2, emissive: 0x9db4e6, emissiveIntensity: 0.2, roughness: 0.34, metalness: 0.14 });
-  const tracePrimary = new MeshStandardMaterial({ color: PRIMARY, emissive: PRIMARY, emissiveIntensity: 1.1, roughness: 0.25, metalness: 0.3 });
-  const traceMag = new MeshStandardMaterial({ color: MAGENTA, emissive: MAGENTA, emissiveIntensity: 1.25, roughness: 0.25, metalness: 0.3 });
-  const traceViolet = new MeshStandardMaterial({ color: VIOLET, emissive: VIOLET, emissiveIntensity: 1.2, roughness: 0.25, metalness: 0.3 });
-  const traceCyan = new MeshStandardMaterial({ color: CYAN, emissive: CYAN, emissiveIntensity: 1.05, roughness: 0.25, metalness: 0.3 });
+  // `carbon`/`graphite`/`bone` are declared above (the conveyor and the crates
+  // use them too); the two accent materials this design uses are remapped onto
+  // the scene's own palette instead — periwinkle -> primary, lilac -> the
+  // existing violet trace — so the pylon recolors with everything else on a
+  // theme flip.
+  /** The emitter bead's glow, flashed each time a part launches. */
+  const EMITTER_REST = ba(0.2);
+  const EMITTER_FLASH = ba(0.45);
+  const tracePrimary = new MeshStandardMaterial({ color: TRACE_A, emissive: TRACE_A, emissiveIntensity: 1.1 * TRIM_EM, roughness: 0.25, metalness: mt(0.3) });
+  const traceMag = new MeshStandardMaterial({ color: MAGENTA, emissive: MAGENTA, emissiveIntensity: 1.25 * TRIM_EM, roughness: 0.25, metalness: mt(0.3) });
+  const traceViolet = new MeshStandardMaterial({ color: TRACE_B, emissive: TRACE_B, emissiveIntensity: 1.2 * TRIM_EM, roughness: 0.25, metalness: mt(0.3) });
+  const traceCyan = new MeshStandardMaterial({ color: CYAN, emissive: CYAN, emissiveIntensity: 1.05 * TRIM_EM, roughness: 0.25, metalness: mt(0.3) });
+  /** The pulse the three traces breathe on, peaks only — the shape is below. */
+  const TRACE_PULSE = { mag: 1.15 * TRIM_EM, violet: 1.1 * TRIM_EM, cyan: 1.0 * TRIM_EM };
 
   /** M3-style rounded-rect profile, extruded along Y and based at y = 0. */
   function roundedRectShape(w: number, d: number, r: number): Shape {
@@ -740,10 +872,11 @@ export function bootHeroScene(
     g.rotateX(-Math.PI / 2);
     return g;
   }
-  function pylonMesh(
+  /** A named mesh at a position — the whole of what every part in here is. */
+  function partMesh(
     name: string,
     geo: BufferGeometry,
-    material: MeshStandardMaterial,
+    material: Material,
     x = 0,
     y = 0,
     z = 0,
@@ -763,20 +896,20 @@ export function bootHeroScene(
   }
   /** The head's mounting collar — a glow ring under a plain disc. */
   function collar(g: Group, w: number, wide: number): void {
-    g.add(pylonMesh('head_collar_glow', roundedBox(w * wide * 1.07, w * 0.06, w * wide * 1.07, w * 0.4), tracePrimary, 0, -w * 0.05, 0));
-    g.add(pylonMesh('head_collar', roundedBox(w * wide, w * 0.14, w * wide, w * 0.36), graphite, 0, 0, 0));
+    g.add(partMesh('head_collar_glow', roundedBox(w * wide * 1.07, w * 0.06, w * wide * 1.07, w * 0.4), tracePrimary, 0, -w * 0.05, 0));
+    g.add(partMesh('head_collar', roundedBox(w * wide, w * 0.14, w * wide, w * 0.36), graphite, 0, 0, 0));
   }
   /** "Пилюля" (pill) head: a capsule cap with a domed top and four light bars. */
   function headPill(g: Group, w: number): void {
     collar(g, w, 1.1);
-    g.add(pylonMesh('head_pill', new CylinderGeometry(w * 0.42, w * 0.42, w * 1.08, 44), carbon, 0, w * 0.68, 0));
+    g.add(partMesh('head_pill', new CylinderGeometry(w * 0.42, w * 0.42, w * 1.08, 44), carbon, 0, w * 0.68, 0));
     g.add(
-      pylonMesh('head_pill_dome', new SphereGeometry(w * 0.42, 44, 22, 0, Math.PI * 2, 0, Math.PI / 2), carbon, 0, w * 1.22, 0),
+      partMesh('head_pill_dome', new SphereGeometry(w * 0.42, 44, 22, 0, Math.PI * 2, 0, Math.PI / 2), carbon, 0, w * 1.22, 0),
     );
-    g.add(pylonMesh('head_pill_ring', arcRing(w * 0.435, w * 0.026, Math.PI * 2), traceViolet, 0, w * 0.36, 0));
+    g.add(partMesh('head_pill_ring', arcRing(w * 0.435, w * 0.026, Math.PI * 2), traceViolet, 0, w * 0.36, 0));
     onFaces(g, 4, (face, s) => {
       face.add(
-        pylonMesh(
+        partMesh(
           `head_pill_bar_${s}`,
           new CapsuleGeometry(w * 0.022, w * 0.46, 4, 14),
           s % 2 ? traceViolet : tracePrimary,
@@ -786,10 +919,10 @@ export function bootHeroScene(
         ),
       );
       face.add(
-        pylonMesh(`head_pill_louver_${s}`, roundedBox(w * 0.16, w * 0.045, w * 0.05, w * 0.02, w * 0.012), graphite, 0, w * 1.24, w * 0.36),
+        partMesh(`head_pill_louver_${s}`, roundedBox(w * 0.16, w * 0.045, w * 0.05, w * 0.02, w * 0.012), graphite, 0, w * 1.24, w * 0.36),
       );
     });
-    g.add(pylonMesh('head_pill_dot', new CylinderGeometry(w * 0.1, w * 0.11, w * 0.05, 28), bone, 0, w * 1.55, 0));
+    g.add(partMesh('head_pill_dot', new CylinderGeometry(w * 0.1, w * 0.11, w * 0.05, 28), bone, 0, w * 1.55, 0));
   }
 
   const HEAD_W = 0.3;
@@ -797,12 +930,12 @@ export function bootHeroScene(
     const g = new Group();
 
     // base: plinth, four capsule feet, riser
-    g.add(pylonMesh('plinth', roundedBox(1.18, 0.16, 1.18, 0.3), graphite, 0, 0, 0));
-    g.add(pylonMesh('plinth_trim', roundedBox(1.26, 0.022, 1.26, 0.33), tracePrimary, 0, -0.016, 0));
+    g.add(partMesh('plinth', roundedBox(1.18, 0.16, 1.18, 0.3), graphite, 0, 0, 0));
+    g.add(partMesh('plinth_trim', roundedBox(1.26, 0.022, 1.26, 0.33), tracePrimary, 0, -0.016, 0));
     onFaces(g, 4, (face, s) => {
-      face.add(pylonMesh(`foot_${s}`, new CapsuleGeometry(0.05, 0.1, 4, 14), carbon, 0.42, 0.04, 0.42));
+      face.add(partMesh(`foot_${s}`, new CapsuleGeometry(0.05, 0.1, 4, 14), carbon, 0.42, 0.04, 0.42));
     });
-    g.add(pylonMesh('plinth_riser', roundedBox(0.72, 0.12, 0.72, 0.2), carbon, 0, 0.17, 0));
+    g.add(partMesh('plinth_riser', roundedBox(0.72, 0.12, 0.72, 0.2), carbon, 0, 0.17, 0));
 
     // seven offset blocks, each spun a little further than the last, with
     // circuit strips and louvers alternating by parity
@@ -813,21 +946,21 @@ export function bootHeroScene(
       const block = new Group();
       block.rotation.y = spin;
       block.position.y = y;
-      block.add(pylonMesh(`block_body_${i}`, roundedBox(w, h, w, w * 0.22), carbon));
+      block.add(partMesh(`block_body_${i}`, roundedBox(w, h, w, w * 0.22), carbon));
       block.add(
-        pylonMesh(`block_seam_${i}`, roundedBox(w * 1.03, 0.018, w * 1.03, w * 0.23), i % 2 ? tracePrimary : traceViolet, 0, h, 0),
+        partMesh(`block_seam_${i}`, roundedBox(w * 1.03, 0.018, w * 1.03, w * 0.23), i % 2 ? tracePrimary : traceViolet, 0, h, 0),
       );
       onFaces(block, 4, (face, s) => {
         if ((s + i) % 2 === 0) {
           face.add(
-            pylonMesh(`block_strip_${i}`, roundedBox(0.026, h * 0.62, 0.02, 0.012, 0.005), traceViolet, w * 0.3, h * 0.2, w * 0.5 + 0.003),
+            partMesh(`block_strip_${i}`, roundedBox(0.026, h * 0.62, 0.02, 0.012, 0.005), traceViolet, w * 0.3, h * 0.2, w * 0.5 + 0.003),
           );
         }
         face.add(
-          pylonMesh(`block_louver_${i}`, roundedBox(w * 0.42, 0.016, 0.024, 0.008, 0.005), graphite, -w * 0.12, h * 0.62, w * 0.5 + 0.003),
+          partMesh(`block_louver_${i}`, roundedBox(w * 0.42, 0.016, 0.024, 0.008, 0.005), graphite, -w * 0.12, h * 0.62, w * 0.5 + 0.003),
         );
         face.add(
-          pylonMesh(`block_louver2_${i}`, roundedBox(w * 0.42, 0.016, 0.024, 0.008, 0.005), graphite, -w * 0.12, h * 0.44, w * 0.5 + 0.003),
+          partMesh(`block_louver2_${i}`, roundedBox(w * 0.42, 0.016, 0.024, 0.008, 0.005), graphite, -w * 0.12, h * 0.44, w * 0.5 + 0.003),
         );
       });
       g.add(block);
@@ -848,7 +981,7 @@ export function bootHeroScene(
     const emitter = new Mesh(new SphereGeometry(0.1, 20, 16), tracePrimary);
     emitter.position.y = topY;
     g.add(emitter);
-    const emGlow = new Mesh(new SphereGeometry(0.26, 20, 16), glowMat(PRIMARY, 0.2));
+    const emGlow = new Mesh(new SphereGeometry(0.26, 20, 16), stageGlow(TRACE_A, ba(0.2)));
     emGlow.position.y = topY;
     g.add(emGlow);
 
@@ -864,18 +997,20 @@ export function bootHeroScene(
   // close but not equal, and a size cut on top of that read as a smaller
   // machine, not a farther one.
   //
-  // The diagonal isometric view needs the machines to bracket the conveyor in
-  // depth as well as in screen space: the first stands behind the far edge and
-  // the second in front of the near edge. Their x offset keeps both silhouettes
-  // clear while their equal scale lets perspective alone describe the depth.
-  // The plinth trim is ~0.63 wide and the tread edge is |z| = 0.58, so these
-  // positions also leave a clean physical gap on both sides.
-  for (const [name, x, z] of [['pylon_far', 4.5, -2.15], ['pylon_near', 7.9, 2.0]] as const) {
+  // They stand on one line across the conveyor — same x, mirrored z — facing
+  // each other over the blueprint volume they feed, which is the station where
+  // a crate is assembled. Staggering them along the belt instead (the comp put
+  // one 3.4 further down the line) read as two unrelated machines standing on
+  // the same floor rather than one gantry the line runs through.
+  // The plinth trim is ~1.26 across and the tread edge is |z| = 0.58, so this
+  // leaves a clean physical gap on both sides.
+  for (const [name, x, z] of [['pylon_far', START_X, -2.05], ['pylon_near', START_X, 2.05]] as const) {
     const p = buildPylon();
     p.group.name = name;
     p.group.position.set(x, -0.2, z);
     world.add(p.group);
     pylons.push({
+      group: p.group,
       tip: new Vector3(x, -0.2 + p.tipY, z),
       tipWorld: new Vector3(),
       emitter: p.emitter,
@@ -904,7 +1039,7 @@ export function bootHeroScene(
     const mesh = new Mesh(beadGeo, mat);
     const glow = new Mesh(
       new SphereGeometry(0.16, 12, 10),
-      glowMat(i % 3 === 0 ? CYAN : i % 3 === 1 ? VIOLET : MAGENTA, 0.2),
+      stageGlow(i % 3 === 0 ? CYAN : i % 3 === 1 ? TRACE_B : MAGENTA, ba(0.2)),
     );
     mesh.add(glow);
     world.add(mesh);
@@ -919,13 +1054,27 @@ export function bootHeroScene(
   // is still flying — flight n reuses the mesh of flight n - POOL, which landed
   // (POOL - 1) * CELL_STEP > TRAVEL ago.
   const POOL = Math.ceil(TRAVEL / CELL_STEP) + 6;
-  const flyGeo = new BoxGeometry(SX * 0.85, SY * 0.85, SZ * 0.85);
-  const matFly = new MeshStandardMaterial({ color: 0x3a5378, emissive: CYAN, emissiveIntensity: 0.4, roughness: 0.42, metalness: 0.3 });
+  // A part leaves the pylon as a ball and hardens into a cube on the way, so
+  // its geometry is a sphere carrying the cube as a morph target (see
+  // `hero-fly-morph.ts`). The sphere's radius is the cube's smallest half
+  // extent, so the ball is the one that fits inside the cube it becomes
+  // rather than the other way round — it grows a little as it squares off,
+  // which is the direction that reads as compaction.
+  const FLY_HALF: [number, number, number] = [SX * 0.425, SY * 0.425, SZ * 0.425];
+  const flyGeo = new SphereGeometry(Math.min(...FLY_HALF), 24, 16);
+  const flyCube = ballToCube(flyGeo, FLY_HALF);
+  flyGeo.morphAttributes.position = [flyCube.position];
+  flyGeo.morphAttributes.normal = [flyCube.normal];
+  const matFly = new MeshStandardMaterial({ color: P.fly, emissive: CYAN, emissiveIntensity: 0.4 * EM, roughness: 0.42, metalness: mt(0.3) });
+  // The bloom shell around it is a sphere at both ends of the morph: it is a
+  // diffuse glow, so it has no shape of its own to keep, and morphing it in
+  // step with its parent would buy nothing anyone could see.
+  const flyGlowGeo = new SphereGeometry(Math.max(...FLY_HALF) * 1.7, 16, 12);
   const pool: Mesh[] = [];
   for (let i = 0; i < POOL; i++) {
     const m = new Mesh(flyGeo, matFly);
     m.visible = false;
-    m.add(new Mesh(new BoxGeometry(SX * 1.7, SY * 1.7, SZ * 1.7), glowMat(CYAN, 0.09)));
+    m.add(new Mesh(flyGlowGeo, stageGlow(CYAN, ba(0.09))));
     world.add(m);
     pool.push(m);
   }
@@ -934,20 +1083,14 @@ export function bootHeroScene(
   const drop = new Group();
   drop.visible = false;
   world.add(drop);
-  const dropMesh = new Mesh(
-    cubeGeo,
-    new MeshStandardMaterial({
-      color: 0xffffff,
-      map: texes[0],
-      emissive: CYAN,
-      emissiveIntensity: 0.22,
-      roughness: 0.45,
-      metalness: 0.18,
-    }),
-  );
-  const dropEdges = new LineSegments(cubeEdgeGeo, new LineBasicMaterial({ color: CYAN, transparent: true, opacity: 0.85 }));
-  const dropGlow = new Mesh(new BoxGeometry(CUBE * 1.16, CUBE * 1.16, CUBE * 1.16), glowMat(CYAN, 0.12));
-  drop.add(dropMesh, dropEdges, dropGlow);
+  const dropCrates = TYPES.map((_, typeIndex) => makeCrateVisual(typeIndex));
+  for (const crate of dropCrates) drop.add(crate.g);
+  let activeDrop = dropCrates[0];
+  const setDropType = (typeIndex: number) => {
+    dropCrates.forEach((crate, index) => void (crate.g.visible = index === typeIndex));
+    activeDrop = dropCrates[typeIndex];
+  };
+  setDropType(0);
 
   const rndType = mulberry32(0x41726961);
   /**
@@ -961,7 +1104,7 @@ export function bootHeroScene(
     const pick = Math.floor(rndType() * (TYPES.length - 1));
     return pick >= current ? pick + 1 : pick;
   };
-  const state = { phase: 'fill' as Phase, clock: 0, time: 0, landed: 0, made: 0, type: 0, flights: [] as Flight[] };
+  const state = { phase: 'fill' as Phase, clock: 0, time: 0, belt: 0, landed: 0, made: 0, type: 0, flights: [] as Flight[] };
   setBlueprint(1);
 
   const spawn = (idx: number) => {
@@ -972,18 +1115,18 @@ export function bootHeroScene(
     const ctrl = py.tip.clone().lerp(to, 0.5);
     ctrl.y += 0.7;
     mesh.visible = true;
+    // Every launch starts the morph over: the pool hands the same mesh back
+    // round-robin, and it landed as a cube.
+    mesh.morphTargetInfluences![0] = 0;
     state.flights.push({ mesh, t: 0, curve: new QuadraticBezierCurve3(py.tip.clone(), ctrl, to), idx });
   };
 
   const placeCube = () => {
-    const s = makeCube();
+    const s = makeCube(state.type);
     live.push(s);
     s.g.position.set(START_X, BELT_Y + CUBE / 2 + 0.02, 0);
-    s.mesh.material.map = texes[state.type];
-    s.mesh.material.needsUpdate = true;
     state.type = nextType(state.type);
-    dropMesh.material.map = texes[state.type];
-    dropMesh.material.needsUpdate = true;
+    setDropType(state.type);
     state.made++;
   };
 
@@ -1010,7 +1153,7 @@ export function bootHeroScene(
       // so the finished cube can take over at the same size and position.
       const s = 0.9 + 0.1 * e;
       for (const m of parts) m.scale.setScalar(s);
-      matPart.emissiveIntensity = 0.22 + Math.sin(Math.PI * k) * 0.7;
+      matPart.emissiveIntensity = PART_EMISSIVE + Math.sin(Math.PI * k) * PART_FLASH;
       setBlueprint(Math.max(0, 1 - e * 1.35));
       if (k >= 0.62 && !drop.visible) {
         drop.visible = true;
@@ -1020,8 +1163,8 @@ export function bootHeroScene(
       }
       if (drop.visible) {
         const f = Math.min(1, (k - 0.62) / 0.38);
-        dropMesh.material.emissiveIntensity = 0.95 - 0.73 * f;
-        dropGlow.material.opacity = 0.3 - 0.18 * f;
+        activeDrop.accent.emissiveIntensity = ACCENT_EMISSIVE + ACCENT_FLASH * (1 - f);
+        activeDrop.glow.opacity = DROP_PEAK - DROP_FADE * f;
       }
       if (k >= 1) {
         parts.forEach((m, i) => {
@@ -1029,10 +1172,10 @@ export function bootHeroScene(
           m.position.set(partX(p), partY(p), partZ(p));
           m.scale.setScalar(1);
         });
-        matPart.emissiveIntensity = 0.22;
+        matPart.emissiveIntensity = PART_EMISSIVE;
         setBlueprint(0);
-        dropMesh.material.emissiveIntensity = 0.22;
-        dropGlow.material.opacity = 0.12;
+        activeDrop.accent.emissiveIntensity = ACCENT_EMISSIVE;
+        activeDrop.glow.opacity = DROP_REST;
         state.phase = 'drop';
         state.clock = 0;
       }
@@ -1051,12 +1194,9 @@ export function bootHeroScene(
     } else if (state.phase === 'advance') {
       const e = easeInOut(Math.min(1, state.clock / ADVANCE));
       for (const s of live) s.g.position.x = s.x - SLOT * e;
-      rungs.forEach((r, i) => {
-        // The upper run carries the cubes toward -X; the return run travels in
-        // the opposite direction like a real continuous tread loop.
-        r.group.position.x = i * (SLOT / 2) - 8 - SLOT * e;
-        r.bottom.position.x = SLOT * 2 * e;
-      });
+      // The upper run carries the cubes toward -X; the return run travels in
+      // the opposite direction like a real continuous tread loop.
+      layTread(state.belt + SLOT * e);
       if (state.clock >= ADVANCE) {
         for (let i = live.length - 1; i >= 0; i--) {
           const s = live[i];
@@ -1070,10 +1210,10 @@ export function bootHeroScene(
           }
         }
         while (retired.length > 1) freeCube(retired.shift()!);
-        rungs.forEach((r, i) => {
-          r.group.position.x = i * (SLOT / 2) - 8;
-          r.bottom.position.x = 0;
-        });
+        // The tread keeps the slot it just travelled; the strip is periodic in
+        // `STRIP`, so wrapping the total there changes nothing on screen.
+        state.belt = (state.belt + SLOT) % STRIP;
+        layTread(state.belt);
         state.phase = 'idle';
         state.clock = 0;
       }
@@ -1087,10 +1227,10 @@ export function bootHeroScene(
     // On top of that fade a slow wave runs down the line, so the lit slats read
     // as travelling light rather than paint that happens to be bright.
     for (const r of rungs) {
-      const f = Math.max(0, 1 - Math.max(0, r.group.position.x) / 22);
-      const lit = r.base * (0.19 + 0.81 * f) * (0.76 + 0.36 * Math.sin(state.time * 2.1 - r.group.position.x * 0.55));
-      r.accent.material.opacity = lit;
-      r.halo.material.opacity = lit * HALO;
+      const f = Math.max(0, 1 - Math.max(0, r.group.position.x) / 30);
+      const wave = (0.19 + 0.81 * f) * (0.76 + 0.36 * Math.sin(state.time * 2.1 - r.group.position.x * 0.55));
+      r.accent.material.opacity = r.base * wave;
+      r.halo.material.opacity = r.haloBase * wave;
     }
 
     for (let i = state.flights.length - 1; i >= 0; i--) {
@@ -1100,6 +1240,7 @@ export function bootHeroScene(
       f.curve.getPoint(easeInOut(k), tmp);
       f.mesh.position.copy(tmp);
       f.mesh.scale.setScalar(1.1 - 0.1 * k);
+      f.mesh.morphTargetInfluences![0] = morphAt(k);
       if (k >= 1) {
         parts[f.idx].visible = true;
         f.mesh.visible = false;
@@ -1109,9 +1250,9 @@ export function bootHeroScene(
     }
 
     const pulse = 0.9 + 0.22 * Math.sin(state.time * 1.4);
-    traceMag.emissiveIntensity = 1.15 * pulse;
-    traceViolet.emissiveIntensity = 1.1 * (1.85 - pulse);
-    traceCyan.emissiveIntensity = 1.0 * pulse;
+    traceMag.emissiveIntensity = TRACE_PULSE.mag * pulse;
+    traceViolet.emissiveIntensity = TRACE_PULSE.violet * (1.85 - pulse);
+    traceCyan.emissiveIntensity = TRACE_PULSE.cyan * pulse;
     // Beads home in on the crowns and are absorbed there.
     for (const b of beads) {
       b.t += dt / b.dur;
@@ -1129,25 +1270,115 @@ export function bootHeroScene(
     }
     for (const py of pylons) {
       py.flash = Math.max(0, py.flash - dt * 2.2);
-      py.emGlow.material.opacity = 0.2 + py.flash * 0.45;
+      py.emGlow.material.opacity = EMITTER_REST + py.flash * EMITTER_FLASH;
       py.emitter.scale.setScalar(1 + py.flash * 0.4);
     }
   };
 
-  /**
-   * Highest of the two pylon tips, in normalised device coordinates, for a
-   * given aim height. Raising the aim tilts the camera up and pushes the
-   * subject down, so this decreases monotonically in `y` — which is what makes
-   * the bisection below sound.
-   */
+  // Both machines' corners in world space, for measuring where they sit in
+  // the frame. They never move, so this is read once.
+  const machineCorners: Vector3[] = [];
+  for (const py of pylons) {
+    const box = new Box3().setFromObject(py.group);
+    for (let corner = 0; corner < 8; corner++) {
+      machineCorners.push(new Vector3(
+        corner & 1 ? box.max.x : box.min.x,
+        corner & 2 ? box.max.y : box.min.y,
+        corner & 4 ? box.max.z : box.min.z,
+      ));
+    }
+  }
+  // And the crate at the station, the moment it lands: the lowest thing in the
+  // composition that has to stay in frame. The plinths below it may be cropped
+  // by the band's edge - a machine running off the bottom reads as one that
+  // carries on past the screen - but a crate cut in half by the closing fade
+  // is the belt's whole point gone missing.
+  const stationCrate = new Vector3(START_X, BELT_Y + CUBE / 2, 0);
+  world.localToWorld(stationCrate);
+
+  // Where the machines sit in the frame, in normalised device coordinates, for
+  // the aim currently written into `aimX`/`aimY`/`aimZ`. `solveY`/`solveX`
+  // walk one of those to the aim that puts a given reading on a given line:
+  // raising the aim tilts the camera up and pushes the subject down the frame,
+  // and aiming further along the belt pushes it left, so every reading below
+  // falls monotonically in the coordinate its solver moves — which is what
+  // makes the bisection sound.
+  let aimX = WIDE.target.x;
+  let aimY = WIDE.target.y;
+  let aimZ = WIDE.target.z;
   const probe = new Vector3();
-  const tipNdcAt = (x: number, y: number, z: number) => {
-    camera.lookAt(x, y, z);
+  const aimAt = () => {
+    camera.lookAt(aimX, aimY, aimZ);
     camera.updateMatrixWorld();
+  };
+  /** The higher of the two crowns. */
+  const tipNdc = () => {
+    aimAt();
     let top = -Infinity;
     for (const py of pylons) top = Math.max(top, probe.copy(py.tipWorld).project(camera).y);
     return top;
   };
+  /** The crate at the station. */
+  const crateNdc = () => {
+    aimAt();
+    return probe.copy(stationCrate).project(camera).y;
+  };
+  /** How far the pair reaches to each side, and how high it stands. */
+  const spanNdc = () => {
+    aimAt();
+    let left = Infinity;
+    let right = -Infinity;
+    let top = -Infinity;
+    for (const p of machineCorners) {
+      const v = probe.copy(p).project(camera);
+      left = Math.min(left, v.x);
+      right = Math.max(right, v.x);
+      top = Math.max(top, v.y);
+    }
+    return { left, right, top };
+  };
+  /** 24 halvings over a range that covers every reachable aim, which lands the
+   *  reading on its line to well under a pixel. */
+  const HALVINGS = 24;
+  const solveY = (read: () => number, value: number) => {
+    let lo = -12;
+    let hi = 16;
+    for (let i = 0; i < HALVINGS; i++) {
+      const mid = (lo + hi) / 2;
+      aimY = mid;
+      if (read() > value) lo = mid;
+      else hi = mid;
+    }
+    aimY = (lo + hi) / 2;
+  };
+  const solveX = (read: () => number, value: number) => {
+    let lo = -14;
+    let hi = 26;
+    for (let i = 0; i < HALVINGS; i++) {
+      const mid = (lo + hi) / 2;
+      aimX = mid;
+      if (read() > value) lo = mid;
+      else hi = mid;
+    }
+    aimX = (lo + hi) / 2;
+  };
+  /** How far down the frame the station's crate may sit before the pair is
+   *  held back up, and how far down it has to reach before the crowns are
+   *  allowed to hang off the line the page states rather than dropping to meet
+   *  it. Both are read on that crate rather than on the plinths: it is what
+   *  has to stay in frame, and what the closing fade must not swallow - the
+   *  floor is where that fade starts, so the crate lands just above it and
+   *  everything nearer the camera dissolves into it. */
+  const CRATE_FLOOR = -0.56;
+  const CRATE_REACH = -0.12;
+  /** And how much of the half-frame stays clear of the other three edges. */
+  const EDGE = 0.06;
+  /** The gap the pair keeps from the copy column's edge, so the two never
+   *  touch at any width. */
+  const COPY_GAP = 0.05;
+  /** How far above the line it was given the pair may still stand, before the
+   *  field widens to fit it under that line properly. */
+  const TIP_SLACK = 0.06;
 
   const resize = () => {
     const w = host.clientWidth || 960;
@@ -1156,26 +1387,92 @@ export function bootHeroScene(
     const aspect = w / Math.max(1, h);
     camera.aspect = aspect;
 
-    const { fov, target } = framingFor(aspect);
-    camera.fov = fov;
-    // Before probing: `project` reads the projection matrix.
-    camera.updateProjectionMatrix();
-
+    const { h: field, target } = framingFor(aspect);
+    aimZ = target.z;
     const want = alignTipsNdc?.() ?? null;
-    let aimY = target.y;
-    if (want !== null && Number.isFinite(want)) {
-      // 40 halvings over a range that covers every reachable aim, so the tips
-      // land on the line to well under a pixel.
-      let lo = -12;
-      let hi = 16;
-      for (let i = 0; i < 40; i++) {
+    const clear = copyEdgeNdc?.() ?? null;
+
+    /**
+     * Stands the pair up for a given horizontal half-extent and reports how
+     * much of the half-frame it has left over — negative when it does not fit.
+     *
+     * Beside the copy when the page has a column to clear, at the framing's
+     * own x when the copy is stacked above the scene instead. Then the crowns
+     * on the line the hero asked for, and if that would stand the machines
+     * through the bottom edge — stacked, on a narrow phone, the copy wraps far
+     * enough to push that line three quarters down the band — the feet stop
+     * them there instead. Which is why the page states the line it wants and
+     * nothing else: how tall a machine draws at this shape is the scene's own
+     * business.
+     */
+    const place = (half: number): number => {
+      camera.fov = (2 * Math.atan(half / Math.min(aspect, ZOOM_STOP))) / DEG;
+      // Before probing: `project` reads the projection matrix.
+      camera.updateProjectionMatrix();
+      aimX = target.x;
+      aimY = target.y;
+      // Twice around: the two solves are coupled through the camera's tilt -
+      // pitching it up or down skews the horizontal projection - so one pass
+      // leaves the pair off the column's edge by as much as a tenth of the
+      // frame, and the field then eases off for room it did not need.
+      for (let pass = 0; pass < 2; pass++) {
+        // Beside the copy where there is a column to clear; centred in the
+        // frame where there is not, which is what a stacked layout wants -
+        // the copy is above the scene there, so the pair has the whole width
+        // and reads best down the middle of it.
+        if (clear !== null) solveX(() => spanNdc().left, clear + COPY_GAP);
+        else {
+          // Both edges fall as the aim moves along the belt, so their sum does
+          // too - which is the reading a bisection can walk to zero.
+          solveX(() => {
+            const span = spanNdc();
+            return span.left + span.right;
+          }, 0);
+        }
+        if (want !== null && Number.isFinite(want)) solveY(tipNdc, want);
+      }
+      // The line the page states is where the crowns go while the station's
+      // crate lands somewhere useful from it. A pair the field had to ease off
+      // - a 1024 column layout leaves it under a third of the width - is too
+      // short for that, and hanging it off a heading line near the top of the
+      // band would leave the whole bottom half empty, so it drops until the
+      // crate reaches `CRATE_REACH`. And the other way at the other end: a
+      // line low in the band, which is where a phone's copy pushes it, would
+      // carry that crate off the bottom edge, so `CRATE_FLOOR` stops it.
+      if (crateNdc() > CRATE_REACH) solveY(crateNdc, CRATE_REACH);
+      if (crateNdc() < CRATE_FLOOR) solveY(crateNdc, CRATE_FLOOR);
+      const span = spanNdc();
+      // What the page needs to fade against: the belt past the machines is
+      // empty line, and a hero that runs it out to the window's edge reads as
+      // a picture with nothing in half of it. So the far fade starts where the
+      // machines stop, and the page is told where that is - as a share of the
+      // band, which is what a CSS width wants.
+      host.style.setProperty('--hero-tail', `${Math.max(0, ((1 - span.right) / 2) * 100).toFixed(2)}%`);
+      // Room to the right, room above, and - when the crowns were asked for a
+      // line - how far the feet had to push them back up off it. That last one
+      // is what fits the pair to the strip the page left it: a machine too
+      // tall for the space under a phone's copy reads as one standing in the
+      // sentences, so the field widens until it stands under them instead.
+      const raised = want !== null && Number.isFinite(want) ? want - tipNdc() + TIP_SLACK : 1;
+      return Math.min(1 - EDGE - span.right, 1 - EDGE - span.top, raised);
+    };
+
+    // The zoom the composition was drawn at, eased off only where the pair
+    // cannot fit at it: a 1024-wide column layout leaves them less than half
+    // the band, and a machine drawn for a 1440 needs a wider field to stand in
+    // that. Room grows with the field, so this is one more bisection - over a
+    // range wide enough to cover the worst of it, a 320px band, where a fourth
+    // of the drawn zoom is what fits under the line its copy leaves.
+    if (place(field) < 0) {
+      let lo = field;
+      let hi = field * 4;
+      for (let i = 0; i < 12; i++) {
         const mid = (lo + hi) / 2;
-        if (tipNdcAt(target.x, mid, target.z) > want) lo = mid;
+        if (place(mid) < 0) lo = mid;
         else hi = mid;
       }
-      aimY = (lo + hi) / 2;
+      place(hi);
     }
-    camera.lookAt(target.x, aimY, target.z);
     renderer.render(scene, camera);
   };
   const ro = new ResizeObserver(resize);

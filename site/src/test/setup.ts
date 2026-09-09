@@ -5,7 +5,10 @@ import '@testing-library/jest-dom/vitest';
 
 // ── matchMedia ───────────────────────────────────────────────────────────────
 // lib/theme.ts resolves the system theme through it and subscribes to changes,
-// so the query list has to be able to change its answer.
+// so the query list has to be able to change its answer. A `(min-width: Npx)`
+// query is answered off `window.innerWidth` instead - the landing hero asks
+// for the `lg:` breakpoint, and a stub that handed it the dark-mode flag would
+// tie the layout it picks to the theme.
 type MqlListener = (ev: MediaQueryListEvent) => void;
 const mqlListeners = new Set<MqlListener>();
 let systemDark = false;
@@ -16,10 +19,11 @@ export function setSystemDark(dark: boolean): void {
   for (const l of [...mqlListeners]) l(ev);
 }
 
-window.matchMedia = ((query: string) =>
-  ({
+window.matchMedia = ((query: string) => {
+  const minWidth = /\(min-width:\s*(\d+)px\)/.exec(query);
+  return {
     get matches() {
-      return systemDark;
+      return minWidth ? window.innerWidth >= Number(minWidth[1]) : systemDark;
     },
     media: query,
     onchange: null,
@@ -28,7 +32,8 @@ window.matchMedia = ((query: string) =>
     addListener: (l: MqlListener) => void mqlListeners.add(l),
     removeListener: (l: MqlListener) => void mqlListeners.delete(l),
     dispatchEvent: () => true,
-  }) as unknown as MediaQueryList) as typeof window.matchMedia;
+  } as unknown as MediaQueryList;
+}) as typeof window.matchMedia;
 
 // ── localStorage ─────────────────────────────────────────────────────────────
 // jsdom hands back a bare object with no Storage methods under this

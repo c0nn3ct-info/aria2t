@@ -1,7 +1,7 @@
 // The hero and the thin React side of its WebGL backdrop. The scene itself is
 // mocked here: what matters at this level is that it boots once, on a canvas in
-// the tree, only where WebGL exists, that it is told which way the page reads,
-// and that it is handed the heading line to aim at.
+// the tree, only where WebGL exists, and that it is handed the heading line to
+// aim at.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@/test/render';
 import type { HeroSceneHandle } from './hero-scene-three';
@@ -58,22 +58,14 @@ describe('canRunScene', () => {
 });
 
 describe('HeroScene', () => {
-  it('boots the scene onto its canvas, and tells it the page reads left to right', async () => {
+  it('boots the scene onto its canvas', async () => {
     const { HeroScene } = await import('./hero-scene');
     const { container } = render(<HeroScene aria-label="scene" />);
     await settle();
     expect(container.querySelector('canvas')).not.toBeNull();
     expect(screen.getByRole('img', { name: 'scene' })).toBeInTheDocument();
     expect(boot).toHaveBeenCalledTimes(1);
-    expect(boot.mock.calls[0][2]).toMatchObject({ mirrorText: false });
-  });
-
-  it('has the scene flip its baked labels on a right-to-left page', async () => {
-    document.documentElement.dir = 'rtl';
-    const { HeroScene } = await import('./hero-scene');
-    render(<HeroScene aria-label="scene" />);
-    await settle();
-    expect(boot.mock.calls[0][2]).toMatchObject({ mirrorText: true });
+    expect(boot.mock.calls[0][2]).toEqual({ alignTipsNdc: undefined, copyEdgeNdc: undefined });
   });
 
   it('does not boot where there is no WebGL', async () => {
@@ -124,7 +116,7 @@ describe('HeroScene', () => {
 });
 
 describe('LandingHero', () => {
-  it('states where the heading line is, in the coordinates the scene projects into', async () => {
+  it('states which line the scene should aim at, per layout', async () => {
     const { LandingHero } = await import('./hero');
     const { container } = render(<LandingHero />);
     await settle();
@@ -146,9 +138,49 @@ describe('LandingHero', () => {
     rects = [{ top: 200, bottom: 300 } as DOMRect];
     expect(aim.alignTipsNdc()).toBeCloseTo(0.5, 5);
 
+    // Stacked - anything below the `lg` breakpoint - it aims under the copy's
+    // last row, the source chips, wherever the wrap has put them: 26 pixels
+    // below 674 in a band 1000 tall is -0.4.
+    const chips = container.querySelector('ul')!;
+    vi.spyOn(chips, 'getBoundingClientRect').mockReturnValue({ bottom: 674 } as DOMRect);
+    window.innerWidth = 500;
+    expect(aim.alignTipsNdc()).toBeCloseTo(-0.4, 5);
+    window.innerWidth = 1024;
+
     // A band with no height cannot place anything either.
     band(0);
     expect(aim.alignTipsNdc()).toBeNull();
+  });
+
+  it('states where the copy column ends, so the machines can stand clear of it', async () => {
+    const { LandingHero } = await import('./hero');
+    const { container } = render(<LandingHero />);
+    await settle();
+    const aim = boot.mock.calls[0][2] as { copyEdgeNdc: () => number | null };
+    const section = container.querySelector('section')!;
+    const copy = container.querySelector('h1')!.parentElement!;
+    window.innerWidth = 1024;
+    vi.spyOn(section, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 1000 } as DOMRect);
+    vi.spyOn(copy, 'getBoundingClientRect').mockReturnValue({ left: 40, right: 640 } as DOMRect);
+
+    // A 1000-wide band whose copy ends at 640: a little past the middle.
+    expect(aim.copyEdgeNdc()).toBeCloseTo(0.28, 5);
+
+    // Right to left the canvas is mirrored, so the column's near edge in page
+    // coordinates is its far edge in the scene's.
+    document.documentElement.dir = 'rtl';
+    expect(aim.copyEdgeNdc()).toBeCloseTo(0.92, 5);
+    document.documentElement.dir = 'ltr';
+
+    // Stacked, the copy is above the scene rather than beside it, and there is
+    // no column to clear.
+    window.innerWidth = 500;
+    expect(aim.copyEdgeNdc()).toBeNull();
+    window.innerWidth = 1024;
+
+    // A band with no width cannot place anything.
+    vi.spyOn(section, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 0 } as DOMRect);
+    expect(aim.copyEdgeNdc()).toBeNull();
   });
 
   it('names every source aria2 accepts, and both ways to get the app', async () => {

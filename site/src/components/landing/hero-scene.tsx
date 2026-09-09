@@ -33,16 +33,24 @@ interface Props {
    * solves its aim against it on every resize.
    */
   alignTipsNdc?: () => number | null;
+  /**
+   * The far edge of the copy column, in the same coordinates, or null while
+   * the copy is stacked above the scene. The scene stands its machines clear
+   * of it.
+   */
+  copyEdgeNdc?: () => number | null;
   className?: string;
 }
 
-export function HeroScene({ 'aria-label': label, alignTipsNdc, className }: Props) {
+export function HeroScene({ 'aria-label': label, alignTipsNdc, copyEdgeNdc, className }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   // Held in a ref so the effect can boot once and still read the latest
   // measurement on every resize.
   const align = useRef(alignTipsNdc);
   align.current = alignTipsNdc;
+  const edge = useRef(copyEdgeNdc);
+  edge.current = copyEdgeNdc;
 
   useEffect(() => {
     if (!canRunScene()) return;
@@ -53,11 +61,9 @@ export function HeroScene({ 'aria-label': label, alignTipsNdc, className }: Prop
       .then((m) => {
         // Unmounted while the chunk was loading: never boot into a dead node.
         if (!alive) return;
-        // Both refs are attached by the time an effect runs.
-        // The hero mirrors this canvas on a right-to-left page; tell the
-        // scene so the text it bakes into its textures is flipped back.
-        const rtl = document.documentElement.dir === 'rtl';
-        const opts = { mirrorText: rtl, alignTipsNdc: align.current };
+        // Both refs are attached by the time an effect runs. File symbols are
+        // geometry now, so there is no direction-dependent texture to rebuild.
+        const opts = { alignTipsNdc: align.current, copyEdgeNdc: edge.current };
         const boot = () => {
           handle?.dispose();
           handle = m.bootHeroScene(host.current!, canvas.current!, opts);

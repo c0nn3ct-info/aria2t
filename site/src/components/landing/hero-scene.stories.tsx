@@ -51,6 +51,27 @@ export const Portrait: Story = {
 };
 
 /**
+ * The light stage. Not a tint of the dark one: `.claude/3d/light` holds its own
+ * authored material set, so the shells invert to near-white, the pictograms
+ * invert to near-black, and the chassis under the slats stays dark because
+ * that contrast is the only thing separating a conveyor from a white ramp.
+ *
+ * The rig and the glow change with it. The rims go near-neutral — saturated
+ * rim light over a white shell tints every face pink or mint — and the glow
+ * layer splits: flat trim blends normally and opens up, because adding to
+ * white is a no-op, while the bloom shells around the emitters and the parts
+ * go almost to nothing, since escaped light needs dark to escape into.
+ */
+export const Light: Story = {
+  globals: { theme: 'light', accent: 'blue' },
+  render: (args) => (
+    <div className="h-[520px] w-full bg-background">
+      <HeroScene {...args} />
+    </div>
+  ),
+};
+
+/**
  * Aimed at a line: `alignTipsNdc` hands the scene a height in normalised device
  * coordinates and it bisects its camera aim until the higher pylon tip lands
  * there. +0.5 is a quarter of the way down the frame.
