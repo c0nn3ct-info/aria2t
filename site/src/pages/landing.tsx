@@ -12,7 +12,7 @@ import { FilesSection } from '@/components/landing/files-section';
 import { LandingHero } from '@/components/landing/hero';
 import { LimitsSection } from '@/components/landing/limits-section';
 import { PiecesSection } from '@/components/landing/pieces-section';
-import { QueueSection } from '@/components/landing/queue-section';
+import { QueueB2Section } from '@/components/landing/queue-b2-section';
 import { StatsSection } from '@/components/landing/stats-section';
 import { SurfacesSection } from '@/components/landing/surfaces';
 import { useSectionEntrance } from '@/lib/use-enter';
@@ -27,7 +27,7 @@ export function LandingPage() {
     <Layout current="home" bleed>
       <LandingHero />
       <SurfacesSection />
-      <QueueSection />
+      <QueueB2Section />
       <StatsSection />
       <FilesSection />
       <PiecesSection />

@@ -540,11 +540,13 @@
 }
 
 @layer components {
-  .m3-state-layer {
+  .m3-state-layer,
+  .m3-hover-layer {
     position: relative;
     isolation: isolate;
   }
-  .m3-state-layer::after {
+  .m3-state-layer::after,
+  .m3-hover-layer::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -554,7 +556,8 @@
     transition: opacity var(--dur-short) var(--ease-emph);
     border-radius: inherit;
   }
-  .m3-state-layer:hover::after {
+  .m3-state-layer:hover::after,
+  .m3-hover-layer:hover::after {
     opacity: 0.08;
   }
   .m3-state-layer:focus-visible::after {

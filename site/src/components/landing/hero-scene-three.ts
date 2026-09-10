@@ -77,16 +77,23 @@ const SLOT = 0.94;
  * multiple of six, the period of the slats' lit pattern, so the strip can be
  * recycled through itself without the pattern jumping. */
 const TREAD = SLOT / 2;
-const TREADS = 72;
+const TREADS = 90;
 const STRIP = TREADS * TREAD;
-/** Near end of the tread strip, where a recycled slat re-enters. */
-const TREAD_X0 = -8;
+/** Near end of the tread strip, where a recycled slat re-enters. Far enough
+ * back that the strip's own end is never in frame: a composition standing
+ * beside the copy aims further down the line than one under it, and at 844 the
+ * old -8 put the belt's flat near terminus in the bottom-left corner. */
+const TREAD_X0 = -16;
+/** The band width from which the composition stands beside the copy rather
+ * than under it. The `md` breakpoint, where the copy's measure is capped and
+ * its rows stop leaving the pair a corner. */
+const BESIDE_FROM = 768;
 /** The belt body under it: long enough that its far end is always deeper than
  * the fog, since an ultra-wide frame sees a long way down the line. The fog is
  * what ends the line rather than the frame's edge - it dies into the page at
  * the same depth whatever the window does, where a wash at the window's edge
  * would have to know where the machines are standing not to dim them too. */
-const BELT_LEN = 36;
+const BELT_LEN = 44;
 const BELT_MID = TREAD_X0 - 0.5 + BELT_LEN / 2;
 /** Opacity of a glow shell relative to the core it wraps. */
 const HALO = 0.42;
@@ -347,12 +354,18 @@ export interface HeroSceneOptions {
    * scene instead of beside it, and the machines have the band's whole width.
    */
   copyEdgeNdc?: () => number | null;
+  /**
+   * The line the copy's own last row ends on, in the same coordinates. The
+   * scene stands the pair under it when standing it beside the copy would come
+   * out smaller, which is what a phone's full-width rows mean.
+   */
+  copyBottomNdc?: () => number | null;
 }
 
 export function bootHeroScene(
   host: HTMLElement,
   canvas: HTMLCanvasElement,
-  { alignTipsNdc, copyEdgeNdc }: HeroSceneOptions = {},
+  { alignTipsNdc, copyEdgeNdc, copyBottomNdc }: HeroSceneOptions = {},
 ): HeroSceneHandle {
   // No `preserveDrawingBuffer`: the comp set it so the design tool could
   // capture a thumbnail, and it costs a retained copy of the framebuffer
@@ -1297,19 +1310,35 @@ export function bootHeroScene(
   world.localToWorld(stationCrate);
 
   // Where the machines sit in the frame, in normalised device coordinates, for
-  // the aim currently written into `aimX`/`aimY`/`aimZ`. `solveY`/`solveX`
-  // walk one of those to the aim that puts a given reading on a given line:
-  // raising the aim tilts the camera up and pushes the subject down the frame,
-  // and aiming further along the belt pushes it left, so every reading below
-  // falls monotonically in the coordinate its solver moves — which is what
-  // makes the bisection sound.
-  let aimX = WIDE.target.x;
-  let aimY = WIDE.target.y;
-  let aimZ = WIDE.target.z;
+  // the frame shift currently written into `shiftX`/`shiftY`. `solveY` and
+  // `solveX` walk one of those to the value that puts a given reading on a
+  // given line: both push the subject down and left as they rise, so every
+  // reading below falls monotonically in the one its solver moves — which is
+  // what makes the bisection sound.
+  /**
+   * Where the frame sits over the scene, in fractions of itself: the whole of
+   * how the composition is placed.
+   *
+   * A shift of the frame, not a move of the camera. Sliding the camera
+   * sideways or tilting it down moves the vantage point, and then the belt's
+   * own angle across the frame - and how much its near end looms - changes
+   * with the shape of the window, which reads as the machine being rebuilt at
+   * every breakpoint rather than photographed from one place. Shifting the
+   * frame is what an architectural lens does: the vanishing points stay put
+   * against the scene, and only what the frame holds changes. The field of
+   * view still adapts (see `place`), and that is a magnification - it scales
+   * the picture without touching its perspective.
+   */
+  let shiftX = 0;
+  let shiftY = 0;
+  /** The frame the shift is measured in, written by `resize`. */
+  let frameW = 960;
+  let frameH = 520;
   const probe = new Vector3();
   const aimAt = () => {
-    camera.lookAt(aimX, aimY, aimZ);
-    camera.updateMatrixWorld();
+    // Positive `shiftY` moves the subject *down* the frame, which is the
+    // direction every reading below is solved in.
+    camera.setViewOffset(frameW, frameH, shiftX * frameW, -shiftY * frameH, frameW, frameH);
   };
   /** The higher of the two crowns. */
   const tipNdc = () => {
@@ -1337,30 +1366,30 @@ export function bootHeroScene(
     }
     return { left, right, top };
   };
-  /** 24 halvings over a range that covers every reachable aim, which lands the
-   *  reading on its line to well under a pixel. */
+  /** 24 halvings over a range that covers a frame and a half either way,
+   *  which lands the reading on its line to well under a pixel. */
   const HALVINGS = 24;
   const solveY = (read: () => number, value: number) => {
-    let lo = -12;
-    let hi = 16;
+    let lo = -1.6;
+    let hi = 1.6;
     for (let i = 0; i < HALVINGS; i++) {
       const mid = (lo + hi) / 2;
-      aimY = mid;
+      shiftY = mid;
       if (read() > value) lo = mid;
       else hi = mid;
     }
-    aimY = (lo + hi) / 2;
+    shiftY = (lo + hi) / 2;
   };
   const solveX = (read: () => number, value: number) => {
-    let lo = -14;
-    let hi = 26;
+    let lo = -1.6;
+    let hi = 1.6;
     for (let i = 0; i < HALVINGS; i++) {
       const mid = (lo + hi) / 2;
-      aimX = mid;
+      shiftX = mid;
       if (read() > value) lo = mid;
       else hi = mid;
     }
-    aimX = (lo + hi) / 2;
+    shiftX = (lo + hi) / 2;
   };
   /** How far down the frame the station's crate may sit before the pair is
    *  held back up, and how far down it has to reach before the crowns are
@@ -1376,9 +1405,15 @@ export function bootHeroScene(
   /** The gap the pair keeps from the copy column's edge, so the two never
    *  touch at any width. */
   const COPY_GAP = 0.05;
+  /** And how far it may stand *inside* the copy's widest row on a stacked
+   *  layout, where that row is the chips: they carry their own grounds, and
+   *  letting the far machine reach a little behind their tail is worth a
+   *  quarter of the composition's size. */
+  const CHIP_LAP = -0.14;
   /** How far above the line it was given the pair may still stand, before the
    *  field widens to fit it under that line properly. */
   const TIP_SLACK = 0.06;
+
 
   const resize = () => {
     const w = host.clientWidth || 960;
@@ -1388,91 +1423,121 @@ export function bootHeroScene(
     camera.aspect = aspect;
 
     const { h: field, target } = framingFor(aspect);
-    aimZ = target.z;
+    // One vantage point per shape, from the framing, and it does not move
+    // again: `place` composes by shifting the frame over it.
+    frameW = w;
+    frameH = h;
+    camera.lookAt(target.x, target.y, target.z);
+    camera.updateMatrixWorld();
     const want = alignTipsNdc?.() ?? null;
     const clear = copyEdgeNdc?.() ?? null;
+    const under = copyBottomNdc?.() ?? null;
 
     /**
-     * Stands the pair up for a given horizontal half-extent and reports how
-     * much of the half-frame it has left over — negative when it does not fit.
+     * Stands the pair up for a given horizontal half-extent, in one of the two
+     * places the copy leaves it, and reports how much of the half-frame it has
+     * left over — negative when it does not fit there.
      *
-     * Beside the copy when the page has a column to clear, at the framing's
-     * own x when the copy is stacked above the scene instead. Then the crowns
-     * on the line the hero asked for, and if that would stand the machines
-     * through the bottom edge — stacked, on a narrow phone, the copy wraps far
-     * enough to push that line three quarters down the band — the feet stop
-     * them there instead. Which is why the page states the line it wants and
-     * nothing else: how tall a machine draws at this shape is the scene's own
-     * business.
+     *   `aside` — the line to stand clear of, which is the copy's own widest
+     *     row and where the
+     *     composition wants to be whenever that leaves it room: the copy is
+     *     never over it, and the belt still runs on underneath. The crowns
+     *     take the line the hero asked for if it asked for one (its heading's,
+     *     on the column layout) and otherwise stand where the crate rules
+     *     below put them.
+     *   `aside === null` — under the copy's last row, the pair centred in the
+     *     band. What
+     *     a phone gets, its copy being the full width: there is nothing to
+     *     stand beside.
+     *
+     * Then the crate rules, either way. The line the page states is where the
+     * crowns go while the station's crate lands somewhere useful from it: a
+     * pair the field had to ease off is too short for that, and hanging it off
+     * a heading line near the top of the band would leave the whole bottom
+     * half empty, so it drops until the crate reaches `CRATE_REACH`. And the
+     * other way at the other end: a line low in the band would carry that
+     * crate off the bottom edge, so `CRATE_FLOOR` stops it. Which is why the
+     * page states lines and edges and nothing else — how tall a machine draws
+     * at this shape is the scene's own business.
      */
-    const place = (half: number): number => {
+    const place = (half: number, aside: number | null): number => {
       camera.fov = (2 * Math.atan(half / Math.min(aspect, ZOOM_STOP))) / DEG;
-      // Before probing: `project` reads the projection matrix.
-      camera.updateProjectionMatrix();
-      aimX = target.x;
-      aimY = target.y;
-      // Twice around: the two solves are coupled through the camera's tilt -
-      // pitching it up or down skews the horizontal projection - so one pass
-      // leaves the pair off the column's edge by as much as a tenth of the
-      // frame, and the field then eases off for room it did not need.
-      for (let pass = 0; pass < 2; pass++) {
-        // Beside the copy where there is a column to clear; centred in the
-        // frame where there is not, which is what a stacked layout wants -
-        // the copy is above the scene there, so the pair has the whole width
-        // and reads best down the middle of it.
-        if (clear !== null) solveX(() => spanNdc().left, clear + COPY_GAP);
+      shiftX = 0;
+      shiftY = 0;
+      const line = aside === null ? under : want;
+      // Three times around, with every rule inside the loop: the vertical and
+      // the horizontal are coupled through the camera's tilt - pitching it up
+      // or down skews the horizontal projection - so a pass that ends on a
+      // vertical solve leaves the pair off the place it was put. Which is
+      // exactly what it did: on a stacked layout there is no crown line to
+      // aim at, so the pass ended on the crate rules below, and they slid the
+      // pair as much as four fifths of the frame back off the copy's edge.
+      // Each pass shrinks that, so three of them land it.
+      for (let pass = 0; pass < 3; pass++) {
+        if (aside !== null) solveX(() => spanNdc().left, aside);
         else {
-          // Both edges fall as the aim moves along the belt, so their sum does
-          // too - which is the reading a bisection can walk to zero.
+          // Both edges fall as the camera slides right, so their sum does too
+          // - which is the reading a bisection can walk to zero.
           solveX(() => {
             const span = spanNdc();
             return span.left + span.right;
           }, 0);
         }
-        if (want !== null && Number.isFinite(want)) solveY(tipNdc, want);
+        if (line !== null && Number.isFinite(line)) solveY(tipNdc, line);
+        if (crateNdc() > CRATE_REACH) solveY(crateNdc, CRATE_REACH);
+        if (crateNdc() < CRATE_FLOOR) solveY(crateNdc, CRATE_FLOOR);
       }
-      // The line the page states is where the crowns go while the station's
-      // crate lands somewhere useful from it. A pair the field had to ease off
-      // - a 1024 column layout leaves it under a third of the width - is too
-      // short for that, and hanging it off a heading line near the top of the
-      // band would leave the whole bottom half empty, so it drops until the
-      // crate reaches `CRATE_REACH`. And the other way at the other end: a
-      // line low in the band, which is where a phone's copy pushes it, would
-      // carry that crate off the bottom edge, so `CRATE_FLOOR` stops it.
-      if (crateNdc() > CRATE_REACH) solveY(crateNdc, CRATE_REACH);
-      if (crateNdc() < CRATE_FLOOR) solveY(crateNdc, CRATE_FLOOR);
       const span = spanNdc();
-      // What the page needs to fade against: the belt past the machines is
-      // empty line, and a hero that runs it out to the window's edge reads as
-      // a picture with nothing in half of it. So the far fade starts where the
-      // machines stop, and the page is told where that is - as a share of the
-      // band, which is what a CSS width wants.
-      host.style.setProperty('--hero-tail', `${Math.max(0, ((1 - span.right) / 2) * 100).toFixed(2)}%`);
       // Room to the right, room above, and - when the crowns were asked for a
-      // line - how far the feet had to push them back up off it. That last one
-      // is what fits the pair to the strip the page left it: a machine too
-      // tall for the space under a phone's copy reads as one standing in the
-      // sentences, so the field widens until it stands under them instead.
-      const raised = want !== null && Number.isFinite(want) ? want - tipNdc() + TIP_SLACK : 1;
+      // line - how far the crate rules had to push them back up off it. That
+      // last one is what fits the pair to the strip the page left it: a
+      // machine too tall for the space under a phone's copy reads as one
+      // standing in the sentences, so the field widens until it stands under
+      // them instead.
+      const raised = line !== null && Number.isFinite(line) ? line - tipNdc() + TIP_SLACK : 1;
       return Math.min(1 - EDGE - span.right, 1 - EDGE - span.top, raised);
     };
 
-    // The zoom the composition was drawn at, eased off only where the pair
-    // cannot fit at it: a 1024-wide column layout leaves them less than half
-    // the band, and a machine drawn for a 1440 needs a wider field to stand in
-    // that. Room grows with the field, so this is one more bisection - over a
-    // range wide enough to cover the worst of it, a 320px band, where a fourth
-    // of the drawn zoom is what fits under the line its copy leaves.
-    if (place(field) < 0) {
+    /**
+     * The tightest field a placement fits at, which is the biggest the pair
+     * can be drawn there. The zoom the composition was drawn at when that
+     * fits; otherwise a bisection out to a fourth of it, which is what a 320px
+     * band takes. Room grows with the field, so the bisection is sound.
+     */
+    const fit = (aside: number | null): number => {
+      if (place(field, aside) >= 0) return field;
       let lo = field;
       let hi = field * 4;
       for (let i = 0; i < 12; i++) {
         const mid = (lo + hi) / 2;
-        if (place(mid) < 0) lo = mid;
+        if (place(mid, aside) < 0) lo = mid;
         else hi = mid;
       }
-      place(hi);
-    }
+      return hi;
+    };
+
+    // Which of the two places to use. Beside the copy from a tablet up: the
+    // copy's rows stop two thirds across there and its measure is capped
+    // (`md:max-w`) so they keep stopping, which is what leaves the pair a
+    // corner to stand in. Narrower than that the rows run the full width, the
+    // pair would be left a third of it, and standing under the copy draws it
+    // two and a half times bigger.
+    //
+    // A width, not a measurement of the two: the placements are far enough
+    // apart that comparing their sizes flips somewhere in the middle of the
+    // tablet range, and a composition that jumps as the window crosses 954px
+    // is worse than either of them.
+    const aside = clear !== null && w >= BESIDE_FROM
+      ? clear + (want === null ? CHIP_LAP : COPY_GAP)
+      : null;
+    place(fit(aside), aside);
+    // What the page needs to fade against: the belt past the machines is empty
+    // line, and a hero that runs it out to the window's edge reads as a
+    // picture with nothing in half of it. So the far fade starts where the
+    // machines stop, and the page is told where that is - as a share of the
+    // band, which is what a CSS width wants.
+    const tail = Math.max(0, ((1 - spanNdc().right) / 2) * 100);
+    host.style.setProperty('--hero-tail', `${tail.toFixed(2)}%`);
     renderer.render(scene, camera);
   };
   const ro = new ResizeObserver(resize);

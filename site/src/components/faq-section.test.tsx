@@ -20,6 +20,20 @@ describe('FaqList', () => {
     // the same questions, whichever frame
     expect(flush.textContent).toBe(boxed.textContent);
   });
+
+  it('gives the bare rows hover alone, and no radius', () => {
+    const card = render(<FaqList />);
+    const boxedRow = card.container.querySelector('summary')!;
+    expect(boxedRow.className).toMatch(/m3-state-layer/);
+    card.unmount();
+
+    const { container } = render(<FaqList variant="flush" />);
+    for (const row of container.querySelectorAll('summary')) {
+      expect(row.className).toMatch(/m3-hover-layer/);
+      expect(row.className).not.toMatch(/m3-state-layer/);
+      expect(row.className).not.toMatch(/rounded/);
+    }
+  });
 });
 
 describe('FaqSection', () => {

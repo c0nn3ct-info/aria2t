@@ -89,46 +89,68 @@ export function LandingHero() {
    * level with the heading's first line, one of them behind its end. Stacked,
    * that line runs *through* the copy: the machines would hide behind the
    * sentences and leave the band's lower half empty, which is what the strip
-   * below the copy is for. So they aim just under the copy's last row - the
-   * source chips - and the strip the band carries below it (see the container
-   * `pb`) is what the machines, the volume they feed and the crates crossing
-   * between them have to themselves. Standing the crowns in the gap *above*
-   * the chips instead buys a bigger composition and was tried: it puts the
-   * volume they feed behind a chip at every shape a phone or a small tablet
-   * wraps to, which is worse than a smaller picture.
+   * below the copy is for.
+   *
+   * Stacked it states no line at all: the copy's own edges (below) are the
+   * whole of what the scene needs there, and where the crowns end up between
+   * them is its business - it knows how tall a machine draws at this shape and
+   * the page does not.
    */
   const alignTipsNdc = useCallback((): number | null => {
     // Both refs are attached, so there is no null branch to guard: the scene
     // is handed this callback from an effect, calls it from there and from its
     // own resize observer, and disconnects that observer before it lets go.
     const box = section.current!.getBoundingClientRect();
-    if (box.height === 0) return null;
-    const line = wide() ? headingLine() : chips.current!.getBoundingClientRect().bottom + 26;
+    if (box.height === 0 || !wide()) return null;
+    const line = headingLine();
     if (line === null) return null;
-    // Reported as measured, however low that label sits: the scene holds the
-    // machines' feet inside the frame itself, so it is the one that decides
-    // when the crowns stop following the line.
     return 1 - 2 * ((line - box.top) / box.height);
   }, []);
 
   /**
-   * The far edge of the copy column, in the same coordinates: the line the
-   * machines have to stand clear of, so they never end up standing in the
-   * sentences however narrow that column gets. Null while the copy is stacked
-   * above the scene, which tells the scene it has the band's whole width.
+   * The two edges of the copy the scene has to work around, in the same
+   * coordinates: how far across its widest row reaches, and where its last row
+   * ends. The scene stands the composition beside the first or under the
+   * second, whichever leaves it bigger.
+   *
+   * The widest row, not the column's box: stacked, the block is as wide as the
+   * band while its rows are two thirds of it, and that third is exactly the
+   * room a tablet's machines stand in. Measured over the rows that can be the
+   * widest - the heading's own lines and the row of chips - since the lede and
+   * the buttons are always inside one of them.
    *
    * Mirrored for a right-to-left page: the canvas is flipped there (see the
-   * wrapper below), so the column's near edge in page coordinates is its far
-   * edge in the scene's.
+   * wrapper below), so a row's near edge in page coordinates is its far edge
+   * in the scene's.
    */
   const copyEdgeNdc = useCallback((): number | null => {
-    if (!wide()) return null;
     const box = section.current!.getBoundingClientRect();
     if (box.width === 0) return null;
-    const rect = copy.current!.getBoundingClientRect();
     const rtl = document.documentElement.dir === 'rtl';
-    const edge = 2 * (((rtl ? rect.left : rect.right) - box.left) / box.width) - 1;
+    // The chips row measured per chip, not by its `<ul>`: that box is as wide
+    // as the `max-w` it wraps inside, which on a tablet reads a fifth of the
+    // band wider than the chips actually reach - and a fifth of the band is
+    // the difference between standing the machines beside the copy and giving
+    // up on it. The heading's own line boxes are tight already.
+    const range = document.createRange();
+    range.selectNodeContents(heading.current!);
+    const rows = [
+      ...range.getClientRects(),
+      ...[...chips.current!.children].map((chip) => chip.getBoundingClientRect()),
+    ];
+    const reach = rtl
+      ? Math.min(...rows.map((row) => row.left))
+      : Math.max(...rows.map((row) => row.right));
+    const edge = 2 * ((reach - box.left) / box.width) - 1;
     return rtl ? -edge : edge;
+  }, []);
+
+  /** Where the copy's last row ends, for the other of those two places. */
+  const copyBottomNdc = useCallback((): number | null => {
+    const box = section.current!.getBoundingClientRect();
+    if (box.height === 0) return null;
+    const last = chips.current!.getBoundingClientRect().bottom + 26;
+    return 1 - 2 * ((last - box.top) / box.height);
   }, []);
 
   return (
@@ -144,6 +166,7 @@ export function LandingHero() {
           aria-label={t('landing.hero.scene_alt')}
           alignTipsNdc={alignTipsNdc}
           copyEdgeNdc={copyEdgeNdc}
+          copyBottomNdc={copyBottomNdc}
         />
       </div>
 
@@ -235,14 +258,23 @@ export function LandingHero() {
           not end up with a hero two screens tall. */}
       <div className="relative z-20 mx-auto flex min-h-[620px] w-full max-w-[1160px] flex-col px-5 pb-[min(46vh,340px)] pt-14 sm:min-h-[720px] sm:px-8 sm:pb-[min(42vh,380px)] sm:pt-20 lg:min-h-[720px] lg:justify-center lg:px-10 lg:py-24">
         {/* The column is what the machines beside it have to work around, so
-            from `lg` it is only as wide as the reading takes: 460 on a small
-            laptop, the drawn 600 from 1280 up. That is the difference between
-            a composition on a third of a 1024 band and one on half of it -
-            the heading takes a third line there and nothing else moves. */}
-        <div ref={copy} className="max-w-[600px] lg:max-w-[460px] xl:max-w-[600px]">
+            it is only as wide as the reading takes: capped at 420 on a tablet,
+            where the pair stands beside its rows, and from `lg` a share of the
+            band up to the drawn 600. A share rather than a step, because a
+            step means one width reads with a two-line heading and the next
+            with three.
+
+            The heading's own size is tied to that measure everywhere it is
+            capped - 45px against the tablet's 420, a matching share of the
+            band from `lg` - because the size is what decides the wrap: the
+            longer of its two lines, "interface you can use", runs about nine
+            times the font size, so a measure that stops growing while the
+            font keeps going is exactly how a two-line heading turns into a
+            three-line one. Both land on the drawn 600 and 64px by 1440. */}
+        <div ref={copy} className="max-w-[600px] md:max-w-[420px] lg:max-w-[min(600px,42vw)]">
           <h1
             ref={heading}
-            className="text-balance text-[clamp(34px,7vw,64px)] font-semibold leading-[1.04] tracking-[-0.042em]"
+            className="text-balance text-[clamp(34px,7vw,64px)] font-semibold leading-[1.04] tracking-[-0.042em] md:text-[min(45px,7vw)] lg:text-[min(64px,4.45vw)]"
           >
             {t('landing.hero.h1')}
           </h1>
@@ -290,7 +322,7 @@ export function LandingHero() {
           >
             {t('home.works_with')}
           </Eyebrow>
-          <ul ref={chips} className="flex max-w-[600px] flex-wrap gap-1.5 sm:gap-2">
+          <ul ref={chips} className="flex max-w-[600px] flex-wrap gap-1.5 sm:gap-2 md:max-w-[420px] lg:max-w-[min(600px,42vw)]">
             {SOURCES.map((s) => (
               <li key={s}>
                 <span className="inline-flex h-9 items-center rounded-pill border border-outline-variant bg-surface-container-low/80 px-3.5 font-mono text-xs text-on-surface backdrop-blur-sm sm:h-10 sm:px-4">

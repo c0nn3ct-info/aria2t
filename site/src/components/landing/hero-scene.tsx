@@ -39,10 +39,19 @@ interface Props {
    * of it.
    */
   copyEdgeNdc?: () => number | null;
+  /** And where its last row ends: the scene stands the composition under that
+   *  line when standing it beside the copy would come out smaller. */
+  copyBottomNdc?: () => number | null;
   className?: string;
 }
 
-export function HeroScene({ 'aria-label': label, alignTipsNdc, copyEdgeNdc, className }: Props) {
+export function HeroScene({
+  'aria-label': label,
+  alignTipsNdc,
+  copyEdgeNdc,
+  copyBottomNdc,
+  className,
+}: Props) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   // Held in a ref so the effect can boot once and still read the latest
@@ -51,6 +60,8 @@ export function HeroScene({ 'aria-label': label, alignTipsNdc, copyEdgeNdc, clas
   align.current = alignTipsNdc;
   const edge = useRef(copyEdgeNdc);
   edge.current = copyEdgeNdc;
+  const under = useRef(copyBottomNdc);
+  under.current = copyBottomNdc;
 
   useEffect(() => {
     if (!canRunScene()) return;
@@ -63,7 +74,11 @@ export function HeroScene({ 'aria-label': label, alignTipsNdc, copyEdgeNdc, clas
         if (!alive) return;
         // Both refs are attached by the time an effect runs. File symbols are
         // geometry now, so there is no direction-dependent texture to rebuild.
-        const opts = { alignTipsNdc: align.current, copyEdgeNdc: edge.current };
+        const opts = {
+          alignTipsNdc: align.current,
+          copyEdgeNdc: edge.current,
+          copyBottomNdc: under.current,
+        };
         const boot = () => {
           handle?.dispose();
           handle = m.bootHeroScene(host.current!, canvas.current!, opts);

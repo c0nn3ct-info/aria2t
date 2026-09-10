@@ -8,6 +8,7 @@ import { FILES } from '@/lib/pick-scene';
 import { FilesSection } from './files-section';
 import { LimitsSection } from './limits-section';
 import { PiecesSection } from './pieces-section';
+import { QueueB2Section } from './queue-b2-section';
 import { QueueSection } from './queue-section';
 import { StatsSection } from './stats-section';
 import { SurfacesSection } from './surfaces';
@@ -153,6 +154,58 @@ describe('the queue band', () => {
     // nothing is being skipped, so no saving is claimed
     expect(footer()).not.toContain('−');
     await user.click(boxes[2]);
+  });
+});
+
+describe('the queue band, split spine', () => {
+  it('gives every row the route it arrived by, and the routes their legend', () => {
+    const { container } = render(<QueueB2Section />);
+    const rows = container.querySelectorAll('li');
+    // three legend entries in the rail, five downloads in the queue
+    expect(rows).toHaveLength(8);
+
+    // the mark is an icon, so the route reaches a screen reader as the word
+    const queue = [...rows].slice(3);
+    expect(queue.map((r) => r.querySelector('.sr-only')!.textContent)).toEqual([
+      'link',
+      'torrent',
+      'magnet',
+      'torrent',
+      'input',
+    ]);
+    // and the rail's three points wear the same three marks
+    expect([...rows].slice(0, 3).every((r) => r.querySelector('svg') !== null)).toBe(true);
+    // the same headline and the same list title as the band above it
+    expect(container.querySelector('h2')!.textContent).toBe('One queue for every download');
+    expect(within(container).getByText('The aria2 queue')).toBeInTheDocument();
+  });
+
+  it('keeps figures left to right and lets translated notes follow the page', () => {
+    setLocale('ar');
+    const { container } = render(<QueueB2Section />);
+    const eta = (i: number) => [...container.querySelectorAll('li')][3 + i].lastElementChild!.lastElementChild!;
+    // "4m 12s" would be reordered by the bidi algorithm; a ratio is a phrase
+    expect(eta(0)).toHaveAttribute('dir', 'ltr');
+    expect(eta(1)).not.toHaveAttribute('dir');
+  });
+
+  it('draws the paused row as the one that is not moving', () => {
+    const { container } = render(<QueueB2Section />);
+    const paused = [...container.querySelectorAll('li')].at(-1)!;
+    expect(paused.textContent).toContain('raspios-arm64.img.xz');
+    expect(paused.textContent).toContain('paused');
+    // no speed colour on a row with no speed, and the faintest of the bars
+    expect(paused.querySelector('.bg-surface-container-highest')).not.toBeNull();
+    expect(paused.lastElementChild!.querySelector('.text-primary')).toBeNull();
+  });
+
+  it('leaks no raw key in any locale', () => {
+    for (const locale of LOCALES) {
+      setLocale(locale);
+      const { container, unmount } = render(<QueueB2Section />);
+      expect(container.textContent, locale).not.toMatch(/landing\.queue\./);
+      unmount();
+    }
   });
 });
 

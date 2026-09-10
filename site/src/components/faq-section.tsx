@@ -48,12 +48,17 @@ export function FaqList({ variant = 'card', openFirst = false, className }: FaqL
           <details key={k} open={openFirst && i === 0} className="group">
             <summary
               className={cn(
-                'm3-state-layer flex cursor-pointer list-none items-start gap-3 text-on-surface marker:hidden',
+                'flex cursor-pointer list-none items-start gap-3 text-on-surface marker:hidden',
                 variant === 'card'
-                  ? 'px-4 py-3 text-title-small'
-                  // Padded and rounded: the hover surface spans the row, so without
-                  // it the question sits flush against the highlight's edge.
-                  : 'rounded-md px-4 py-5 text-title-medium',
+                  // The boxed rows are the card's own surface, so they take the
+                  // M3 hover/press layer.
+                  ? 'm3-state-layer px-4 py-3 text-title-small'
+                  // The flush rows take the hover fill alone — the press and
+                  // focus fills linger on a bare background and read as a
+                  // selected band — and no radius, so the hover spans the full
+                  // row and the focus ring (which inherits the radius) is
+                  // square with it.
+                  : 'm3-hover-layer px-4 py-5 text-title-medium',
               )}
             >
               {variant === 'card' && (

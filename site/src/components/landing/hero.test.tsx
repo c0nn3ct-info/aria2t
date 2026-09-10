@@ -138,13 +138,11 @@ describe('LandingHero', () => {
     rects = [{ top: 200, bottom: 300 } as DOMRect];
     expect(aim.alignTipsNdc()).toBeCloseTo(0.5, 5);
 
-    // Stacked - anything below the `lg` breakpoint - it aims under the copy's
-    // last row, the source chips, wherever the wrap has put them: 26 pixels
-    // below 674 in a band 1000 tall is -0.4.
-    const chips = container.querySelector('ul')!;
-    vi.spyOn(chips, 'getBoundingClientRect').mockReturnValue({ bottom: 674 } as DOMRect);
+    // Stacked - anything below the `lg` breakpoint - it states no line at all:
+    // the copy's own edges are the whole of what the scene needs there, and
+    // where the crowns land between them is the scene's business.
     window.innerWidth = 500;
-    expect(aim.alignTipsNdc()).toBeCloseTo(-0.4, 5);
+    expect(aim.alignTipsNdc()).toBeNull();
     window.innerWidth = 1024;
 
     // A band with no height cannot place anything either.
@@ -152,35 +150,43 @@ describe('LandingHero', () => {
     expect(aim.alignTipsNdc()).toBeNull();
   });
 
-  it('states where the copy column ends, so the machines can stand clear of it', async () => {
+  it('states the two edges of the copy the scene has to work around', async () => {
     const { LandingHero } = await import('./hero');
     const { container } = render(<LandingHero />);
     await settle();
-    const aim = boot.mock.calls[0][2] as { copyEdgeNdc: () => number | null };
+    const aim = boot.mock.calls[0][2] as {
+      copyEdgeNdc: () => number | null;
+      copyBottomNdc: () => number | null;
+    };
     const section = container.querySelector('section')!;
-    const copy = container.querySelector('h1')!.parentElement!;
-    window.innerWidth = 1024;
-    vi.spyOn(section, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 1000 } as DOMRect);
-    vi.spyOn(copy, 'getBoundingClientRect').mockReturnValue({ left: 40, right: 640 } as DOMRect);
+    vi.spyOn(section, 'getBoundingClientRect')
+      .mockReturnValue({ left: 0, top: 0, width: 1000, height: 1000 } as DOMRect);
+    // The rows it measures: the heading's own line boxes, supplied here since
+    // jsdom has none, and every chip in the row of them.
+    Range.prototype.getClientRects = (() =>
+      [{ left: 40, right: 500 }] as unknown as DOMRectList) as typeof Range.prototype.getClientRects;
+    const chips = container.querySelector('ul')!;
+    for (const chip of chips.children) {
+      vi.spyOn(chip, 'getBoundingClientRect').mockReturnValue({ left: 80, right: 640 } as DOMRect);
+    }
+    vi.spyOn(chips, 'getBoundingClientRect').mockReturnValue({ bottom: 674 } as DOMRect);
 
-    // A 1000-wide band whose copy ends at 640: a little past the middle.
+    // A 1000-wide band whose widest row reaches 640: a little past the middle.
+    // And its last row ends 26 pixels above -0.4.
     expect(aim.copyEdgeNdc()).toBeCloseTo(0.28, 5);
+    expect(aim.copyBottomNdc()).toBeCloseTo(-0.4, 5);
 
-    // Right to left the canvas is mirrored, so the column's near edge in page
+    // Right to left the canvas is mirrored, so a row's near edge in page
     // coordinates is its far edge in the scene's.
     document.documentElement.dir = 'rtl';
     expect(aim.copyEdgeNdc()).toBeCloseTo(0.92, 5);
     document.documentElement.dir = 'ltr';
 
-    // Stacked, the copy is above the scene rather than beside it, and there is
-    // no column to clear.
-    window.innerWidth = 500;
+    // A band with no size cannot place anything.
+    vi.spyOn(section, 'getBoundingClientRect')
+      .mockReturnValue({ left: 0, top: 0, width: 0, height: 0 } as DOMRect);
     expect(aim.copyEdgeNdc()).toBeNull();
-    window.innerWidth = 1024;
-
-    // A band with no width cannot place anything.
-    vi.spyOn(section, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 0 } as DOMRect);
-    expect(aim.copyEdgeNdc()).toBeNull();
+    expect(aim.copyBottomNdc()).toBeNull();
   });
 
   it('names every source aria2 accepts, and both ways to get the app', async () => {

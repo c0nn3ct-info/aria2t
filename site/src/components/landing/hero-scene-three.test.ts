@@ -282,7 +282,7 @@ describe('bootHeroScene', () => {
     // the other way, and the strip is long enough that an ultra-wide frame -
     // which sees a long way down the line - never reaches its end.
     expect(tread?.children).toHaveLength(3);
-    expect(back?.children).toHaveLength(72);
+    expect(back?.children).toHaveLength(90);
     // The two machines stand on one line across the conveyor: same station,
     // mirrored across the belt, so the line runs between them.
     expect(far?.position.z).toBeLessThan(0);
@@ -295,41 +295,38 @@ describe('bootHeroScene', () => {
 
   it('holds both machines in frame and clear of the copy at every hero shape', async () => {
     // The shapes the band is actually built at, against what the hero hands
-    // over at each - measured off the rendered page, not invented here.
+    // over at each - measured off the rendered page, not invented here. Each
+    // row is the band's own width and height (below `lg` that is the copy plus
+    // the strip under it, so it runs taller than the window), the crown line,
+    // the copy's widest row and the line its last row ends on.
     //
-    // Stacked, it states the line just under its copy's last row and no column
-    // at all - the band carries a strip below that line for the machinery, so
-    // the line lands between a tenth and a third below the band's middle,
-    // wherever the copy's wrap and the strip's own vh cap put it. In its
-    // column layout it states the heading's first line, which lands at +0.47
-    // whatever the width, and the column's own far edge - which barely moves
-    // above 1240px, where the column stops growing and centres, and swings
-    // right as the band narrows towards it.
-    //
-    // The heights are the band's, not the window's: below `lg` it is the copy
-    // plus that strip, so it runs taller than the window on a short one.
-    const stacked = [-0.11, -0.24, -0.36];
-    const column = [0.47];
-    // The fourth column is the copy column's far edge, the fifth the line its
-    // last row ends on: stacked shapes state the second and no column at all,
-    // column ones the other way about. The two stacked values bracket the
-    // choice the scene makes with them - a row close under the crowns leaves
-    // the volume behind it and the composition drops below the row, a row
-    // further up and it stands in the gap above it.
-    const shapes: [number, number, number[], number | null, number | null][] = [
-      [320, 849, stacked, null, -0.5], [390, 841, stacked, null, -0.5],
-      [640, 772, stacked, null, -0.9], [768, 832, stacked, null, -0.5],
-      [900, 725, stacked, null, -0.9], [1023, 769, stacked, null, -0.5],
-      [1024, 720, column, 0.25, null], [1180, 720, column, 0.1, null],
-      [1280, 720, column, 0.09, null], [1440, 720, column, 0.03, null],
-      [1920, 720, column, 0.02, null], [2560, 720, column, 0.02, null],
-      [3440, 720, column, 0.01, null],
+    // Three regimes, and the scene picks between them off the band's width:
+    // a column layout states a heading line at +0.47 (+0.60 where the column
+    // is narrowed) and a copy edge that barely moves; a tablet states no line
+    // at all and an edge left of centre, its copy's measure being capped, so
+    // the pair stands beside it; a phone states an edge most of the way across
+    // and the pair stands under its last row instead. One row keeps a null
+    // edge, for the band with no width to measure.
+    const shapes: [number, number, number | null, number | null, number | null][] = [
+      [320, 825, null, null, -0.43],
+      [390, 841, null, 0.7, -0.254],
+      [640, 814, null, 0.721, -0.135],
+      [690, 821, null, 0.596, -0.142],
+      [768, 968, null, -0.048, -0.268],
+      [844, 768, null, -0.134, -0.641],
+      [900, 953, null, -0.188, -0.349],
+      [1023, 914, null, -0.286, -0.413],
+      [1024, 720, 0.602, 0.091, -0.766],
+      [1280, 720, 0.469, 0.011, -0.633],
+      [1440, 720, 0.469, 0.01, -0.633],
+      [2560, 720, 0.469, 0.006, -0.633],
+      [3440, 720, 0.469, 0.004, -0.633],
     ];
     let worstEdge = 1;
     let worstGap = 1;
     let worstCrate = 1;
-    for (const [w, h, aims, edge, below] of shapes) {
-      for (const aim of aims) {
+    for (const [w, h, aim, edge, below] of shapes) {
+      {
         const { handle } = await boot(w, h, {
           alignTipsNdc: () => aim,
           copyEdgeNdc: () => edge,
@@ -350,7 +347,9 @@ describe('bootHeroScene', () => {
             left = Math.min(left, ndc.x);
           }
         }
-        if (edge !== null) worstGap = Math.min(worstGap, left - edge);
+        // Only where it stands beside the copy - under it, the pair is centred
+        // and the copy is above it, so its edge says nothing.
+        if (edge !== null && w >= 768) worstGap = Math.min(worstGap, left - edge);
 
         // And the crate at the station - the newest one on the belt, the one
         // the volume above it just compacted into.
@@ -383,16 +382,17 @@ describe('bootHeroScene', () => {
     // whole line is about: `CRATE_FLOOR` holds its centre at -0.62, so even
     // its lowest corner stays out of the closing fade's stronger half.
     expect(worstCrate).toBeGreaterThan(-0.8);
-    // And stand clear of the copy column wherever there is one, which is the
-    // constraint the field eases off to satisfy on a narrow one.
-    expect(worstGap).toBeGreaterThan(0.02);
+    // And where they stand beside the copy they never reach further into it
+    // than the chip lap allows - a hand's width behind the tail of the chips
+    // on a tablet, and clear of the column with a gap on a laptop.
+    expect(worstGap).toBeGreaterThan(-0.15);
   });
 
   it('runs the tread on rather than snapping it back after each advance', async () => {
     const { handle } = await boot();
-    // One slat pitch, and the strip of 72 of them a slat is recycled through.
+    // One slat pitch, and the strip of 90 of them a slat is recycled through.
     const PITCH = 0.94 / 2;
-    const STRIP = 72 * PITCH;
+    const STRIP = 90 * PITCH;
     // A slat far enough along the strip that it cannot reach the wrap here.
     const tread = lastScene!.getObjectByName('belt_tread_40')!;
     const back = lastScene!.getObjectByName('belt_return')!;
