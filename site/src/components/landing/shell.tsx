@@ -15,6 +15,17 @@ interface LandingSectionProps {
   children: ReactNode;
 }
 
+/**
+ * The side gutter, and it sits *inside* the reading width rather than outside
+ * it. Both spellings centre a 1160 column on a wide window, but they put the
+ * content at different places: padding on the section insets the band and then
+ * centres 1160 inside what is left, so the text starts at the column's own
+ * edge; padding inside the column insets the text within it. The hero and the
+ * footer are written the second way, so a band written the first way stands 40
+ * px wider than the page it is in the middle of.
+ */
+export const GUTTER = 'px-5 sm:px-8 lg:px-10';
+
 export function LandingSection({ id, className, contained = true, children }: LandingSectionProps) {
   return (
     // `data-enter-section` is what `useSectionEntrance` observes, and every
@@ -23,9 +34,13 @@ export function LandingSection({ id, className, contained = true, children }: La
     <section
       id={id}
       data-enter-section
-      className={cn('px-5 py-12 sm:px-8 sm:py-16 lg:px-10 lg:py-24', id && 'scroll-mt-20', className)}
+      className={cn('py-12 sm:py-16 lg:py-24', !contained && GUTTER, id && 'scroll-mt-20', className)}
     >
-      {contained ? <div className="mx-auto w-full max-w-[1160px]">{children}</div> : children}
+      {contained ? (
+        <div className={cn('mx-auto w-full max-w-[1160px]', GUTTER)}>{children}</div>
+      ) : (
+        children
+      )}
     </section>
   );
 }

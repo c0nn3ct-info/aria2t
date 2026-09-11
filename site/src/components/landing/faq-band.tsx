@@ -57,9 +57,13 @@ export function FaqBand() {
             </a>
           </div>
 
-          <Button asChild variant="outlined" size="s" className="mt-6">
+          {/* A row, not a chip: this is the page's last CTA and it closes the
+              column it stands in, so it takes the column's full width at the
+              hero button's height. Filled, like the hero's: it is the same
+              action, and the page ends on it. */}
+          <Button asChild variant="filled" size="s" className="mt-6 h-12 w-full text-[15px]">
             <a href={localePath('/install/')}>
-              {t('home.start.cta')}
+              {t('home.hero.cta_install')}
               <ArrowRight className="rtl:-scale-x-100" />
             </a>
           </Button>

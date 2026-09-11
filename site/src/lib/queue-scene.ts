@@ -19,6 +19,13 @@ const GiB = 1073741824;
 
 export type Kind = 'active' | 'seeding' | 'waiting' | 'paused' | 'error' | 'done';
 export type IconKind = 'disc' | 'folder' | 'magnet' | 'archive';
+/**
+ * How a download got into the queue. aria2's own four doors, and the thing the
+ * landing's queue band is about: the same list holds all of them. The popup and
+ * the terminal list do not draw it - they show what a download is doing, not
+ * where it came from - but it belongs to the download rather than to one mock.
+ */
+export type Route = 'link' | 'torrent' | 'magnet' | 'input';
 
 export interface Item {
   name: string;
@@ -31,6 +38,8 @@ export interface Item {
   torrent: boolean;
   /** The list's CONN cell: connections, or `seeds:peers` for a torrent. */
   conn: string;
+  /** Which door it came in by. */
+  route: Route;
 }
 
 export interface Live {
@@ -74,18 +83,18 @@ export const WAVE_MAX = 44 * MiB;
 /** The queue. The popup shows four of the first five — see `VISIBLE` in
  * popup-mock.tsx for which one it skips and why. */
 export const ITEMS: readonly Item[] = [
-  { name: 'ubuntu-24.04.2-desktop-amd64.iso', bytes: 5.4 * GiB, target: 9.8 * MiB, icon: 'disc', torrent: false, conn: '1' },
-  { name: 'Fedora-Workstation-Live-42.torrent', bytes: 2.3 * GiB, target: 9.6 * MiB, icon: 'folder', torrent: true, conn: '4:31' },
-  { name: '4K Wallpaper Megapack', bytes: 12.6 * GiB, target: 4.6 * MiB, icon: 'magnet', torrent: true, conn: '2:18' },
-  { name: 'Nature.Docs.S01.1080p.WEB-DL', bytes: 8.4 * GiB, target: 6.8 * MiB, icon: 'folder', torrent: true, conn: '6:24' },
-  { name: 'raspios-bookworm-arm64.img.xz', bytes: 680 * MiB, target: 3.4 * MiB, icon: 'archive', torrent: false, conn: '-' },
-  { name: 'archlinux-2026.07.01-x86_64.iso', bytes: 1.2 * GiB, target: 3.1 * MiB, icon: 'disc', torrent: false, conn: '1' },
-  { name: 'kali-linux-2026.2-installer.iso', bytes: 4.1 * GiB, target: 2.4 * MiB, icon: 'disc', torrent: false, conn: '1' },
-  { name: 'debian-13.1.0-amd64-netinst.iso', bytes: 680 * MiB, target: 1.7 * MiB, icon: 'disc', torrent: true, conn: '0:34' },
-  { name: 'libreoffice-25.8.1-macos-aarch64.dmg', bytes: 380 * MiB, target: 5.2 * MiB, icon: 'archive', torrent: false, conn: '-' },
-  { name: 'linuxmint-22.1-cinnamon-64bit.iso', bytes: 2.8 * GiB, target: 4.5 * MiB, icon: 'disc', torrent: false, conn: '-' },
-  { name: 'mirrorlist-nope.iso', bytes: 0, target: 0, icon: 'disc', torrent: false, conn: '-' },
-  { name: 'gparted-live-1.7.0-amd64.iso', bytes: 527 * MiB, target: 0, icon: 'disc', torrent: false, conn: '-' },
+  { name: 'ubuntu-24.04.2-desktop-amd64.iso', bytes: 5.4 * GiB, target: 9.8 * MiB, icon: 'disc', torrent: false, conn: '1', route: 'link' },
+  { name: 'Fedora-Workstation-Live-42.torrent', bytes: 2.3 * GiB, target: 9.6 * MiB, icon: 'folder', torrent: true, conn: '4:31', route: 'torrent' },
+  { name: '4K Wallpaper Megapack', bytes: 12.6 * GiB, target: 4.6 * MiB, icon: 'magnet', torrent: true, conn: '2:18', route: 'magnet' },
+  { name: 'Nature.Docs.S01.1080p.WEB-DL', bytes: 8.4 * GiB, target: 6.8 * MiB, icon: 'folder', torrent: true, conn: '6:24', route: 'torrent' },
+  { name: 'raspios-bookworm-arm64.img.xz', bytes: 680 * MiB, target: 3.4 * MiB, icon: 'archive', torrent: false, conn: '-', route: 'input' },
+  { name: 'archlinux-2026.07.01-x86_64.iso', bytes: 1.2 * GiB, target: 3.1 * MiB, icon: 'disc', torrent: false, conn: '1', route: 'link' },
+  { name: 'kali-linux-2026.2-installer.iso', bytes: 4.1 * GiB, target: 2.4 * MiB, icon: 'disc', torrent: false, conn: '1', route: 'link' },
+  { name: 'debian-13.1.0-amd64-netinst.iso', bytes: 680 * MiB, target: 1.7 * MiB, icon: 'disc', torrent: true, conn: '0:34', route: 'torrent' },
+  { name: 'libreoffice-25.8.1-macos-aarch64.dmg', bytes: 380 * MiB, target: 5.2 * MiB, icon: 'archive', torrent: false, conn: '-', route: 'link' },
+  { name: 'linuxmint-22.1-cinnamon-64bit.iso', bytes: 2.8 * GiB, target: 4.5 * MiB, icon: 'disc', torrent: false, conn: '-', route: 'input' },
+  { name: 'mirrorlist-nope.iso', bytes: 0, target: 0, icon: 'disc', torrent: false, conn: '-', route: 'link' },
+  { name: 'gparted-live-1.7.0-amd64.iso', bytes: 527 * MiB, target: 0, icon: 'disc', torrent: false, conn: '-', route: 'input' },
 ];
 
 /** Where the queue stands when the page opens. */

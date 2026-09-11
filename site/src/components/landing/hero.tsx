@@ -325,7 +325,15 @@ export function LandingHero() {
           <ul ref={chips} className="flex max-w-[600px] flex-wrap gap-1.5 sm:gap-2 md:max-w-[420px] lg:max-w-[min(600px,42vw)]">
             {SOURCES.map((s) => (
               <li key={s}>
-                <span className="inline-flex h-9 items-center rounded-pill border border-outline-variant bg-surface-container-low/80 px-3.5 font-mono text-xs text-on-surface backdrop-blur-sm sm:h-10 sm:px-4">
+                {/* The hover noctis gives its protocol chips: the border
+                    brightens a step and the surface steps up, both on the
+                    emphasized curve. Nothing here is clickable - it is the
+                    texture of a row of names you run your eye along, and the
+                    row answering the pointer is what says the page is alive
+                    this far down. noctis also lifts the text a step; these
+                    chips are already at full contrast, so the surface carries
+                    it alone. */}
+                <span className="inline-flex h-9 items-center rounded-pill border border-outline-variant bg-surface-container-low/80 px-3.5 font-mono text-xs text-on-surface backdrop-blur-sm transition-colors duration-med ease-emph hover:border-outline hover:bg-surface-container-high/85 sm:h-10 sm:px-4">
                   {s}
                 </span>
               </li>

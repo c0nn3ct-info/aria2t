@@ -3,6 +3,7 @@
 // sees n ticks later. These pin the shapes those functions promise.
 import { describe, expect, it } from 'vitest';
 import {
+  barHeights,
   CHART_H,
   CHART_W,
   connections,
@@ -11,8 +12,6 @@ import {
   history,
   linePath,
   mib,
-  mirrorRows,
-  mirrorTotal,
   peerRows,
   peers,
   pieceCells,
@@ -77,17 +76,16 @@ describe('the live rows', () => {
     expect(mib(12.345)).toBe('12.3');
   });
 
-  it('gives each mirror a speed and a bar, and totals them', () => {
-    const rows = mirrorRows(0);
-    expect(rows.map((r) => r.name)).toEqual(['mirror.one', 'mirror.two', 'mirror.three']);
-    for (const r of rows) {
-      expect(r.speed).toMatch(/^\d+\.\d MiB\/s$/);
-      expect(parseFloat(r.width)).toBeGreaterThan(0);
-      expect(parseFloat(r.width)).toBeLessThanOrEqual(100);
-    }
-    const total = rows.reduce((a, r) => a + parseFloat(r.speed), 0);
-    expect(mirrorTotal(rows)).toBe(total.toFixed(1));
-    expect(mirrorRows(7)).not.toEqual(rows);
+  it('scales bars to their own window, and never to nothing', () => {
+    const bars = barHeights([1, 2, 3, 4, 5, 100, 101, 102], 3);
+    expect(bars).toHaveLength(3);
+    // the tallest fills the row, the shortest is still visible
+    expect(bars.at(-1)).toBe(100);
+    expect(Math.min(...bars)).toBeGreaterThanOrEqual(6);
+    // a flat window has no span to divide by and stays a row of bars
+    expect(barHeights([4, 4, 4], 3).every((b) => b > 0)).toBe(true);
+    // and an idle queue, uploading nothing at all, is a row on the floor
+    expect(barHeights([0, 0, 0, 0], 4)).toEqual([6, 6, 6, 6]);
   });
 
   it('marks the one peer being uploaded to, without widening its cell', () => {

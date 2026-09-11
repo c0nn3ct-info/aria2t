@@ -65,31 +65,24 @@ export function mib(v: number): string {
   return v.toFixed(1);
 }
 
-export interface MirrorRow {
-  name: string;
-  /** Speed, formatted. */
-  speed: string;
-  /** Bar width, as a CSS percentage. */
-  width: string;
-}
-
-const MIRRORS: ReadonlyArray<[name: string, base: number, k: number]> = [
-  ['mirror.one', 6.2, 0.4],
-  ['mirror.two', 4.1, 2.1],
-  ['mirror.three', 2.7, 4.6],
-];
-
-/** The three mirrors of one file, each with its own live speed. */
-export function mirrorRows(t: number): MirrorRow[] {
-  return MIRRORS.map(([name, base, k]) => {
-    const sp = Math.max(0.3, base * (1 + 0.22 * wob(t * 0.4, k)));
-    return { name, speed: `${mib(sp)} MiB/s`, width: `${Math.min(100, (sp / 7.4) * 100).toFixed(1)}%` };
-  });
-}
-
-/** The sum of the mirror speeds, formatted. */
-export function mirrorTotal(rows: readonly MirrorRow[]): string {
-  return mib(rows.reduce((a, m) => a + parseFloat(m.speed), 0));
+/**
+ * The last `n` samples as bar heights in percent, scaled to their own window
+ * rather than to a shared axis.
+ *
+ * A minute of upload never leaves 3.7-5.8 MiB/s, so on the download's 0-40
+ * axis it draws a flat line on the baseline - 6% of the chart, measured. Given
+ * its own floor (a little under the window's low, so the quietest bar is still
+ * a bar) the same numbers read as a shape.
+ *
+ * A window of nothing - an idle queue uploading zero - has no span to divide
+ * by and comes back as a flat row on the floor rather than as no row at all.
+ */
+export function barHeights(vals: readonly number[], n: number): number[] {
+  const win = vals.slice(-n);
+  const hi = Math.max(...win);
+  const lo = Math.min(...win) * 0.82;
+  const span = hi - lo || 1;
+  return win.map((v) => Math.max(6, Math.round(((v - lo) / span) * 100)));
 }
 
 export interface PeerRow {

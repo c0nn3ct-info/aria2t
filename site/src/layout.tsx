@@ -13,6 +13,7 @@ import { Aria2tLogo } from '@/components/aria2t-logo';
 import { CONTACT_MAILTO, GITHUB_URL, ORG_SITE } from '@/constants';
 import { cn } from '@/lib/utils';
 import { getLocale, localePath, t, withLocale } from './i18n';
+import { GUTTER } from './components/landing/shell';
 import { LanguageSwitcher, LOCALE_OPTIONS } from './components/language-switcher';
 import { GithubLink } from './components/github-link';
 
@@ -109,28 +110,46 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
         </div>
       </header>
 
+      {/* A reading page stands in the landing's own column - same 1160, same
+          gutter - so its content starts exactly where a band's does at every
+          width. Matching only the padding was not enough: the column used to
+          be capped at 768 below `lg`, which put a page of prose up to 111px
+          further in than the band above it on the home page (measured at
+          1000px wide).
+
+          The measure is kept by an inner block, and that block is centred in
+          the column. Taking the column's start edge instead - the way the
+          landing's heading blocks sit inside a band - left the whole of the
+          column's slack on the end side: 113px of gutter on one edge and 168
+          on the other at 1305, which reads as broken padding rather than as a
+          measure. A page of full-width cards has no ragged end to justify it,
+          so the slack is split. */}
       <main
         id="main"
         className={
           bleed
             ? 'w-full flex-1'
-            : 'mx-auto w-full max-w-3xl flex-1 px-4 py-10 sm:px-6 sm:py-12 lg:max-w-5xl'
+            : cn('mx-auto w-full max-w-[1160px] flex-1 py-10 sm:py-12', GUTTER)
         }
       >
-        {children}
+        {bleed ? children : <div className="mx-auto w-full max-w-5xl">{children}</div>}
       </main>
 
-      {/* The footer has to line up with whatever the page above it used, or its
-          rule and its columns stop short of the content they close. */}
+      {/* One column and one gutter for every page, the same ones `main` above
+          takes: the footer's rule closes the content, so a footer on a
+          narrower column than the page ends short of what it is closing - 52px
+          short on a reading page at 1300, measured. The measure is again the
+          inner block's, not the column's, so a page of prose and its footer
+          start on the same edge. */}
       <footer
-        className={cn(
-          'mx-auto w-full py-8 text-label-medium text-on-surface-variant',
-          bleed
-            ? 'max-w-[1160px] px-5 sm:px-8 lg:px-10'
-            : 'max-w-3xl px-4 sm:px-6 lg:max-w-5xl',
-        )}
+        className={cn('mx-auto w-full max-w-[1160px] py-8 text-label-medium text-on-surface-variant', GUTTER)}
       >
-        <div className="border-t border-outline-variant pt-6 flex flex-wrap items-start gap-x-12 gap-y-6">
+        <div
+          className={cn(
+            'flex flex-wrap items-start gap-x-12 gap-y-6 border-t border-outline-variant pt-6',
+            !bleed && 'mx-auto max-w-5xl',
+          )}
+        >
           {/* Brand block: aria2t.c0nn3ct.info is the product, c0nn3ct.info is
               who made it, so the pairing (echoed from the header) stands in
               for the old "by c0nn3ct.info" byline. */}
@@ -225,7 +244,11 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
             broke the column layout below 900px. */}
         <nav
           aria-label={t('footer.languages')}
-          className="mt-6 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-outline-variant pt-4 text-label-small"
+          className={cn(
+            'mt-6 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-outline-variant pt-4 text-label-small',
+            // Its rule closes the same measure the row of columns above does.
+            !bleed && 'mx-auto max-w-5xl',
+          )}
         >
           {/* The icon carries the row; the group name lives on the nav's
               aria-label, so screen readers still announce it. */}

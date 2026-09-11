@@ -1,22 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { QueueSection } from './queue-section';
 
-// "One queue for every download": the three ways something enters aria2, then
-// the queue they all land in.
-//
-// The torrent card's boxes are real, and they share their selection with the
-// file picker further down the page (`src/lib/pick-scene.ts`) - one torrent,
-// one answer. Everything in that card's footer is computed from the boxes, so
-// the count, the total and the saving cannot contradict them.
+// "One queue for every download": the routes as a legend down the left column,
+// the queue as one list beside them, every row carrying the route it arrived
+// by.
 const meta = {
   title: 'Landing/Queue',
   component: QueueSection,
-  // The band draws itself edge to edge inside the page's own reading column,
-  // so the preview's default `padded` would inset it and hide that.
+  // The band lays itself out inside the page's reading column, so the
+  // preview's default `padded` would inset it twice.
   parameters: { layout: 'fullscreen' },
-  // The landing declares its stage once on its root and every band reads it
-  // off <html>: dark, with the comp's blue accent. Switch either from the
-  // toolbar to see the band on the site's other palettes.
+  // The landing declares its stage on <html> and every band reads it from
+  // there: dark, with the site's blue accent.
   globals: { theme: 'dark', accent: 'blue' },
   tags: ['autodocs'],
 } satisfies Meta<typeof QueueSection>;
@@ -35,15 +30,17 @@ const PHONE = {
 };
 
 /**
- * The three inputs side by side. Card 01 is live: three mirrors of one file,
- * each moving at its own speed, totalled in the footer. Card 02 is the file
- * tree, and its boxes tick. Card 03 is aria2's own batch format.
- *
- * Below them, the queue those three feed, five downloads wide.
+ * The rail on the left, the queue on the right. Every row carries the route it
+ * arrived by - `link`, `torrent`, `magnet`, `input` - which is what makes the
+ * headline's claim visible in the object rather than in the copy above it.
  */
 export const Band: Story = {};
 
-/** One column, the cards stacked in reading order. */
+/**
+ * The rail stacks over the queue, and each row folds to two lines: name,
+ * status and progress on the first, the figures on the second. Six columns
+ * never survive 390px, and a sideways scroll would be worse than a fold.
+ */
 export const Phone: Story = {
   parameters: PHONE,
   globals: { theme: 'dark', accent: 'blue', viewport: { value: 'phone', isRotated: false } },

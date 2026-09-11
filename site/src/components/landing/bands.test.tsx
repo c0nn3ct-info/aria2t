@@ -2,14 +2,21 @@
 // The two file pickers and the limits panel are real controls, so these drive
 // them rather than reading their markup.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, userEvent, within } from '@/test/render';
+import { act, fireEvent, render, renderHook, screen, userEvent, within } from '@/test/render';
 import { LOCALES, setLocale } from '@/i18n';
-import { FILES } from '@/lib/pick-scene';
+import { ITEMS, useQueueScene } from '@/lib/queue-scene';
+import { fmtSpeed } from '@/components/list-mock';
 import { FilesSection } from './files-section';
 import { LimitsSection } from './limits-section';
 import { PiecesSection } from './pieces-section';
-import { QueueB2Section } from './queue-b2-section';
-import { QueueSection } from './queue-section';
+import {
+  QueueSection,
+  etaCell,
+  etaIsFigure,
+  shownTotals,
+  sizeCell,
+  speedCell,
+} from './queue-section';
 import { StatsSection } from './stats-section';
 import { SurfacesSection } from './surfaces';
 import { FaqBand } from './faq-band';
@@ -133,46 +140,21 @@ describe('the surfaces band', () => {
 });
 
 describe('the queue band', () => {
-  it('ticks a file and recomputes what the selection costs', async () => {
-    await resetPicks();
-    const user = userEvent.setup();
-    const { container } = render(<QueueSection />);
-    const boxes = within(container).getAllByRole('checkbox');
-    expect(boxes).toHaveLength(FILES.length);
-    expect(boxes.map((b) => b.getAttribute('aria-checked'))).toEqual(['true', 'true', 'false']);
-    // The torrent card is the second of the three inputs, and its footer is the
-    // strip under its boxes; the mirrors card has one too.
-    const footer = () =>
-      container.querySelectorAll('li')[1].querySelector('.mt-auto')!.textContent;
-    expect(within(container).getByText('2 of 3 selected')).toBeInTheDocument();
-    expect(footer()).toContain('1.4 GiB');
-    expect(footer()).toContain('−320 MiB');
-
-    await user.click(boxes[2]);
-    expect(within(container).getByText('3 of 3 selected')).toBeInTheDocument();
-    expect(footer()).toContain('1.7 GiB');
-    // nothing is being skipped, so no saving is claimed
-    expect(footer()).not.toContain('−');
-    await user.click(boxes[2]);
-  });
-});
-
-describe('the queue band, split spine', () => {
   it('gives every row the route it arrived by, and the routes their legend', () => {
-    const { container } = render(<QueueB2Section />);
+    const { container } = render(<QueueSection />);
     const rows = container.querySelectorAll('li');
     // three legend entries in the rail, five downloads in the queue
     expect(rows).toHaveLength(8);
 
-    // the mark is an icon, so the route reaches a screen reader as the word
+    // the mark is an icon, so the route reaches a screen reader as the word -
+    // and the rows are the queue's own first five, not a copy of them
     const queue = [...rows].slice(3);
-    expect(queue.map((r) => r.querySelector('.sr-only')!.textContent)).toEqual([
-      'link',
-      'torrent',
-      'magnet',
-      'torrent',
-      'input',
-    ]);
+    expect(queue.map((r) => r.querySelector('.sr-only')!.textContent)).toEqual(
+      ITEMS.slice(0, 5).map((i) => i.route),
+    );
+    expect(queue.map((r) => r.querySelector('[dir="ltr"].truncate')!.textContent)).toEqual(
+      ITEMS.slice(0, 5).map((i) => i.name),
+    );
     // and the rail's three points wear the same three marks
     expect([...rows].slice(0, 3).every((r) => r.querySelector('svg') !== null)).toBe(true);
     // the same headline and the same list title as the band above it
@@ -182,7 +164,7 @@ describe('the queue band, split spine', () => {
 
   it('keeps figures left to right and lets translated notes follow the page', () => {
     setLocale('ar');
-    const { container } = render(<QueueB2Section />);
+    const { container } = render(<QueueSection />);
     const eta = (i: number) => [...container.querySelectorAll('li')][3 + i].lastElementChild!.lastElementChild!;
     // "4m 12s" would be reordered by the bidi algorithm; a ratio is a phrase
     expect(eta(0)).toHaveAttribute('dir', 'ltr');
@@ -190,19 +172,68 @@ describe('the queue band, split spine', () => {
   });
 
   it('draws the paused row as the one that is not moving', () => {
-    const { container } = render(<QueueB2Section />);
+    const { container } = render(<QueueSection />);
     const paused = [...container.querySelectorAll('li')].at(-1)!;
-    expect(paused.textContent).toContain('raspios-arm64.img.xz');
+    expect(paused.textContent).toContain('raspios-bookworm-arm64.img.xz');
     expect(paused.textContent).toContain('paused');
     // no speed colour on a row with no speed, and the faintest of the bars
     expect(paused.querySelector('.bg-surface-container-highest')).not.toBeNull();
     expect(paused.lastElementChild!.querySelector('.text-primary')).toBeNull();
   });
 
+  it('sums the five rows it draws, not the whole queue', () => {
+    // The store's own frame, so the assertion is what the card had to add up
+    // rather than a second copy of the queue's opening numbers.
+    const store = renderHook(() => useQueueScene());
+    const five = store.result.current.live.slice(0, 5);
+    const { down, up } = shownTotals(five);
+    store.unmount();
+    // the whole queue is twelve downloads, so its globals are larger
+    expect(down).toBeLessThan(store.result.current.down);
+
+    const { container } = render(<QueueSection />);
+    expect(container.textContent).toContain(`↓ ${fmtSpeed(down)}`);
+    expect(container.textContent).toContain(`↑ ${fmtSpeed(up)}`);
+    // and every row states its own size
+    expect([...container.querySelectorAll('li')].slice(3).every((r) => /GiB|MiB/.test(r.textContent!))).toBe(true);
+  });
+
+  it('adds up only what is transferring', () => {
+    expect(
+      shownTotals([
+        { kind: 'active', pct: 10, speed: 400 },
+        { kind: 'seeding', pct: 100, speed: 70 },
+        { kind: 'paused', pct: 40, speed: 0 },
+        { kind: 'waiting', pct: 0, speed: 0 },
+      ]),
+    ).toEqual({ down: 400, up: 70 });
+  });
+
+  it('says what each status is doing, for all six of them', () => {
+    // The rows a visitor sees are three of aria2's six statuses; the other
+    // three are what the queue walks into, so the cells answer for them here
+    // rather than waiting for the store to get there.
+    expect(speedCell('active', 2 * 1048576)).toBe('↓ 2.0 MiB/s');
+    expect(speedCell('seeding', 1048576)).toBe('↑ 1.0 MiB/s');
+    for (const kind of ['waiting', 'paused', 'error', 'done'] as const) {
+      expect(speedCell(kind, 0)).toBe('-');
+      expect(etaCell(kind, ITEMS[0], { kind, pct: 0, speed: 0 })).toBe('-');
+      expect(etaIsFigure(kind)).toBe(true);
+    }
+    // a failed download never read a content length; the rest report theirs
+    expect(sizeCell('error', 1024)).toBe('0 B');
+    expect(sizeCell('active', 1024)).toBe('1.0 KiB');
+    // remaining bytes over the current speed, and a ratio once there is no
+    // time left to state
+    expect(etaCell('active', { ...ITEMS[0], bytes: 1048576 }, { kind: 'active', pct: 50, speed: 1048576 })).toBe('1s');
+    expect(etaCell('seeding', ITEMS[1], { kind: 'seeding', pct: 100, speed: 10 })).toBe('ratio 1.84');
+    expect(etaIsFigure('seeding')).toBe(false);
+  });
+
   it('leaks no raw key in any locale', () => {
     for (const locale of LOCALES) {
       setLocale(locale);
-      const { container, unmount } = render(<QueueB2Section />);
+      const { container, unmount } = render(<QueueSection />);
       expect(container.textContent, locale).not.toMatch(/landing\.queue\./);
       unmount();
     }
@@ -283,9 +314,22 @@ describe('the limits band', () => {
 describe('the live bands', () => {
   it('draws a minute of throughput and the figures beside it', () => {
     const { container } = render(<StatsSection />);
-    expect(container.querySelector('svg path')).not.toBeNull();
     expect(container.querySelector('linearGradient')).not.toBeNull();
-    expect(within(container).getAllByText(/MiB\/s/).length).toBeGreaterThan(0);
+    // one wave, for the one series whose numbers fill a 0-40 axis
+    expect(container.querySelectorAll('svg')).toHaveLength(1);
+    expect(container.querySelectorAll('svg path')).toHaveLength(2);
+    // the upload's minute, as bars on a scale of its own
+    const bars = container.querySelectorAll('[aria-hidden] > i.bg-tertiary');
+    expect(bars).toHaveLength(26);
+    expect([...bars].every((b) => parseFloat((b as HTMLElement).style.height) >= 6)).toBe(true);
+    // download, upload, connections, peers - each figure once
+    expect(within(container).getAllByText(/MiB\/s/)).toHaveLength(2);
+    // a caption under each of the three panels, and none under the wave
+    expect(container.querySelectorAll('p')).toHaveLength(4); // + the heading's body
+    expect(container.textContent).toMatch(/seeding/);
+    expect(container.textContent).toMatch(/per server/);
+    expect(container.textContent).toMatch(/DHT/);
+    expect(container.textContent).not.toMatch(/downloads running/);
   });
 
   it('draws the piece map and its peers', () => {
