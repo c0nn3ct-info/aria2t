@@ -158,6 +158,7 @@
   "code.copy": "Скопировать команду",
   "code.copied": "Скопировано",
   "code.copy_short": "Копировать",
+  "code.block": "Команда, прокручивается",
   "home.hero.surface_aria": "Выберите интерфейс",
   "home.hero.surface_terminal": "Терминал",
   "home.feat.capture.title": "Перехват загрузок в браузере",

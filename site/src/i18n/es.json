@@ -158,6 +158,7 @@
   "code.copy": "Copiar comando",
   "code.copied": "Copiado",
   "code.copy_short": "Copiar",
+  "code.block": "Comando, desplazable",
   "home.hero.surface_aria": "Elige una interfaz",
   "home.hero.surface_terminal": "Terminal",
   "home.feat.capture.title": "Descargas capturadas en el navegador",

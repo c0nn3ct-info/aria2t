@@ -1,4 +1,5 @@
 import { Ban, Database, Github, Mail, Network } from 'lucide-react';
+import { ProseCode } from '@/components/prose-code';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Section } from '@/components/m3/section';
 import { GITHUB_URL } from '../constants';
@@ -33,12 +34,16 @@ export function PrivacyPage() {
       <div className="space-y-4 pb-8">
         <Section header={t('privacy.stores.h2')} icon={Database}>
           <div className="space-y-3 px-2 py-2 text-body-large text-on-surface-variant">
-            <p>{t('privacy.stores.intro')}</p>
+            <p>
+              <ProseCode text={t('privacy.stores.intro')} />
+            </p>
             <ul className="space-y-1.5">
               {STORE_ITEMS.map((k) => (
                 <li key={k} className="flex items-start gap-2">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-on-surface-variant" />
-                  {t(k)}
+                  <span>
+                    <ProseCode text={t(k)} />
+                  </span>
                 </li>
               ))}
             </ul>

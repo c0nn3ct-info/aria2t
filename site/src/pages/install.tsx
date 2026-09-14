@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ProseCode, proseCodeClass } from '@/components/prose-code';
 import { Section } from '@/components/m3/section';
 import { GITHUB_URL } from '../constants';
 import { t } from '../i18n';
@@ -40,7 +41,18 @@ function CodeBlock({ children }: { children: string }) {
 
   return (
     <div className="group relative rounded-md bg-surface-container-highest">
-      <pre className="overflow-x-auto px-3 py-3 pe-12 text-body-small font-mono text-on-surface">
+      {/* Focusable, because it scrolls: a one-line command is wider than a
+          phone and the block is the only way to read its end. Without a tab
+          stop a keyboard user cannot scroll it at all (WCAG 2.1.1; axe's
+          `scrollable-region-focusable`, five blocks on this page at 390).
+          `tabIndex` on a `<pre>` needs the role and the label that make it a
+          region rather than a stray stop. */}
+      <pre
+        tabIndex={0}
+        role="region"
+        aria-label={t('code.block')}
+        className="overflow-x-auto px-3 py-3 pe-12 text-body-small font-mono text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
         <code>{children}</code>
       </pre>
       <IconButton
@@ -161,7 +173,9 @@ export function InstallPage() {
             <CodeBlock>./aria2t</CodeBlock>
             <p>{t('install.step3.body2')}</p>
             <CodeBlock>./aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret</CodeBlock>
-            <p>{t('install.step3.body3')}</p>
+            <p>
+              <ProseCode text={t('install.step3.body3')} />
+            </p>
           </div>
         </Section>
 
@@ -197,7 +211,7 @@ export function InstallPage() {
               <RefreshCw className="h-5 w-5" />
             </span>
             <CardTitle className="mt-2">{t('install.updating.title')}</CardTitle>
-            <CardDescription>{t('install.updating.body')}</CardDescription>
+            <CardDescription><ProseCode text={t('install.updating.body')} /></CardDescription>
           </CardHeader>
         </Card>
         <Card variant="outlined" padding="md">
@@ -211,7 +225,7 @@ export function InstallPage() {
             <li>{t('install.uninstalling.step1')}</li>
             <li>
               {t('install.uninstalling.step2') + ' '}
-              <code className="rounded bg-surface-container-highest px-1 py-0.5 font-mono text-body-small">
+              <code dir="ltr" className={proseCodeClass}>
                 ~/.config/aria2t/
               </code>
             </li>

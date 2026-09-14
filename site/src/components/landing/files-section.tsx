@@ -122,7 +122,10 @@ export function FilesSection() {
                         dir="ltr"
                         className={cn(
                           'font-mono text-[10px]',
-                          on ? 'text-on-surface-variant' : 'text-on-surface-variant/80',
+                          // One token for both states: the skipped row is already struck
+                        // through and unticked, and at 80% these two figures were
+                        // 4.37:1 on the light ground - just under AA.
+                        'text-on-surface-variant',
                         )}
                       >
                         {f.type}
@@ -132,7 +135,10 @@ export function FilesSection() {
                       dir="ltr"
                       className={cn(
                         'font-mono text-[11px]',
-                        on ? 'text-on-surface-variant' : 'text-on-surface-variant/80',
+                        // One token for both states: the skipped row is already struck
+                        // through and unticked, and at 80% these two figures were
+                        // 4.37:1 on the light ground - just under AA.
+                        'text-on-surface-variant',
                       )}
                     >
                       {fmtSize(f.bytes)}

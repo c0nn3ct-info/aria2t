@@ -158,6 +158,7 @@
   "code.copy": "نسخ الأمر",
   "code.copied": "تم النسخ",
   "code.copy_short": "نسخ",
+  "code.block": "أمر، قابل للتمرير",
   "home.hero.surface_aria": "اختر الواجهة",
   "home.hero.surface_terminal": "الطرفية",
   "home.feat.capture.title": "اعتراض التنزيلات في المتصفح",

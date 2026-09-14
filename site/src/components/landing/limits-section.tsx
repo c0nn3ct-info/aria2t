@@ -218,13 +218,16 @@ export function LimitsSection() {
                   {HOURS.map(([height, inWindow], i) => {
                     const held = inWindow && scheduled;
                     return (
+                      // Scaled from the baseline rather than resized: twenty-four
+                      // bars changing height put the strip through layout on
+                      // every toggle, and the movement is identical.
                       <i
                         key={i}
                         className={cn(
-                          'flex-1 rounded-t-[2px] transition-[height,background-color] duration-200',
+                          'h-full flex-1 origin-bottom rounded-t-[2px] transition-[transform,background-color] duration-200',
                           held ? 'bg-primary' : 'bg-surface-container-high',
                         )}
-                        style={{ height: `${held ? CAPPED : height}%` }}
+                        style={{ transform: `scaleY(${(held ? CAPPED : height) / 100})` }}
                       />
                     );
                   })}

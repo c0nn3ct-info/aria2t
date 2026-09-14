@@ -158,6 +158,7 @@
   "code.copy": "Copy command",
   "code.copied": "Copied",
   "code.copy_short": "Copy",
+  "code.block": "Command, scrollable",
   "home.hero.surface_aria": "Choose an interface",
   "home.hero.surface_terminal": "Terminal",
   "home.feat.capture.title": "Downloads caught in the browser",

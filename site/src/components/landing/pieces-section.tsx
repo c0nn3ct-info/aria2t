@@ -105,10 +105,11 @@ export function PiecesSection() {
                   <span className="h-[5px] w-[68px] shrink-0 overflow-hidden rounded-pill bg-surface-container-high sm:w-[90px]">
                     <i
                       className={cn(
-                        'block h-full rounded-pill transition-[width] duration-[280ms] ease-linear',
+                        'block h-full w-full origin-left transition-transform duration-[280ms] ease-linear rtl:origin-right',
                         p.up ? 'bg-tertiary' : 'bg-primary',
                       )}
-                      style={{ width: p.width }}
+                      // `peerRows` states a percentage, the bar scales by it
+                      style={{ transform: `scaleX(${parseFloat(p.width) / 100})` }}
                     />
                   </span>
                   <span

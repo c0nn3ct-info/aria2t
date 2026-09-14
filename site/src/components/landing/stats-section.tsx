@@ -82,7 +82,9 @@ const FIGURE_TONE: Record<NonNullable<StatProps['tone']>, string> = {
 function Stat({ label, value, unit, note, size, tone = 'plain' }: StatProps) {
   return (
     <div className="min-w-0">
-      <span className="block text-[13px] font-medium uppercase leading-none tracking-[0.14em] text-on-surface-variant">
+      {/* A step down on a small phone: at 320 "CONNECTIONS" at 13px with this
+          tracking reaches the tile's padding exactly. */}
+      <span className="block text-[12px] font-medium uppercase leading-none tracking-[0.14em] text-on-surface-variant min-[400px]:text-[13px]">
         {label}
       </span>
       <div dir="ltr" className="mt-3.5 flex items-baseline">
@@ -105,12 +107,27 @@ function Stat({ label, value, unit, note, size, tone = 'plain' }: StatProps) {
 /** A figure beside its own drawing, in one of the three panels. */
 function Panel({ chart, ...stat }: StatProps & { chart?: number[] }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-md border border-outline-variant bg-surface-container-low p-5">
+    // Aligned to the top, not centred: "up to 8 per server" wraps to two lines
+    // on a phone while "DHT is on" does not, and centring each block in its
+    // own stretched tile then put the two labels - and the two figures beside
+    // them - on different lines. The bars keep their own centring.
+    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 rounded-md border border-outline-variant bg-surface-container-low p-5">
       <Stat {...stat} />
       {chart && (
         // Decorative: the figure beside it is the same minute's last sample, so
         // the bars add texture rather than information.
-        <div aria-hidden dir="ltr" className="flex h-12 w-[42%] shrink-0 items-end gap-[3px]">
+        //
+        // Twenty-six bars at a 2px floor and a 2px gap cannot be narrower than
+        // 100px, so beside the figure they need a tile wider than a small
+        // phone gives them: at 360 the 42% track was 115px against a 127px
+        // minimum and the bars ran out through the tile's edge, taking the
+        // page's own width with them (323px of scroll at a 320 viewport).
+        // Under 400 they take their own line at full width instead.
+        <div
+          aria-hidden
+          dir="ltr"
+          className="flex h-12 w-full items-end gap-[2px] self-center min-[400px]:w-[42%] min-[400px]:shrink-0"
+        >
           {chart.map((h, i) => (
             <i
               key={i}
@@ -185,8 +202,13 @@ export function StatsSection() {
 
         {/* Two rows of equal height rather than three panels pushed to the
             ends: the column has to finish level with the chart beside it, and
-            `content-between` bought that with a hole in its middle. */}
-        <div data-enter-stagger className="grid grid-rows-2 gap-4">
+            `content-between` bought that with a hole in its middle.
+
+            Only from `lg`. Stacked, there is no chart beside anything to be
+            level with, and two equal rows made the taller of them - the upload
+            tile, whose bars take their own line on a phone - set the height of
+            the counts row as well, leaving it 80px of nothing. */}
+        <div data-enter-stagger className="grid gap-4 lg:grid-rows-2">
           <Panel
             size="panel"
             tone="up"

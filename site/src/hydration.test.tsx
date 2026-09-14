@@ -11,7 +11,7 @@
 // then hydrate onto it and listen. Nothing needs a build for this.
 import { StrictMode } from 'react';
 import { createRoot, hydrateRoot } from 'react-dom/client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from '@/test/render';
 import { LOCALES, setLocale } from '@/i18n';
 import { LandingPage } from '@/pages/landing';
@@ -65,6 +65,16 @@ async function roundTrip(page: React.ReactElement): Promise<string[]> {
   target.remove();
   return errs.filter((e) => !STYLE_FORMAT.test(e));
 }
+
+// The page's live figures walk on a 300ms clock, and this test renders the
+// page, serialises it, and hydrates a second copy onto the markup. On a loaded
+// machine that round trip can straddle a tick, and the second render then reads
+// a figure the first one never printed - a text mismatch with nothing wrong in
+// the page. `motionAllowed()` is the switch every live figure on the site
+// already respects, so the clock is held the way the prerender holds it.
+beforeEach(() => {
+  Object.defineProperty(navigator, 'webdriver', { configurable: true, get: () => true });
+});
 
 afterEach(() => setLocale('en'));
 

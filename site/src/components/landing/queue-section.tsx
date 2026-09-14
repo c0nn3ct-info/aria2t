@@ -49,7 +49,9 @@ const ROUTE_ICON: Record<Route, LucideIcon> = {
 /**
  * Identity, not state: the mark says where a download came from, and the status
  * column keeps the page's status colours to itself. The three tints are the
- * ones `PointList` gives the points beside them, in the same order.
+ * ones `PointList` gives the points beside them, in the same order, and they
+ * are whole tokens: a tint of one would be a second colour to justify, and the
+ * light theme has no contrast to lend at this size.
  */
 const ROUTE_TINT: Record<Route, string> = {
   link: 'text-primary',
@@ -257,13 +259,19 @@ export function QueueSection() {
                     <span className="col-span-2 h-[5px] overflow-hidden rounded-pill bg-surface-container-high md:col-span-1">
                       {/* The store moves a bar by a second's worth at a time, so
                           the fill is eased across that second rather than
-                          stepping once a second. */}
+                          stepping once a second - and it eases a transform
+                          rather than a width, which would put five rows
+                          through layout every second. Scaled from the row's
+                          own start edge, so it mirrors with the page. */}
                       <i
                         className={cn(
-                          'block h-full rounded-pill transition-[width] duration-[950ms] ease-linear motion-reduce:transition-none',
+                          // No radius of its own: the track is the pill and it
+                          // clips, so a cap here would only be a cap `scaleX`
+                          // flattens.
+                          'block h-full w-full origin-left transition-transform duration-[950ms] ease-linear motion-reduce:transition-none rtl:origin-right',
                           STATUS_BAR[live.kind],
                         )}
-                        style={{ width: `${live.pct}%` }}
+                        style={{ transform: `scaleX(${live.pct / 100})` }}
                       />
                     </span>
                     {/* One line of figures on a phone; three cells at `md`, where

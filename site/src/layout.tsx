@@ -169,10 +169,14 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
                 c0nn3ct.info
               </a>
             </div>
-            <p className="text-label-small text-on-surface-variant/70">{t('home.description')}</p>
+            {/* Full strength, not 70%: at 11px on the light theme's own ground
+                the dimmed token is 3.47:1, under the 4.5 AA asks for. The
+                hierarchy here is size and weight, and it survives without
+                borrowing contrast it cannot spare. */}
+            <p className="text-label-small text-on-surface-variant">{t('home.description')}</p>
           </div>
           <nav aria-label={t('footer.product')}>
-            <div className="mb-2 text-label-small uppercase tracking-[0.12em] text-on-surface-variant/70">
+            <div className="mb-2 text-label-small uppercase tracking-[0.12em] text-on-surface-variant">
               {t('footer.product')}
             </div>
             <ul className="space-y-1.5">
@@ -191,7 +195,7 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
             </ul>
           </nav>
           <nav aria-label={t('footer.resources')}>
-            <div className="mb-2 text-label-small uppercase tracking-[0.12em] text-on-surface-variant/70">
+            <div className="mb-2 text-label-small uppercase tracking-[0.12em] text-on-surface-variant">
               {t('footer.resources')}
             </div>
             <ul className="space-y-1.5">
@@ -210,7 +214,7 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
             </ul>
           </nav>
           <nav aria-label={t('footer.contacts')}>
-            <div className="mb-2 text-label-small uppercase tracking-[0.12em] text-on-surface-variant/70">
+            <div className="mb-2 text-label-small uppercase tracking-[0.12em] text-on-surface-variant">
               {t('footer.contacts')}
             </div>
             <ul className="space-y-1.5">
@@ -261,7 +265,10 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
                 </span>
               )}
               <a
-                className="underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                // 24px tall, not the 16 the line box gives it: a target below
+                // 24x24 fails WCAG 2.5.8, and these six sit one beside the
+                // other with a separator between them.
+                className="inline-flex min-h-[24px] items-center underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 href={withLocale(currentPath, l.code)}
                 hrefLang={l.code}
                 lang={l.code}

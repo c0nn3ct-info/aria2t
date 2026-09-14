@@ -158,6 +158,7 @@
   "code.copy": "复制命令",
   "code.copied": "已复制",
   "code.copy_short": "复制",
+  "code.block": "命令，可横向滚动",
   "home.hero.surface_aria": "选择界面",
   "home.hero.surface_terminal": "终端",
   "home.feat.capture.title": "在浏览器中拦截下载",

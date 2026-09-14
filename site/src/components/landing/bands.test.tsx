@@ -298,16 +298,17 @@ describe('the limits band', () => {
     const user = userEvent.setup();
     const { container } = render(<LimitsSection />);
     const sw = within(container).getByRole('switch');
-    const bars = () => [...container.querySelectorAll('i')].map((i) => i.style.height);
+    // The bars scale rather than resize, so the held height is a transform
+    const bars = () => [...container.querySelectorAll('i')].map((i) => i.style.transform);
     expect(sw).toHaveAttribute('aria-checked', 'true');
-    expect(bars()).toContain('25%');
+    expect(bars()).toContain('scaleY(0.25)');
 
     await user.click(sw);
     expect(sw).toHaveAttribute('aria-checked', 'false');
-    expect(bars()).not.toContain('25%');
+    expect(bars()).not.toContain('scaleY(0.25)');
 
     await user.click(sw);
-    expect(bars()).toContain('25%');
+    expect(bars()).toContain('scaleY(0.25)');
   });
 });
 
