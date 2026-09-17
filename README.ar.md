@@ -13,17 +13,17 @@
 <p align="center"><em>أدِر aria2 من الطرفية أو من المتصفّح.</em></p>
 
 <p align="center">
+  <a href="https://github.com/c0nn3ct-info/aria2t/releases"><img src="https://img.shields.io/github/v/release/c0nn3ct-info/aria2t?label=release" alt="أحدث إصدار"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
   <a href="https://aria2.github.io/"><img src="https://img.shields.io/badge/engine-aria2-5c7cfa" alt="المحرّك: aria2"></a>
   <a href="https://github.com/charmbracelet/bubbletea"><img src="https://img.shields.io/badge/TUI-Bubble%20Tea-ff69b4" alt="واجهة الطرفية: Bubble Tea"></a>
-  <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="التغطية: 100%">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="الترخيص: Apache-2.0"></a>
 </p>
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./tui/docs/media/demo.gif">
-    <img alt="Aria2t demo" src="./tui/docs/media/demo-light.gif" width="720">
+    <img alt="عرض توضيحي لـ Aria2t" src="./tui/docs/media/demo-light.gif" width="720">
   </picture>
 </p>
 
@@ -76,11 +76,40 @@ Aria2t مدير تنزيلات لـ aria2 بواجهتين: الطرفية وا�
 
 ### قبل أن تبدأ
 
-- [aria2](https://aria2.github.io/) (`brew install aria2` / `apt install aria2`) — للخديم المدمج فقط؛ ولا حاجة إليه للاتصال بخادم خارجي.
+- [aria2](https://aria2.github.io/) (`brew install aria2` / `apt install aria2`) — للخديم المدمج فقط؛ ولا حاجة إليه للاتصال بخادم خارجي. وإن لم يكن موجودًا فالمثبّت يعرض تثبيته نيابةً عنك.
 - طرفية تدعم 256 لونًا أو الألوان الحقيقية. الفأرة اختيارية: كل إجراء متاح من لوحة المفاتيح.
-- Go 1.25 أو أحدث للبناء من المصدر.
 
-### البناء والتشغيل
+### التثبيت
+
+**macOS / Linux**
+
+```bash
+curl -fsSL https://aria2t.c0nn3ct.info/install.sh | bash
+```
+
+**Windows (PowerShell)**
+
+```powershell
+iwr -useb https://aria2t.c0nn3ct.info/windows.ps1 | iex
+```
+
+أمر واحد ينزّل أحدث إصدار لمنصتك، ويتحقق منه مقابل `SHA256SUMS`، ويثبّت الملف التنفيذي: في `/usr/local/bin` أو `~/.local/bin` على macOS و Linux، وفي `%LOCALAPPDATA%\Programs\aria2t` على Windows حيث يُضاف إلى `PATH` المستخدم. حزم المنصات الست الجاهزة موجودة في [إصدارات GitHub](https://github.com/c0nn3ct-info/aria2t/releases).
+
+### التشغيل الأول
+
+في أول تشغيل يبدأ Aria2t الخديم الخاص ويفتح قائمة تنزيلات فارغة. المفتاح `a` يفتح نموذج الإضافة، و`↵` يضيف رابطًا من الحافظة.
+
+### الاتصال بـ aria2 خارجي
+
+```sh
+aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
+```
+
+تُحفظ الإعدادات في `~/.config/aria2t/config.json` (ويمكن تغيير المسار بالخيار `--config`)، ويحتفظ الخديم المُدار بجلسته في `~/.config/aria2t/daemon/`.
+
+### البناء من المصدر
+
+يلزم Go 1.25 أو أحدث:
 
 ```sh
 git clone https://github.com/c0nn3ct-info/aria2t.git
@@ -88,19 +117,9 @@ cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 ./aria2t
 ```
 
-في أول تشغيل يبدأ Aria2t الخديم الخاص ويفتح قائمة تنزيلات فارغة. المفتاح `a` يفتح نموذج الإضافة، و`↵` يضيف رابطًا من الحافظة.
-
-### الاتصال بـ aria2 خارجي
-
-```sh
-./aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
-```
-
-تُحفظ الإعدادات في `~/.config/aria2t/config.json` (ويمكن تغيير المسار بالخيار `--config`)، ويحتفظ الخديم المُدار بجلسته في `~/.config/aria2t/daemon/`.
-
 ### التحديث
 
-أعد بناء الملف التنفيذي واستبدل القديم به. تبقى الإعدادات وقواعد الجدولة وجلسة الخديم في `~/.config/aria2t/` وتنجو من الاستبدال.
+نفّذ أمر التثبيت مرة أخرى؛ فهو يستبدل الملف التنفيذي بأحدث إصدار. تبقى الإعدادات وقواعد الجدولة وجلسة الخديم في `~/.config/aria2t/` وتنجو من الاستبدال.
 
 ### إزالة التثبيت
 
@@ -113,11 +132,11 @@ cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 
 **اختيار الملفات.** التورنتات متعدّدة الملفات وMetalink وروابط magnet تفتح شجرة ملفات بمربّعات اختيار، ويبقى رابط magnet موقوفًا حتى يُؤكَّد الاختيار. المفتاح `space` يحدّد ملفًا أو مجلدًا، و`a` و`n` يحدّدان الكل أو لا شيء، و`↵` يؤكّد الاختيار. ويمكن تغيير الاختيار لاحقًا بالمفتاح `f`. وإن خرجت قبل التأكيد فُتحت النافذة من جديد في التشغيل التالي.
 
-**القائمة.** المفتاح `tab` أو المفاتيح `1`–`4` تبدّل تبويبات الكل / النشطة / المنتظرة / المتوقّفة. المفتاح `space` يوقف التنزيل المحدّد ويستأنفه، و`P` و`U` يفعلان ذلك للكل، و`d` يزيل، و`l` يحدّ السرعة، و`/` يرشّح بالاسم، و`y` ينسخ رابط المصدر، و`↵` يفتح التفاصيل. وفي تبويب المنتظرة يحرّك `J` و`K` العنصر المحدّد داخل الطابور.
+**القائمة.** المفتاح `tab` أو المفاتيح `1`–`4` تبدّل تبويبات All / Active / Waiting / Stopped. المفتاح `space` يوقف التنزيل المحدّد ويستأنفه، و`P` و`U` يفعلان ذلك للكل، و`d` يزيل، و`l` يحدّ السرعة، و`/` يرشّح بالاسم، و`y` ينسخ رابط المصدر، و`↵` يفتح التفاصيل. وفي تبويب Waiting يحرّك `J` و`K` العنصر المحدّد داخل الطابور.
 
 **السرعة.** المفتاح `l` يحدّ سرعة التنزيل المحدّد، والقيم تُختار من إعدادات مسبقة. ويُضبط الحدّ العام في الإعدادات (`,`)، ثم يُحفظ ويُعاد تطبيقه بعد إعادة تشغيل الخديم. المفتاح `S` يفتح المجدول، حيث تُضبط الحدود العامة بحسب ساعات اليوم — 5 ميبي/ث في ساعات العمل وبلا حدّ في الليل، مثلًا.
 
-**السلامة.** في تبويب المتوقّفة يخزّن `c` بصمة sha-256 المتوقّعة، و`v` يقارن الملف المحلي بها، و`R` يعيد التنزيل عند عدم التطابق، و`X` يفرّغ القائمة.
+**السلامة.** في تبويب Stopped يخزّن `c` بصمة sha-256 المتوقّعة، و`v` يقارن الملف المحلي بها، و`R` يعيد التنزيل عند عدم التطابق، و`X` يفرّغ القائمة.
 
 القائمة الكاملة لاختصارات المفاتيح تُفتح بالمفتاح **`?`**. وكل تلميح في الشريط السفلي قابل للنقر؛ وفي الحوارات يؤكّد الزر الأخضر الإجراء ويلغيه الأحمر.
 

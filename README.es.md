@@ -13,11 +13,11 @@
 <p align="center"><em>Gestiona aria2 desde el terminal o el navegador.</em></p>
 
 <p align="center">
+  <a href="https://github.com/c0nn3ct-info/aria2t/releases"><img src="https://img.shields.io/github/v/release/c0nn3ct-info/aria2t?label=release" alt="Última versión"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
-  <a href="https://aria2.github.io/"><img src="https://img.shields.io/badge/engine-aria2-5c7cfa" alt="Engine: aria2"></a>
+  <a href="https://aria2.github.io/"><img src="https://img.shields.io/badge/engine-aria2-5c7cfa" alt="Motor: aria2"></a>
   <a href="https://github.com/charmbracelet/bubbletea"><img src="https://img.shields.io/badge/TUI-Bubble%20Tea-ff69b4" alt="TUI: Bubble Tea"></a>
-  <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage: 100%">
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Licencia: Apache-2.0"></a>
 </p>
 
 <p align="center">
@@ -76,11 +76,40 @@ Por defecto Aria2t encuentra `aria2c` en el `PATH` y arranca un demonio privado 
 
 ### Antes de empezar
 
-- [aria2](https://aria2.github.io/) (`brew install aria2` / `apt install aria2`) — solo para el demonio integrado; no hace falta para conectar con un servidor externo.
+- [aria2](https://aria2.github.io/) (`brew install aria2` / `apt install aria2`) — solo para el demonio integrado; no hace falta para conectar con un servidor externo. Si falta, el instalador se ofrece a instalarlo.
 - Un terminal con soporte de 256 colores o truecolor. El ratón es opcional: todas las acciones están disponibles desde el teclado.
-- Go 1.25 o más reciente para compilar desde el código fuente.
 
-### Compilar y ejecutar
+### Instalación
+
+**macOS / Linux**
+
+```bash
+curl -fsSL https://aria2t.c0nn3ct.info/install.sh | bash
+```
+
+**Windows (PowerShell)**
+
+```powershell
+iwr -useb https://aria2t.c0nn3ct.info/windows.ps1 | iex
+```
+
+Un solo comando descarga la última versión para su plataforma, la verifica contra `SHA256SUMS` e instala el binario: en `/usr/local/bin` o `~/.local/bin` en macOS y Linux, en `%LOCALAPPDATA%\Programs\aria2t` en Windows (que se añade a su `PATH` de usuario). Los archivos precompilados para las seis plataformas están en [GitHub Releases](https://github.com/c0nn3ct-info/aria2t/releases).
+
+### Primer arranque
+
+En el primer arranque Aria2t lanza el demonio privado y abre una lista de descargas vacía. La tecla `a` abre el formulario de añadir y `↵` añade un enlace desde el portapapeles.
+
+### Conectar con un aria2 externo
+
+```sh
+aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
+```
+
+La configuración se guarda en `~/.config/aria2t/config.json` (la ruta puede cambiarse con `--config`); el demonio gestionado mantiene su sesión bajo `~/.config/aria2t/daemon/`.
+
+### Compilar desde el código fuente
+
+Go 1.25 o más reciente:
 
 ```sh
 git clone https://github.com/c0nn3ct-info/aria2t.git
@@ -88,19 +117,9 @@ cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 ./aria2t
 ```
 
-En el primer arranque Aria2t lanza el demonio privado y abre una lista de descargas vacía. La tecla `a` abre el formulario de añadir y `↵` añade un enlace desde el portapapeles.
-
-### Conectar con un aria2 externo
-
-```sh
-./aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
-```
-
-La configuración se guarda en `~/.config/aria2t/config.json` (la ruta puede cambiarse con `--config`); el demonio gestionado mantiene su sesión bajo `~/.config/aria2t/daemon/`.
-
 ### Actualizar
 
-Recompile el binario y sustituya el antiguo. La configuración, las reglas del planificador y la sesión del demonio se guardan bajo `~/.config/aria2t/` y sobreviven a la sustitución.
+Ejecute de nuevo el comando de instalación: sustituye el binario por la última versión. La configuración, las reglas del planificador y la sesión del demonio se guardan bajo `~/.config/aria2t/` y sobreviven a la sustitución.
 
 ### Desinstalar
 
@@ -178,6 +197,13 @@ go vet ./... && gofmt -l .
 go test ./... -count=1 -coverprofile=cover.out -coverpkg=./...
 go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
 ```
+
+Nada queda fuera de esa cifra y nada se silencia: en el árbol no hay directivas
+para ignorar la cobertura. Allí donde una construcción resultó inalcanzable — una
+sentencia limitada a una plataforma e invisible en el perfil de la otra, o una
+rama de reserva que un invariante ya descartaba — se reestructuró en lugar de
+omitirse. El sitio web en `site/` mantiene el 100 % en sentencias, ramas,
+funciones y líneas del mismo modo (`cd site && npm run test:coverage`).
 
 ## 🙏 Agradecimientos
 

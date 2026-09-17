@@ -13,11 +13,11 @@
 <p align="center"><em>Управляйте aria2 из терминала или браузера.</em></p>
 
 <p align="center">
+  <a href="https://github.com/c0nn3ct-info/aria2t/releases"><img src="https://img.shields.io/github/v/release/c0nn3ct-info/aria2t?label=release" alt="Последний релиз"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
-  <a href="https://aria2.github.io/"><img src="https://img.shields.io/badge/engine-aria2-5c7cfa" alt="Engine: aria2"></a>
+  <a href="https://aria2.github.io/"><img src="https://img.shields.io/badge/engine-aria2-5c7cfa" alt="Движок: aria2"></a>
   <a href="https://github.com/charmbracelet/bubbletea"><img src="https://img.shields.io/badge/TUI-Bubble%20Tea-ff69b4" alt="TUI: Bubble Tea"></a>
-  <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage: 100%">
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Лицензия: Apache-2.0"></a>
 </p>
 
 <p align="center">
@@ -76,11 +76,40 @@ Aria2t — менеджер загрузок для aria2 с интерфейс�
 
 ### Перед началом
 
-- [aria2](https://aria2.github.io/) (`brew install aria2` / `apt install aria2`) — только для встроенного демона; для подключения к внешнему серверу не нужен.
+- [aria2](https://aria2.github.io/) (`brew install aria2` / `apt install aria2`) — только для встроенного демона; для подключения к внешнему серверу не нужен. Если его нет, установщик предложит поставить его сам.
 - Терминал с поддержкой 256 цветов или truecolor. Мышь не обязательна: все действия доступны с клавиатуры.
-- Go 1.25 или новее для сборки из исходников.
 
-### Сборка и запуск
+### Установка
+
+**macOS / Linux**
+
+```bash
+curl -fsSL https://aria2t.c0nn3ct.info/install.sh | bash
+```
+
+**Windows (PowerShell)**
+
+```powershell
+iwr -useb https://aria2t.c0nn3ct.info/windows.ps1 | iex
+```
+
+Одна команда скачивает последний релиз для вашей платформы, сверяет его с `SHA256SUMS` и устанавливает бинарник: в `/usr/local/bin` или `~/.local/bin` на macOS и Linux, в `%LOCALAPPDATA%\Programs\aria2t` на Windows (этот путь добавляется в пользовательский `PATH`). Готовые архивы для всех шести платформ — на странице [GitHub Releases](https://github.com/c0nn3ct-info/aria2t/releases).
+
+### Первый запуск
+
+При первом запуске Aria2t запустит приватный демон и откроет пустой список загрузок. Клавиша `a` открывает форму добавления, а `↵` добавляет ссылку из буфера обмена.
+
+### Подключение к внешнему aria2
+
+```sh
+aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
+```
+
+Конфигурация сохраняется в `~/.config/aria2t/config.json` (путь переопределяется флагом `--config`); управляемый демон хранит сессию в `~/.config/aria2t/daemon/`.
+
+### Сборка из исходников
+
+Нужен Go 1.25 или новее:
 
 ```sh
 git clone https://github.com/c0nn3ct-info/aria2t.git
@@ -88,19 +117,9 @@ cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 ./aria2t
 ```
 
-При первом запуске Aria2t запустит приватный демон и откроет пустой список загрузок. Клавиша `a` открывает форму добавления, а `↵` добавляет ссылку из буфера обмена.
-
-### Подключение к внешнему aria2
-
-```sh
-./aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
-```
-
-Конфигурация сохраняется в `~/.config/aria2t/config.json` (путь переопределяется флагом `--config`); управляемый демон хранит сессию в `~/.config/aria2t/daemon/`.
-
 ### Обновление
 
-Пересоберите бинарник и замените старый. Конфигурация, правила планировщика и сессия демона хранятся в `~/.config/aria2t/` и при замене сохраняются.
+Выполните команду установки ещё раз — она заменит бинарник последним релизом. Конфигурация, правила планировщика и сессия демона хранятся в `~/.config/aria2t/` и при замене сохраняются.
 
 ### Удаление
 
@@ -178,6 +197,13 @@ go vet ./... && gofmt -l .
 go test ./... -count=1 -coverprofile=cover.out -coverpkg=./...
 go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
 ```
+
+Из этого числа ничего не исключено и ничто не заглушено: в дереве нет директив
+пропуска покрытия. Там, где конструкция оказалась недостижимой — оператор,
+закрытый тегом сборки одной платформы и невидимый в профиле другой, или запасная
+ветка, которую уже исключает инвариант, — её перестраивали, а не пропускали.
+Сайт в `site/` держит 100% по операторам, ветвям, функциям и строкам тем же
+способом (`cd site && npm run test:coverage`).
 
 ## 🙏 Благодарности
 

@@ -268,8 +268,8 @@ function StackProbe({
   );
 }
 
-// The site's own `home.hero.lede`, one locale each, so the coverage sample is
-// text the site actually ships rather than a pangram invented for the page.
+// A sentence the site actually ships, one locale each, so the coverage sample
+// is real copy rather than a pangram invented for the page.
 // Switching the toolbar's Locale re-renders these in place; they stay in their
 // own script either way, which is the point.
 const SCRIPTS = [

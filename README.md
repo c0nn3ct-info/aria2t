@@ -13,10 +13,10 @@
 <p align="center"><em>Manage aria2 from the terminal or browser.</em></p>
 
 <p align="center">
+  <a href="https://github.com/c0nn3ct-info/aria2t/releases"><img src="https://img.shields.io/github/v/release/c0nn3ct-info/aria2t?label=release" alt="Latest release"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
   <a href="https://aria2.github.io/"><img src="https://img.shields.io/badge/engine-aria2-5c7cfa" alt="Engine: aria2"></a>
   <a href="https://github.com/charmbracelet/bubbletea"><img src="https://img.shields.io/badge/TUI-Bubble%20Tea-ff69b4" alt="TUI: Bubble Tea"></a>
-  <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage: 100%">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
 </p>
 
@@ -76,11 +76,40 @@ By default Aria2t finds `aria2c` on your `PATH` and starts a private daemon on a
 
 ### Before you start
 
-- [aria2](https://aria2.github.io/) (`brew install aria2` / `apt install aria2`) — only for the built-in daemon; not needed to connect to an external server.
+- [aria2](https://aria2.github.io/) (`brew install aria2` / `apt install aria2`) — only for the built-in daemon; not needed to connect to an external server. The installer offers to install it when it is missing.
 - A terminal with 256-color or truecolor support. A mouse is optional: every action is available from the keyboard.
-- Go 1.25 or newer to build from source.
 
-### Build and run
+### Install
+
+**macOS / Linux**
+
+```bash
+curl -fsSL https://aria2t.c0nn3ct.info/install.sh | bash
+```
+
+**Windows (PowerShell)**
+
+```powershell
+iwr -useb https://aria2t.c0nn3ct.info/windows.ps1 | iex
+```
+
+One command downloads the latest release for your platform, verifies it against `SHA256SUMS`, and installs the binary: `/usr/local/bin` or `~/.local/bin` on macOS and Linux, `%LOCALAPPDATA%\Programs\aria2t` on Windows (added to your user `PATH`). Prebuilt archives for all six platform targets are on [GitHub Releases](https://github.com/c0nn3ct-info/aria2t/releases).
+
+### First run
+
+On first launch Aria2t starts the private daemon and opens an empty download list. The `a` key opens the add form, and `↵` adds a link from the clipboard.
+
+### Connecting to an external aria2
+
+```sh
+aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
+```
+
+Configuration is stored in `~/.config/aria2t/config.json` (the path can be overridden with `--config`); the managed daemon keeps its session under `~/.config/aria2t/daemon/`.
+
+### Build from source
+
+Go 1.25 or newer:
 
 ```sh
 git clone https://github.com/c0nn3ct-info/aria2t.git
@@ -88,19 +117,9 @@ cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 ./aria2t
 ```
 
-On first launch Aria2t starts the private daemon and opens an empty download list. The `a` key opens the add form, and `↵` adds a link from the clipboard.
-
-### Connecting to an external aria2
-
-```sh
-./aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
-```
-
-Configuration is stored in `~/.config/aria2t/config.json` (the path can be overridden with `--config`); the managed daemon keeps its session under `~/.config/aria2t/daemon/`.
-
 ### Updating
 
-Rebuild the binary and replace the old one. Configuration, scheduler rules, and the daemon session are stored under `~/.config/aria2t/` and survive the replacement.
+Run the install command again; it replaces the binary with the latest release. Configuration, scheduler rules, and the daemon session are stored under `~/.config/aria2t/` and survive the replacement.
 
 ### Uninstalling
 

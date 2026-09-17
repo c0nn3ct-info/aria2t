@@ -213,16 +213,18 @@ describe('speaking the page language', () => {
 
   // The strings are the extension's own, copied into the site dictionary, so
   // the mock says what the app says in that language rather than a paraphrase.
-  it('follows the site locale, plural included', () => {
+  it('follows the site locale, at any count', () => {
     setLocale('ru');
     const { container } = render(<PopupMock />);
     const text = container.textContent ?? '';
     // uppercased by CSS, so the DOM still holds the sentence case
     expect(text).toContain('Передача данных');
-    // the plural form Russian needs, not the bare noun. The count itself is
+    // The dictionary is one string with a {{count}} hole and no plural
+    // machinery, so the Russian line is phrased to agree at every count -
+    // including 1, where "Загружаются 1" would have been wrong. The count is
     // the shared queue's, which other tests in this file advance, so the
-    // assertion is on the words rather than on the number.
-    expect(text).toMatch(/Загружа(ются|ется)/);
+    // assertion is on the wording rather than on the number.
+    expect(text).toMatch(/В работе: \d+/);
     expect(text).toContain('Загрузки');
     expect(text).toContain('активна');
     expect(text).toContain('Добавить');

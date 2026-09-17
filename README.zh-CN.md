@@ -13,11 +13,11 @@
 <p align="center"><em>从终端或浏览器管理 aria2。</em></p>
 
 <p align="center">
+  <a href="https://github.com/c0nn3ct-info/aria2t/releases"><img src="https://img.shields.io/github/v/release/c0nn3ct-info/aria2t?label=release" alt="最新版本"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
-  <a href="https://aria2.github.io/"><img src="https://img.shields.io/badge/engine-aria2-5c7cfa" alt="Engine: aria2"></a>
-  <a href="https://github.com/charmbracelet/bubbletea"><img src="https://img.shields.io/badge/TUI-Bubble%20Tea-ff69b4" alt="TUI: Bubble Tea"></a>
-  <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage: 100%">
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
+  <a href="https://aria2.github.io/"><img src="https://img.shields.io/badge/engine-aria2-5c7cfa" alt="引擎：aria2"></a>
+  <a href="https://github.com/charmbracelet/bubbletea"><img src="https://img.shields.io/badge/TUI-Bubble%20Tea-ff69b4" alt="TUI：Bubble Tea"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="许可证：Apache-2.0"></a>
 </p>
 
 <p align="center">
@@ -76,11 +76,40 @@ aria2 接受的一切都可以添加到 Aria2t 中：普通 URL（多行视为�
 
 ### 开始之前
 
-- [aria2](https://aria2.github.io/)（`brew install aria2` / `apt install aria2`）— 仅内置守护进程需要；连接外部服务器时不需要。
+- [aria2](https://aria2.github.io/)（`brew install aria2` / `apt install aria2`）— 仅内置守护进程需要；连接外部服务器时不需要。若系统中没有，安装脚本会询问是否代为安装。
 - 支持 256 色或真彩色的终端。鼠标可选：所有操作均可通过键盘完成。
-- 从源码构建需要 Go 1.25 或更新版本。
 
-### 构建并运行
+### 安装
+
+**macOS / Linux**
+
+```bash
+curl -fsSL https://aria2t.c0nn3ct.info/install.sh | bash
+```
+
+**Windows (PowerShell)**
+
+```powershell
+iwr -useb https://aria2t.c0nn3ct.info/windows.ps1 | iex
+```
+
+一条命令即可下载适合您平台的最新版本，用 `SHA256SUMS` 校验，并安装二进制文件：macOS 与 Linux 装到 `/usr/local/bin` 或 `~/.local/bin`，Windows 装到 `%LOCALAPPDATA%\Programs\aria2t` 并加入用户 `PATH`。六个平台的预编译压缩包都在 [GitHub Releases](https://github.com/c0nn3ct-info/aria2t/releases)。
+
+### 首次运行
+
+首次启动时，Aria2t 会启动私有守护进程并打开一个空的下载列表。按 `a` 打开添加表单，按 `↵` 添加剪贴板中的链接。
+
+### 连接外部 aria2
+
+```sh
+aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
+```
+
+配置保存在 `~/.config/aria2t/config.json`（路径可用 `--config` 覆盖）；托管守护进程的会话保存在 `~/.config/aria2t/daemon/` 下。
+
+### 从源码构建
+
+需要 Go 1.25 或更新版本：
 
 ```sh
 git clone https://github.com/c0nn3ct-info/aria2t.git
@@ -88,19 +117,9 @@ cd aria2t/tui && go build -o aria2t ./cmd/aria2t
 ./aria2t
 ```
 
-首次启动时，Aria2t 会启动私有守护进程并打开一个空的下载列表。按 `a` 打开添加表单，按 `↵` 添加剪贴板中的链接。
-
-### 连接外部 aria2
-
-```sh
-./aria2t --url ws://seedbox:6800/jsonrpc --secret mysecret
-```
-
-配置保存在 `~/.config/aria2t/config.json`（路径可用 `--config` 覆盖）；托管守护进程的会话保存在 `~/.config/aria2t/daemon/` 下。
-
 ### 更新
 
-重新构建二进制文件并替换旧的。配置、调度规则和守护进程会话保存在 `~/.config/aria2t/` 下，替换后不会丢失。
+再次执行安装命令，它会用最新版本替换二进制文件。配置、调度规则和守护进程会话保存在 `~/.config/aria2t/` 下，替换后不会丢失。
 
 ### 卸载
 
@@ -178,6 +197,11 @@ go vet ./... && gofmt -l .
 go test ./... -count=1 -coverprofile=cover.out -coverpkg=./...
 go tool cover -func=cover.out | awk '$3!="100.0%"'      # must print nothing
 ```
+
+这个数字没有任何豁免，也没有任何静默：代码树中不存在忽略覆盖率的指令。凡是被证明
+不可达的结构——只为一个平台编译、在另一个平台的覆盖率档案中看不到的语句，或者被
+不变量提前排除的兜底分支——都经过重构，而不是跳过。`site/` 下的网站以同样的方式在
+语句、分支、函数和行四项上保持 100%（`cd site && npm run test:coverage`）。
 
 ## 🙏 致谢
 
