@@ -15,7 +15,12 @@
     <script>
       (function () {
         try {
-          document.documentElement.classList.add(
+          // The prerender captures <html> with the theme it rendered in, so
+          // the shell arrives already carrying one. Clear it before adding the
+          // visitor's own: "dark light" painted dark until the app mounted.
+          var root = document.documentElement;
+          root.classList.remove('light', 'dark');
+          root.classList.add(
             window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
           );
         } catch (e) {}

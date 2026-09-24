@@ -81,6 +81,7 @@ export function HeroScene({
         };
         const boot = () => {
           handle?.dispose();
+          handle = undefined;
           handle = m.bootHeroScene(host.current!, canvas.current!, opts);
         };
         boot();
@@ -92,7 +93,14 @@ export function HeroScene({
           const dark = m.isDark();
           if (dark === lastDark) return;
           lastDark = dark;
-          boot();
+          // A context the GPU refuses throws from the renderer. At load that
+          // lands in the catch below; here it would escape the observer, so
+          // the reboot gives up the figure and keeps the page.
+          try {
+            boot();
+          } catch {
+            observer?.disconnect();
+          }
         });
         observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
       })

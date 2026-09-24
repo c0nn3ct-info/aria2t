@@ -2,6 +2,7 @@
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import { LOCALES, loadLocale } from '@/i18n';
 
 // ── matchMedia ───────────────────────────────────────────────────────────────
 // lib/theme.ts resolves the system theme through it and subscribes to changes,
@@ -61,3 +62,12 @@ afterEach(() => {
   localStore.clear();
   systemDark = false;
 });
+
+// jsdom has a `CSS` namespace with no `supports`; every browser has it, and the
+// FAQ asks it whether CSS can animate its panels.
+if (typeof CSS.supports !== 'function') {
+  CSS.supports = (() => false) as typeof CSS.supports;
+}
+
+// Pages load their one locale on demand; tests switch between all six.
+await Promise.all(LOCALES.map(loadLocale));

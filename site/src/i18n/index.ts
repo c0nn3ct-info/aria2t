@@ -1,9 +1,4 @@
 import en from './en.json';
-import ru from './ru.json';
-import zhCN from './zh-CN.json';
-import es from './es.json';
-import ar from './ar.json';
-import fa from './fa.json';
 
 export const LOCALES = ['en', 'ru', 'zh-CN', 'es', 'ar', 'fa'] as const;
 export type Locale = (typeof LOCALES)[number];
@@ -18,14 +13,26 @@ export function isLocale(x: string): x is Locale {
   return (LOCALES as readonly string[]).includes(x);
 }
 
-const DICTIONARIES: Record<Locale, Record<string, string>> = {
-  en,
-  ru,
-  'zh-CN': zhCN,
-  es,
-  ar,
-  fa,
+type Dictionary = Record<string, string>;
+
+/* English ships with every page and the rest arrive on demand: a page is read
+ * in one language, and the other five were in the chunk every first paint
+ * waited on. English is what `t` reads until the page's own locale is in. */
+const DICTIONARIES: Partial<Record<Locale, Dictionary>> = { en: en as Dictionary };
+
+const LOADERS: Record<Exclude<Locale, 'en'>, () => Promise<{ default: Dictionary }>> = {
+  ru: () => import('./ru.json'),
+  'zh-CN': () => import('./zh-CN.json'),
+  es: () => import('./es.json'),
+  ar: () => import('./ar.json'),
+  fa: () => import('./fa.json'),
 };
+
+/** Fetches a locale's dictionary. Call it before `setLocale` puts it in force. */
+export async function loadLocale(locale: Locale): Promise<void> {
+  if (DICTIONARIES[locale]) return;
+  DICTIONARIES[locale] = (await LOADERS[locale as Exclude<Locale, 'en'>]()).default;
+}
 
 const NON_EN_LOCALES = LOCALES.filter((l): l is Exclude<Locale, 'en'> => l !== 'en');
 
@@ -40,8 +47,8 @@ export function getLocale(): Locale {
 }
 
 export function t(key: string): string {
-  const dict = DICTIONARIES[currentLocale];
-  const value = dict[key];
+  // A locale that has not been loaded reads as English rather than as keys.
+  const value = (DICTIONARIES[currentLocale] ?? DICTIONARIES.en!)[key];
   if (value === undefined) {
     if (import.meta.env.DEV) console.warn(`[i18n] missing key: ${key} (${currentLocale})`);
     return key;

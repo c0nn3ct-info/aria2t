@@ -205,7 +205,7 @@ export function QueueSection() {
             <span className="flex-1 text-title-small font-semibold">
               {t('landing.queue.strip.title')}
             </span>
-            <span dir="ltr" className="font-mono text-[11px] tabular-nums text-primary">
+            <span dir="ltr" className="font-mono text-mini tabular-nums text-primary">
               {`↓ ${fmtSpeed(totals.down)}`}
             </span>
           </div>
@@ -214,7 +214,7 @@ export function QueueSection() {
             <div
               aria-hidden
               className={cn(
-                'hidden gap-x-3 pb-2 font-mono text-[10px] uppercase tracking-[0.1em] text-on-surface-variant md:grid',
+                'hidden gap-x-3 pb-2 font-mono text-micro uppercase tracking-[0.1em] text-on-surface-variant md:grid',
                 GRID,
               )}
             >
@@ -241,7 +241,11 @@ export function QueueSection() {
                       <Icon className={cn('h-4 w-4 shrink-0', ROUTE_TINT[item.route])} aria-hidden />
                       {/* The mark is what is seen; the word is for a reader that
                           cannot see which mark it is. */}
-                      <span className="sr-only">{item.route}</span>
+                      {/* aria2's own words, in every locale: marked English so
+                          a Russian or Persian screen reader says them as such. */}
+                      <span lang="en" className="sr-only">
+                        {item.route}
+                      </span>
                       <span
                         dir="ltr"
                         className={cn(
@@ -252,7 +256,7 @@ export function QueueSection() {
                         {item.name}
                       </span>
                     </span>
-                    <span dir="ltr" className={cn('font-mono text-[10.5px]', STATUS_TEXT[live.kind])}>
+                    <span dir="ltr" lang="en" className={cn('font-mono text-status', STATUS_TEXT[live.kind])}>
                       {live.kind}
                     </span>
                     {/* Full width under the name on a phone, its own column at `md`. */}
@@ -276,7 +280,7 @@ export function QueueSection() {
                     </span>
                     {/* One line of figures on a phone; three cells at `md`, where
                         `contents` dissolves their wrapper into the row's grid. */}
-                    <span className="col-span-2 flex justify-between gap-3 font-mono text-[11px] tabular-nums text-on-surface-variant md:contents">
+                    <span className="col-span-2 flex justify-between gap-3 font-mono text-mini tabular-nums text-on-surface-variant md:contents">
                       <span dir="ltr" className="md:text-end">
                         {sizeCell(live.kind, item.bytes)}
                       </span>
@@ -297,7 +301,7 @@ export function QueueSection() {
           </div>
 
           {/* The daemon's own totals, under the rows they are the sum of. */}
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-outline-variant px-4 py-3 font-mono text-[10px] tabular-nums text-on-surface-variant sm:px-5">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-outline-variant px-4 py-3 font-mono text-micro tabular-nums text-on-surface-variant sm:px-5">
             <span>{t('landing.queue.strip.count')}</span>
             <span dir="ltr" className="ms-auto text-tertiary">
               {`↑ ${fmtSpeed(totals.up)}`}

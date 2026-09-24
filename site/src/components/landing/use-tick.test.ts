@@ -70,3 +70,58 @@ describe('useTick', () => {
     expect(spy).toHaveBeenCalled();
   });
 });
+
+describe('useTick off screen', () => {
+  let seen: ((e: { isIntersecting: boolean }[]) => void) | undefined;
+  const observed: Element[] = [];
+  const disconnect = vi.fn();
+
+  beforeEach(() => {
+    observed.length = 0;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(cb: (e: { isIntersecting: boolean }[]) => void) {
+          seen = cb;
+        }
+        observe(el: Element) {
+          observed.push(el);
+        }
+        disconnect = disconnect;
+      },
+    );
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('holds while the figure it drives is out of view', () => {
+    const el = document.createElement('div');
+    const { result, unmount } = renderHook(() => useTick(TICK_MS, { current: el }));
+    expect(observed).toEqual([el]);
+    act(() => void vi.advanceTimersByTime(TICK_MS * 2));
+    expect(result.current).toBe(2);
+
+    act(() => seen!([{ isIntersecting: false }]));
+    act(() => void vi.advanceTimersByTime(TICK_MS * 5));
+    expect(result.current).toBe(2);
+
+    act(() => seen!([{ isIntersecting: true }]));
+    act(() => void vi.advanceTimersByTime(TICK_MS));
+    expect(result.current).toBe(3);
+    unmount();
+    expect(disconnect).toHaveBeenCalled();
+  });
+
+  it('keeps counting with a target not yet mounted, or no observer to watch it', () => {
+    const empty = renderHook(() => useTick(TICK_MS, { current: null }));
+    act(() => void vi.advanceTimersByTime(TICK_MS));
+    expect(empty.result.current).toBe(1);
+    expect(observed).toEqual([]);
+
+    // @ts-expect-error - removing it is the condition under test
+    delete window.IntersectionObserver;
+    const bare = renderHook(() => useTick(TICK_MS, { current: document.createElement('div') }));
+    act(() => void vi.advanceTimersByTime(TICK_MS));
+    expect(bare.result.current).toBe(1);
+  });
+});

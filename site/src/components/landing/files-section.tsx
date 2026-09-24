@@ -91,7 +91,7 @@ export function FilesSection() {
               <MockHeader title={t('landing.files.card')} />
               <div className="flex items-center gap-2.5 border-b border-outline-variant px-4 py-3.5">
                 <Folder className="h-4 w-4 shrink-0 text-on-surface-variant" aria-hidden />
-                <span className="flex-1 truncate text-[13px] font-semibold">
+                <span className="flex-1 truncate text-meta font-semibold">
                   {t('landing.demo.torrent')}
                 </span>
                 <span className="text-label-small text-on-surface-variant">
@@ -114,14 +114,14 @@ export function FilesSection() {
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span
                         dir="ltr"
-                        className={cn('truncate text-[13px]', !on && 'text-on-surface-variant')}
+                        className={cn('truncate text-meta', !on && 'text-on-surface-variant')}
                       >
                         {f.name}
                       </span>
                       <span
                         dir="ltr"
                         className={cn(
-                          'font-mono text-[10px]',
+                          'font-mono text-micro',
                           // One token for both states: the skipped row is already struck
                         // through and unticked, and at 80% these two figures were
                         // 4.37:1 on the light ground - just under AA.
@@ -134,7 +134,7 @@ export function FilesSection() {
                     <span
                       dir="ltr"
                       className={cn(
-                        'font-mono text-[11px]',
+                        'font-mono text-mini',
                         // One token for both states: the skipped row is already struck
                         // through and unticked, and at 80% these two figures were
                         // 4.37:1 on the light ground - just under AA.
@@ -153,7 +153,7 @@ export function FilesSection() {
                     .replace('{{n}}', String(count))
                     .replace('{{total}}', String(FILES.length))}
                 </span>
-                <span dir="ltr" className="ms-auto font-mono text-[11px]">
+                <span dir="ltr" className="ms-auto font-mono text-mini tabular-nums">
                   {`${fmtSize(bytes)} / ${fmtSize(TOTAL_BYTES)}`}
                 </span>
               </div>
@@ -175,7 +175,8 @@ export function FilesSection() {
                   variant="filled"
                   size="s"
                   disabled={count === 0}
-                  className="flex-1 px-4 text-[13px]"
+                  // 40px drawn, as the extension draws it; 44px to tap.
+                  className="flex-1 px-4 text-meta before:absolute before:inset-x-0 before:-inset-y-0.5"
                 >
                   <span className="truncate">
                     {count === 0 ? t('landing.files.nothing') : <DownloadLabel bytes={bytes} />}

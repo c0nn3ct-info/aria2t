@@ -8,6 +8,8 @@ export function GithubLink() {
       asChild
       variant="standard"
       size="s"
+      // 44px to tap; the `s` tier is 40.
+      className="h-11 w-11"
       aria-label="GitHub"
       title="GitHub"
     >

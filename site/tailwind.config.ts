@@ -134,6 +134,20 @@ export default {
         'x-long': '600ms',
       },
       fontSize: {
+        // The landing's own steps, named by the job they do. They were
+        // thirty-three hand-typed `text-[Npx]`, nine sizes; no tracking or
+        // weight, and the 1.5 line height those spans inherited, so naming
+        // them changes no rendering. The three under 12px are the figures
+        // inside the product mocks, kept at the product's own size.
+        'micro':           ['10px', { lineHeight: '1.5' }],
+        'status':          ['10.5px', { lineHeight: '1.5' }],
+        'mini':            ['11px', { lineHeight: '1.5' }],
+        'meta':            ['13px', { lineHeight: '1.5' }],
+        'caption':         ['14px', { lineHeight: '1.5' }],
+        'title-dense':     ['15px', { lineHeight: '1.5' }],
+        'subtitle':        ['17px', { lineHeight: '1.5' }],
+        'lead':            ['18px', { lineHeight: '1.5' }],
+        'figure':          ['38px', { lineHeight: '1.5' }],
         'display-small':   ['36px', { lineHeight: '44px', letterSpacing: '0px' }],
         'headline-large':  ['32px', { lineHeight: '40px', letterSpacing: '0px' }],
         'headline-medium': ['28px', { lineHeight: '36px', letterSpacing: '0px' }],

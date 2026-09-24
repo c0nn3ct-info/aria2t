@@ -23,6 +23,7 @@ vi.mock('./hero-scene-three', () => ({
 const settle = () => act(async () => void (await Promise.resolve()));
 
 let mutationCb: MutationCallback | undefined;
+const disconnectObserver = vi.fn();
 
 beforeEach(() => {
   boot.mockClear();
@@ -37,7 +38,7 @@ beforeEach(() => {
         mutationCb = cb;
       }
       observe() {}
-      disconnect() {}
+      disconnect = disconnectObserver;
     },
   );
 });
@@ -102,6 +103,18 @@ describe('HeroScene', () => {
     mutationCb!([], {} as MutationObserver);
     expect(dispose).toHaveBeenCalledTimes(1);
     expect(boot).toHaveBeenCalledTimes(2);
+  });
+
+  it('drops the figure, not the page, when a reboot is refused', async () => {
+    const { HeroScene } = await import('./hero-scene');
+    render(<HeroScene aria-label="scene" />);
+    await settle();
+    boot.mockImplementationOnce(() => {
+      throw new Error('context lost');
+    });
+    dark.value = false;
+    expect(() => mutationCb!([], {} as MutationObserver)).not.toThrow();
+    expect(disconnectObserver).toHaveBeenCalled();
   });
 
   it('ignores a class mutation that does not change the resolved theme', async () => {

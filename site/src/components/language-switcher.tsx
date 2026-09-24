@@ -65,6 +65,7 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
         type="button"
         variant="standard"
         size="s"
+        className="h-11 w-11"
         onClick={() => setOpen((v) => !v)}
         aria-label={t('nav.lang_switch_aria')}
         aria-haspopup="menu"

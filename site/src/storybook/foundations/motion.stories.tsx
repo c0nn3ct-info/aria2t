@@ -191,23 +191,18 @@ const EASINGS = [
   { token: '--ease-emph', use: 'The default: colour, elevation, the state layer' },
   { token: '--ease-emph-decel', use: 'Arrivals — the pulse-ring keyframes' },
   { token: '--ease-spring', use: 'Press feedback on Button and IconButton' },
-  { token: '--ease-spring-standard', use: 'Only .shape-morph, which has no caller' },
+  { token: '--ease-spring-standard', use: 'An alias of --ease-spring, for .shape-morph' },
 ] as const;
 
 const EASING_TOKENS = EASINGS.map((easing) => easing.token);
 
 /**
  * The same travel at `--dur-x-long`, so the shape of each curve is visible.
- * Both springs overshoot and come back, by very different amounts:
- * `--ease-spring` is the generic backOut (control point 1.56), which passes its
- * target by about 10% before settling, while `--ease-spring-standard` (1.06)
- * barely reaches past it at all.
- *
- * Neither belongs on a `transition` shorthand that also carries colour, where
- * an overshoot interpolates past the target and back — which is exactly why
- * `Button` names its properties one by one
- * (`transition-[transform,background-color,box-shadow,border-color,color,opacity]`)
- * instead of writing `transition-all` next to `ease-spring`.
+ * The spring barely reaches past its target (control point 1.06), the curve
+ * the extension ships as `--ease-spring`; `--ease-spring-standard` is now an
+ * alias of it. The site used to carry the generic backOut (1.56) under that
+ * name, which passes its target by about 10% — and `Button` runs colour on the
+ * same transition as its press scale, so the colour overshot with it.
  */
 export const Easings: Story = {
   render: (_args, { globals }) => <EasingsPage tokenKey={keyOf(globals)} />,

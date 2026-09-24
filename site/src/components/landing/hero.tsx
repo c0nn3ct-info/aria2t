@@ -278,14 +278,14 @@ export function LandingHero() {
           >
             {t('landing.hero.h1')}
           </h1>
-          <p className="mt-4 max-w-[520px] text-pretty text-[17px] leading-[1.6] sm:mt-5 sm:text-[18px] sm:leading-[1.65]">
+          <p className="mt-4 max-w-[520px] text-pretty text-subtitle leading-[1.6] sm:mt-5 sm:text-lead sm:leading-[1.65]">
             {t('landing.hero.lede')}
           </p>
         </div>
 
         {/* Full width while they stack, their own width once they sit in a row. */}
         <div className="mt-7 flex flex-col items-stretch gap-3 sm:mt-8 sm:flex-row sm:flex-wrap sm:items-center">
-          <Button asChild variant="filled" size="s" className="h-12 px-7 text-[15px]">
+          <Button asChild variant="filled" size="s" className="h-12 px-7 text-title-dense">
             <a href={localePath('/install/')}>
               {t('home.hero.cta_install')}
               <ArrowRight className="rtl:-scale-x-100" />
@@ -318,22 +318,17 @@ export function LandingHero() {
               1.4:1, so it gets a ground too. */}
           <Eyebrow
             tone="muted"
-            className="w-fit rounded-sm bg-background/95 px-1.5 py-0.5 text-[10px] backdrop-blur-sm"
+            className="w-fit rounded-sm bg-background/95 px-1.5 py-0.5 text-micro backdrop-blur-sm"
           >
             {t('home.works_with')}
           </Eyebrow>
           <ul ref={chips} className="flex max-w-[600px] flex-wrap gap-1.5 sm:gap-2 md:max-w-[420px] lg:max-w-[min(600px,42vw)]">
             {SOURCES.map((s) => (
               <li key={s}>
-                {/* The hover noctis gives its protocol chips: the border
-                    brightens a step and the surface steps up, both on the
-                    emphasized curve. Nothing here is clickable - it is the
-                    texture of a row of names you run your eye along, and the
-                    row answering the pointer is what says the page is alive
-                    this far down. noctis also lifts the text a step; these
-                    chips are already at full contrast, so the surface carries
-                    it alone. */}
-                <span className="inline-flex h-9 items-center rounded-pill border border-outline-variant bg-surface-container-low/80 px-3.5 font-mono text-xs text-on-surface backdrop-blur-sm transition-colors duration-med ease-emph hover:border-outline hover:bg-surface-container-high/85 sm:h-10 sm:px-4">
+                {/* No hover. Nothing here is clickable, and a chip that
+                    brightens under the pointer promises a click it does not
+                    keep; noctis took the same hover off its protocol chips. */}
+                <span className="inline-flex h-9 items-center rounded-pill border border-outline-variant bg-surface-container-low/80 px-3.5 font-mono text-xs text-on-surface backdrop-blur-sm sm:h-10 sm:px-4">
                   {s}
                 </span>
               </li>

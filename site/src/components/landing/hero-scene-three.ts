@@ -1545,9 +1545,17 @@ export function bootHeroScene(
   resize();
 
   let visible = true;
+  // Set once the loop exists: coming back on screen restarts a parked loop.
+  let wake = () => {};
   let io: IntersectionObserver | undefined;
   if ('IntersectionObserver' in window) {
-    io = new IntersectionObserver((e) => void (visible = e[0].isIntersecting), { threshold: 0 });
+    io = new IntersectionObserver(
+      (e) => {
+        visible = e[0].isIntersecting;
+        if (visible) wake();
+      },
+      { threshold: 0 },
+    );
     io.observe(host);
   }
 
@@ -1571,11 +1579,14 @@ export function bootHeroScene(
     // reduced motion gets.
     let slow = 0;
     const frame = (now: number) => {
-      if (!alive) return;
+      // Off screen the loop parks rather than ticking empty frames.
+      if (!alive || !visible) {
+        raf = 0;
+        return;
+      }
       raf = requestAnimationFrame(frame);
       const dt = Math.min(0.25, (now - last) / 1000);
       last = now;
-      if (!visible) return;
       acc += dt;
       while (acc >= STEP) {
         sim(STEP);
@@ -1588,6 +1599,11 @@ export function bootHeroScene(
         return;
       }
       if (++slow >= SLOW_STREAK) alive = false;
+    };
+    wake = () => {
+      if (!alive || raf) return;
+      last = performance.now();
+      raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
   }

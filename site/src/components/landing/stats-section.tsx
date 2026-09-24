@@ -15,7 +15,7 @@
 // are panels with nothing to draw. One material for all three panels beside the
 // chart - the page's filled containers are what the hero's buttons are made of,
 // so a figure in one reads as something to press.
-import { useId } from 'react';
+import { useId, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import {
   CHART_H,
@@ -64,13 +64,13 @@ interface StatProps {
 
 const FIGURE_SIZE: Record<StatProps['size'], string> = {
   lead: 'text-[clamp(40px,5.8vw,56px)] tracking-[-0.04em]',
-  panel: 'text-[38px] tracking-[-0.03em]',
+  panel: 'text-figure tracking-[-0.03em]',
 };
 
 /** The gap scales with the numeral: 6px beside 56px is a collision. */
 const UNIT_SIZE: Record<StatProps['size'], string> = {
-  lead: 'ms-3 text-[17px]',
-  panel: 'ms-2 text-[15px]',
+  lead: 'ms-3 text-subtitle',
+  panel: 'ms-2 text-title-dense',
 };
 
 const FIGURE_TONE: Record<NonNullable<StatProps['tone']>, string> = {
@@ -84,7 +84,7 @@ function Stat({ label, value, unit, note, size, tone = 'plain' }: StatProps) {
     <div className="min-w-0">
       {/* A step down on a small phone: at 320 "CONNECTIONS" at 13px with this
           tracking reaches the tile's padding exactly. */}
-      <span className="block text-[12px] font-medium uppercase leading-none tracking-[0.14em] text-on-surface-variant min-[400px]:text-[13px]">
+      <span className="block text-label-medium font-medium uppercase leading-none tracking-[0.14em] text-on-surface-variant min-[400px]:text-meta">
         {label}
       </span>
       <div dir="ltr" className="mt-3.5 flex items-baseline">
@@ -99,7 +99,7 @@ function Stat({ label, value, unit, note, size, tone = 'plain' }: StatProps) {
       </div>
       {/* A caption, not a second label: no tracking, no uppercase, reading
           weight. */}
-      {note && <p className="mt-3 text-[13px] leading-[1.4] text-on-surface-variant">{note}</p>}
+      {note && <p className="mt-3 text-meta leading-[1.4] text-on-surface-variant">{note}</p>}
     </div>
   );
 }
@@ -142,7 +142,8 @@ function Panel({ chart, ...stat }: StatProps & { chart?: number[] }) {
 }
 
 export function StatsSection() {
-  const tick = useTick();
+  const band = useRef<HTMLDivElement>(null);
+  const tick = useTick(undefined, band);
   const gid = useId().replace(/:/g, '');
   const h = history(tick);
   const down = h.d[h.d.length - 1];
@@ -156,7 +157,7 @@ export function StatsSection() {
 
       {/* The wave takes the wide track; the three figures stack beside it, and
           the column ends level with the chart card on a wide screen. */}
-      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)]">
+      <div ref={band} className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)]">
         <div
           data-enter
           className="flex flex-col rounded-lg border border-outline-variant bg-surface-container-low px-6 pb-5 pt-6 sm:px-7"
@@ -194,7 +195,7 @@ export function StatsSection() {
               vectorEffect="non-scaling-stroke"
             />
           </svg>
-          <div className="mt-3 flex justify-between font-mono text-[11px] text-on-surface-variant">
+          <div className="mt-3 flex justify-between font-mono text-mini text-on-surface-variant">
             <span>{t('landing.stats.ago')}</span>
             <span>{t('landing.stats.now')}</span>
           </div>

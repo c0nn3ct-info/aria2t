@@ -21,6 +21,8 @@ describe.each(ENTRIES)('%s entry', (name, load) => {
   it('takes the locale from the document and mounts its page', async () => {
     document.documentElement.lang = 'ru';
     await load();
+    // The entry mounts once its locale's dictionary has loaded.
+    await vi.waitFor(() => expect(mounted).toHaveLength(1));
 
     const { getLocale } = await import('../i18n');
     expect(getLocale(), name).toBe('ru');
@@ -32,6 +34,7 @@ describe.each(ENTRIES)('%s entry with an unknown document language', (name, load
   it('falls back to English', async () => {
     document.documentElement.lang = 'fr';
     await load();
+    await vi.waitFor(() => expect(mounted).toHaveLength(1));
     const { getLocale } = await import('../i18n');
     expect(getLocale(), name).toBe('en');
     expect(mounted).toHaveLength(1);

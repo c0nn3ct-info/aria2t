@@ -90,12 +90,16 @@ export function LimitsSection() {
               <MockHeader
                 title={t('landing.limits.card')}
                 aside={
-                  <span dir="ltr" className="font-mono text-[11px] text-on-surface-variant">
+                  <span dir="ltr" className="font-mono text-mini text-on-surface-variant">
                     ubuntu…iso
                   </span>
                 }
               />
 
+              {/* The pills, the switch and the slider keep the product's own
+                  34, 26 and 26px, and each reaches 44px to tap through an
+                  invisible margin (a `::before`, or the range input's own
+                  box) rather than by growing the picture of the control. */}
               {/* One choice out of four, so the buttons carry `aria-pressed` and
                   the caption under them names the group: on its own a button
                   called "5" says nothing. */}
@@ -111,7 +115,7 @@ export function LimitsSection() {
                       onClick={() => setPreset(p)}
                       dir="ltr"
                       className={cn(
-                        'inline-flex h-[34px] items-center gap-1.5 rounded-pill px-4 font-mono text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                        'relative inline-flex h-[34px] items-center gap-1.5 rounded-pill px-4 font-mono text-xs transition-colors before:absolute before:inset-x-0 before:-inset-y-[5px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
                         active
                           ? 'bg-primary text-primary-foreground'
                           : 'border border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface',
@@ -127,7 +131,7 @@ export function LimitsSection() {
                   aria-pressed={preset === 'none'}
                   onClick={() => setPreset('none')}
                   className={cn(
-                    'inline-flex h-[34px] items-center gap-1.5 rounded-pill px-4 font-mono text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                    'relative inline-flex h-[34px] items-center gap-1.5 rounded-pill px-4 font-mono text-xs transition-colors before:absolute before:inset-x-0 before:-inset-y-[5px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
                     preset === 'none'
                       ? 'bg-primary text-primary-foreground'
                       : 'border border-outline-variant text-on-surface-variant hover:border-outline hover:text-on-surface',
@@ -145,7 +149,7 @@ export function LimitsSection() {
 
               <div className="border-t border-outline-variant px-4 py-3.5">
                 <div className="flex items-center gap-2.5">
-                  <span id={globalId} className="flex-1 text-[13px] font-semibold">
+                  <span id={globalId} className="flex-1 text-meta font-semibold">
                     {t('landing.limits.global')}
                   </span>
                   <span dir="ltr" className="font-mono text-xs text-primary tabular-nums">
@@ -168,7 +172,7 @@ export function LimitsSection() {
                     onChange={(e) => setStep(Number(e.target.value))}
                     aria-labelledby={globalId}
                     aria-valuetext={globalText}
-                    className="peer absolute inset-0 h-full w-full cursor-pointer appearance-none bg-transparent opacity-0"
+                    className="peer absolute inset-x-0 -inset-y-[9px] w-full cursor-pointer appearance-none bg-transparent opacity-0"
                   />
                   <span
                     aria-hidden
@@ -189,7 +193,7 @@ export function LimitsSection() {
 
               <div className="border-t border-outline-variant px-4 py-3.5">
                 <div className="flex items-center gap-2.5">
-                  <span id={scheduleId} className="flex-1 text-[13px] font-semibold">
+                  <span id={scheduleId} className="flex-1 text-meta font-semibold">
                     {t('landing.limits.schedule')}
                   </span>
                   <button
@@ -199,7 +203,7 @@ export function LimitsSection() {
                     aria-labelledby={scheduleId}
                     onClick={() => setScheduled((s) => !s)}
                     className={cn(
-                      'inline-flex h-[26px] w-11 shrink-0 items-center rounded-pill p-[3px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                      'relative inline-flex h-[26px] w-11 shrink-0 items-center rounded-pill p-[3px] transition-colors before:absolute before:inset-x-0 before:-inset-y-[9px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
                       scheduled ? 'bg-primary' : 'bg-surface-container-highest',
                     )}
                   >
@@ -232,7 +236,7 @@ export function LimitsSection() {
                     );
                   })}
                 </div>
-                <div className="mt-2 flex justify-between font-mono text-[10px] text-on-surface-variant">
+                <div className="mt-2 flex justify-between font-mono text-micro text-on-surface-variant">
                   <span dir="ltr">00:00</span>
                   <span
                     dir="ltr"

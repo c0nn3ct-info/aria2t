@@ -123,8 +123,8 @@ function Rows({ surface }: { surface: Surface }) {
         <li key={title} className="flex gap-3.5">
           <Icon className="mt-0.5 h-4 w-4 shrink-0 text-on-surface-variant" aria-hidden />
           <div className="min-w-0">
-            <div className="text-[15px] font-semibold leading-[1.4]">{title}</div>
-            <p className="mt-1 text-[14px] leading-[1.55] text-on-surface-variant">{body}</p>
+            <div className="text-title-dense font-semibold leading-[1.4]">{title}</div>
+            <p className="mt-1 text-caption leading-[1.55] text-on-surface-variant">{body}</p>
           </div>
         </li>
       ))}

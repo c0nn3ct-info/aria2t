@@ -551,22 +551,35 @@ describe('bootHeroScene', () => {
     window.IntersectionObserver = io;
   });
 
-  it('holds still while the band is off screen', async () => {
+  it('parks its loop while the band is off screen, and wakes it once', async () => {
     const { handle } = await boot();
+    // Already running: coming into view again does not start a second loop.
+    ioCb?.([{ isIntersecting: true }]);
+    step(2);
     ioCb?.([{ isIntersecting: false }]);
+    step(1);
+    const queued = frames.length;
     const before = renders.count;
     step(50);
     expect(renders.count).toBe(before);
+    // Parked: nothing asked for another frame while it was away.
+    expect(frames.length).toBe(queued);
+    ioCb?.([{ isIntersecting: true }]);
     ioCb?.([{ isIntersecting: true }]);
     step(10);
     expect(renders.count).toBeGreaterThan(before);
     handle.dispose();
+    const after = frames.length;
+    ioCb?.([{ isIntersecting: true }]);
+    expect(frames.length).toBe(after);
   });
 
   it('paints one frame and stops when the reader asked for less motion', async () => {
     reduced.value = true;
     const { handle } = await boot();
     const before = renders.count;
+    step(30);
+    ioCb?.([{ isIntersecting: true }]);
     step(30);
     expect(renders.count).toBe(before);
     handle.dispose();

@@ -69,34 +69,38 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
         <div className="inline-flex items-center gap-2">
           <a
             href={homeHref}
-            className="m3-state-layer inline-flex items-center gap-2 rounded-pill px-2 py-1 text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="m3-state-layer inline-flex min-h-11 items-center gap-2 rounded-pill px-2 text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             aria-label={t('nav.home_aria')}
           >
             <Aria2tLogo className="h-6 w-6 text-primary" />
             <span className="text-title-medium tracking-tight">Aria2t</span>
           </a>
-          <span aria-hidden="true" className="text-title-medium text-on-surface-variant/50">
+          {/* Under 360px the lockup and the two 44px buttons need 6px more
+              than the bar has, so the org half goes; the footer carries it. */}
+          <span aria-hidden="true" className="text-title-medium text-on-surface-variant/50 max-[359px]:hidden">
             ×
           </span>
           <a
             href={ORG_SITE}
             target="_blank"
             rel="noreferrer noopener"
-            className="rounded-sm px-1 py-1 text-label-large text-on-surface-variant underline-offset-4 hover:text-on-surface hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="inline-flex min-h-11 items-center rounded-sm px-1 text-label-large text-on-surface-variant underline-offset-4 max-[359px]:hidden hover:text-on-surface hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             c0nn3ct.info
           </a>
         </div>
-        {/* Below sm the footer carries the same links, so the header drops
-            them rather than crowding the bar. */}
-        <nav aria-label={t('nav.site_nav_aria')} className="ms-4 hidden items-center gap-1 sm:flex">
+        {/* Below md the footer carries the same links, so the header drops
+            them rather than crowding the bar. At sm they fit in English and
+            not in Russian or Spanish: "Документация · Приватность · Лицензия"
+            took the bar 50px past a 640px window, and the page with it. */}
+        <nav aria-label={t('nav.site_nav_aria')} className="ms-4 hidden items-center gap-1 md:flex">
           {NAV_LINKS.filter((l) => l.key !== 'home').map((l) => (
             <a
               key={l.key}
               href={localePath(l.path)}
               aria-current={current === l.key ? 'page' : undefined}
               className={cn(
-                'm3-state-layer rounded-pill px-3 py-2 text-label-large focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'm3-state-layer inline-flex min-h-11 items-center rounded-pill px-3 text-label-large focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 current === l.key ? 'text-on-surface' : 'text-on-surface-variant',
               )}
             >

@@ -109,3 +109,19 @@ describe('locale paths', () => {
     expect(localePath('/')).toBe('/ar/');
   });
 });
+
+describe('a locale that has not loaded yet', () => {
+  it('reads as English until its dictionary arrives', async () => {
+    vi.resetModules();
+    const fresh = await import('./index');
+    const en = (await import('./en.json')).default as Record<string, string>;
+    const ru = (await import('./ru.json')).default as Record<string, string>;
+    fresh.setLocale('ru');
+    expect(fresh.t('nav.docs')).toBe(en['nav.docs']);
+    await fresh.loadLocale('ru');
+    expect(fresh.t('nav.docs')).toBe(ru['nav.docs']);
+    // Loading it again is a no-op.
+    await fresh.loadLocale('ru');
+    fresh.setLocale('en');
+  });
+});

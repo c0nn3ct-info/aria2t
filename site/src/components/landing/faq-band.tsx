@@ -61,7 +61,7 @@ export function FaqBand() {
               column it stands in, so it takes the column's full width at the
               hero button's height. Filled, like the hero's: it is the same
               action, and the page ends on it. */}
-          <Button asChild variant="filled" size="s" className="mt-6 h-12 w-full text-[15px]">
+          <Button asChild variant="filled" size="s" className="mt-6 h-12 w-full text-title-dense">
             <a href={localePath('/install/')}>
               {t('home.hero.cta_install')}
               <ArrowRight className="rtl:-scale-x-100" />

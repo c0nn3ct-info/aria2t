@@ -13,8 +13,11 @@
 
     --ease-emph: cubic-bezier(0.2, 0, 0, 1);
     --ease-emph-decel: cubic-bezier(0.05, 0.7, 0.1, 1);
-    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-    --ease-spring-standard: cubic-bezier(0.27, 1.06, 0.18, 1.0);
+    /* The extension's own spring, which barely passes its target. The site
+     * carried the generic backOut (1.56) under this name, and the button family
+     * runs colour on the same transition, so a press overshot its colour too. */
+    --ease-spring: cubic-bezier(0.27, 1.06, 0.18, 1);
+    --ease-spring-standard: var(--ease-spring);
     --dur-x-short: 80ms;
     --dur-short: 120ms;
     --dur-med: 250ms;
@@ -540,6 +543,29 @@
 }
 
 @layer components {
+  /* An FAQ answer opens on the chevron's own curve and duration, rather than
+   * snapping while the chevron turns. `::details-content` and
+   * `interpolate-size` are recent; where either is missing the rule drops and
+   * `tweenToggle` in faq-section.tsx does the same thing with measured pixels. */
+  .faq-details {
+    interpolate-size: allow-keywords;
+  }
+  .faq-details::details-content {
+    block-size: 0;
+    overflow: hidden;
+    transition:
+      block-size var(--dur-med) var(--ease-emph),
+      content-visibility var(--dur-med) allow-discrete;
+  }
+  .faq-details[open]::details-content {
+    block-size: auto;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .faq-details::details-content {
+      transition: none;
+    }
+  }
+
   .m3-state-layer,
   .m3-hover-layer {
     position: relative;
@@ -683,7 +709,10 @@
   @supports (animation-timeline: view()) {
     [data-enter],
     [data-enter-stagger] > * {
-      animation: enter-rise linear both;
+      /* Decelerating across its run of scroll rather than linear, so a band
+       * settles into place instead of stopping dead where the range ends;
+       * the timer fallback in use-enter.ts uses the same curve. */
+      animation: enter-rise var(--ease-emph-decel) both;
       animation-timeline: view();
       /* Measured against the whole overlap rather than the element's own
        * height, so a tall panel and a short row take a comparable run of
