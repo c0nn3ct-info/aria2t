@@ -144,15 +144,38 @@ describe('useSectionEntrance', () => {
     ]);
 
     // a sequence arrives along its line, a block settles into place
-    expect(played[0].frames[0].transform).toBe('translateY(12px) scale(0.985)');
+    expect(played[0].frames[0].transform).toBe('translateY(32px) scale(0.96)');
     expect(played[1].frames[0].transform).toBe('translateX(-14px)');
-    expect(played[12].frames[0].transform).toBe('translateY(12px) scale(0.985)');
+    expect(played[12].frames[0].transform).toBe('translateY(32px) scale(0.96)');
     for (const p of played) expect(p.frames[1]).toEqual({ opacity: 1, transform: 'none' });
 
     // five steps of lead, then no more: past that a list reads as waiting
     expect(played.map((p) => p.opts.delay)).toEqual([0, 45, 90, 135, 180, 225, 225, 225, 225, 225, 225, 225, 225]);
     expect(played[0].opts.duration).toBe(420);
     expect(played[0].opts.easing).toBeTruthy();
+  });
+
+  it('fades the rows of a framed mock in by opacity alone', () => {
+    function Framed() {
+      useSectionEntrance();
+      return (
+        <div data-enter-section data-testid="framed">
+          <div data-enter>
+            <ul data-enter-stagger="fade">
+              <li>one</li>
+              <li>two</li>
+            </ul>
+          </div>
+        </div>
+      );
+    }
+    const { getByTestId } = render(<Framed />);
+    const io = observers[0] as unknown as { fire: (e: Element[]) => void };
+    io.fire([getByTestId('framed')]);
+    // The card rises; its rows only fade, so the two movements do not add.
+    expect(played).toHaveLength(3);
+    expect(played[0].frames[0].transform).toBe('translateY(32px) scale(0.96)');
+    for (const p of played.slice(1)) expect(p.frames).toEqual([{ opacity: 0 }, { opacity: 1 }]);
   });
 
   it('mirrors the line a sequence arrives along on a right-to-left page', () => {

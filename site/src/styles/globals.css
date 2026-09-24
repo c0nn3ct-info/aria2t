@@ -13,6 +13,8 @@
 
     --ease-emph: cubic-bezier(0.2, 0, 0, 1);
     --ease-emph-decel: cubic-bezier(0.05, 0.7, 0.1, 1);
+    /* Material's emphasized accelerate: the curve for something leaving. */
+    --ease-emph-accel: cubic-bezier(0.3, 0, 0.8, 0.15);
     /* The extension's own spring, which barely passes its target. The site
      * carried the generic backOut (1.56) under this name, and the button family
      * runs colour on the same transition, so a press overshot its colour too. */
@@ -709,15 +711,53 @@
   @supports (animation-timeline: view()) {
     [data-enter],
     [data-enter-stagger] > * {
-      /* Decelerating across its run of scroll rather than linear, so a band
-       * settles into place instead of stopping dead where the range ends;
-       * the timer fallback in use-enter.ts uses the same curve. */
-      animation: enter-rise var(--ease-emph-decel) both;
+      /* Arrives decelerating over the first 30% of its pass and leaves over
+       * the last 22%, lifting and fading on an accelerating curve, so a block
+       * visibly goes before the sticky header covers it and a tall panel is
+       * at full strength while its lower half is being read. The arrival
+       * fills backwards only: held past its range it would keep writing
+       * `transform` and `opacity` over the element's own styles (a button's
+       * press scale, a state that fades a label) for as long as it is on
+       * screen. The exit fills forwards only, so before its range it has no
+       * effect and the arrival owns the element. */
+      animation:
+        enter-rise var(--ease-emph-decel) backwards,
+        exit-rise var(--ease-emph-accel) forwards;
+      animation-timeline: view(), view();
+      animation-range:
+        cover 0% cover 30%,
+        cover 78% cover 100%;
+    }
+    /* A row of parts side by side shares one position and would arrive as
+     * one block; the first few steps each come a little later along the
+     * pass, which reads as the row filling in order. From the fourth on the
+     * offset stays put, or a fifth on the base range would overtake it. */
+    [data-enter-stagger] > :nth-child(2) {
+      animation-range: cover 3% cover 33%, cover 78% cover 100%;
+    }
+    [data-enter-stagger] > :nth-child(3) {
+      animation-range: cover 6% cover 36%, cover 78% cover 100%;
+    }
+    [data-enter-stagger] > :nth-child(n + 4) {
+      animation-range: cover 9% cover 39%, cover 78% cover 100%;
+    }
+    /* `fade` is for the rows inside a framed mock: the card arrives by the
+     * rise and its rows come up after it by opacity alone, so the two
+     * movements do not add and nothing slides out past the card's edge. */
+    [data-enter='fade'],
+    [data-enter-stagger='fade'] > * {
+      animation: enter-fade var(--ease-emph-decel) backwards;
       animation-timeline: view();
-      /* Measured against the whole overlap rather than the element's own
-       * height, so a tall panel and a short row take a comparable run of
-       * scroll instead of the big one crawling. */
-      animation-range: cover 0% cover 22%;
+      animation-range: cover 4% cover 32%;
+    }
+    [data-enter-stagger='fade'] > :nth-child(2) {
+      animation-range: cover 8% cover 36%;
+    }
+    [data-enter-stagger='fade'] > :nth-child(3) {
+      animation-range: cover 12% cover 40%;
+    }
+    [data-enter-stagger='fade'] > :nth-child(n + 4) {
+      animation-range: cover 16% cover 44%;
     }
     /* A sequence arrives along the line it is read on. */
     [data-enter='wipe'],
@@ -733,7 +773,18 @@
 @keyframes enter-rise {
   from {
     opacity: 0;
-    transform: translateY(12px) scale(0.985);
+    transform: translateY(32px) scale(0.96);
+  }
+}
+@keyframes exit-rise {
+  to {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.97);
+  }
+}
+@keyframes enter-fade {
+  from {
+    opacity: 0;
   }
 }
 @keyframes enter-line {

@@ -58,6 +58,8 @@ const MAX_DELAY = STEP * 5;
  * and opacity only: everything else pays in paint.
  */
 function keyframes(gesture: string, rtl: boolean): Keyframe[] {
+  // The rows inside a framed mock: opacity alone, under a card that rises.
+  if (gesture === 'fade') return [{ opacity: 0 }, { opacity: 1 }];
   // A sequence arrives along the line it is read on.
   if (gesture === 'wipe') {
     return [
@@ -69,7 +71,7 @@ function keyframes(gesture: string, rtl: boolean): Keyframe[] {
   // scale is what separates settling from sliding, and stays well inside the
   // floor that keeps an entrance from appearing out of nothing.
   return [
-    { opacity: 0, transform: 'translateY(12px) scale(0.985)' },
+    { opacity: 0, transform: 'translateY(32px) scale(0.96)' },
     { opacity: 1, transform: 'none' },
   ];
 }

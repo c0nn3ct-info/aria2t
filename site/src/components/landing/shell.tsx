@@ -172,7 +172,9 @@ export function MockCard({ children, className }: { children: ReactNode; classNa
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-md border border-outline-variant bg-background text-on-surface shadow-e4',
+        // `clip`, not `hidden`: a hidden overflow is a scroll container, and
+        // the rows' view timelines would bind to the card instead of the page.
+        'overflow-clip rounded-md border border-outline-variant bg-background text-on-surface shadow-e4',
         className,
       )}
     >

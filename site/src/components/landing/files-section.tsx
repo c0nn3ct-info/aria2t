@@ -104,6 +104,7 @@ export function FilesSection() {
                 return (
                   <button
                     key={f.name}
+                    data-enter="fade"
                     type="button"
                     role="checkbox"
                     aria-checked={on}

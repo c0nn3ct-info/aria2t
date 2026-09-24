@@ -103,7 +103,7 @@ export function LimitsSection() {
               {/* One choice out of four, so the buttons carry `aria-pressed` and
                   the caption under them names the group: on its own a button
                   called "5" says nothing. */}
-              <div role="group" aria-labelledby={presetId} className="flex flex-wrap gap-2 p-4">
+              <div data-enter="fade" role="group" aria-labelledby={presetId} className="flex flex-wrap gap-2 p-4">
                 {PRESETS.map((p) => {
                   const active = p === preset;
                   return (
@@ -147,7 +147,7 @@ export function LimitsSection() {
                 </span>
               </div>
 
-              <div className="border-t border-outline-variant px-4 py-3.5">
+              <div data-enter="fade" className="border-t border-outline-variant px-4 py-3.5">
                 <div className="flex items-center gap-2.5">
                   <span id={globalId} className="flex-1 text-meta font-semibold">
                     {t('landing.limits.global')}
@@ -191,7 +191,7 @@ export function LimitsSection() {
                 </div>
               </div>
 
-              <div className="border-t border-outline-variant px-4 py-3.5">
+              <div data-enter="fade" className="border-t border-outline-variant px-4 py-3.5">
                 <div className="flex items-center gap-2.5">
                   <span id={scheduleId} className="flex-1 text-meta font-semibold">
                     {t('landing.limits.schedule')}

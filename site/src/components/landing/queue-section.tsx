@@ -199,7 +199,7 @@ export function QueueSection() {
         {/* The queue: one object, one order, every row carrying its route. */}
         <div
           data-enter
-          className="min-w-0 overflow-hidden rounded-md border border-outline-variant bg-background text-on-surface shadow-e4"
+          className="min-w-0 overflow-clip rounded-md border border-outline-variant bg-background text-on-surface shadow-e4"
         >
           <div className="flex items-center gap-2.5 border-b border-outline-variant px-4 py-3.5 sm:px-5">
             <span className="flex-1 text-title-small font-semibold">
@@ -225,7 +225,8 @@ export function QueueSection() {
               ))}
             </div>
 
-            <ul>
+            {/* The rows come up one by one inside the card that brought them. */}
+            <ul data-enter-stagger="fade">
               {rows.map(({ item, live }) => {
                 const Icon = ROUTE_ICON[item.route];
                 const still = live.kind !== 'active' && live.kind !== 'seeding';

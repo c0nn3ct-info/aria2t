@@ -69,12 +69,10 @@ export function FaqBand() {
           </Button>
         </div>
 
-        {/* Wrapped, and as one object rather than a stagger: `FaqList` is the
-            current home page's list too, and the entrance rules are global, so
-            an attribute inside it would animate a page that never asked. */}
-        <div data-enter>
-          <FaqList variant="flush" openFirst />
-        </div>
+        {/* Each question arrives by its own position. `FaqList` is shared, so
+            the stagger is its opt-in prop rather than an attribute reached
+            into it from here. */}
+        <FaqList variant="flush" openFirst stagger="rise" />
       </div>
     </LandingSection>
   );

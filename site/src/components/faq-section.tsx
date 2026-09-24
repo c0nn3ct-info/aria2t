@@ -16,6 +16,12 @@ export const FAQ_KEYS = [
 
 interface FaqListProps {
   /**
+   * Hands each question its own arrival, for a page that animates its bands.
+   * An opt-in, because this list is shared and the entrance rules are global:
+   * a page that passes nothing gets a list that simply is there.
+   */
+  stagger?: 'rise';
+  /**
    * `card` is the boxed list the home page has always shown; `flush` draws the
    * same entries as bare rows separated by rules, for a page that frames them
    * itself (the landing's two-column FAQ).
@@ -92,9 +98,10 @@ export function syncExpanded(e: React.SyntheticEvent<HTMLDetailsElement>): void 
 // The questions and answers on their own, one collapsible entry each. Two
 // pages show them and only differ in the frame around them, so the frame is a
 // variant rather than a second copy of the list.
-export function FaqList({ variant = 'card', openFirst = false, className }: FaqListProps) {
+export function FaqList({ variant = 'card', openFirst = false, className, stagger }: FaqListProps) {
   return (
     <div
+      data-enter-stagger={stagger}
       className={cn(
         'divide-y divide-outline-variant',
         variant === 'card' &&

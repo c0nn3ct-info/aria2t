@@ -76,7 +76,7 @@ export function PiecesSection() {
                   </span>
                 }
               />
-              <div className="p-4">
+              <div data-enter="fade" className="p-4">
                 {/* Decorative: the panel's own header states the percentage and
                     the list beside it states the piece count, so the grid adds
                     texture rather than information. */}
@@ -99,6 +99,7 @@ export function PiecesSection() {
               {rows.map((p) => (
                 <div
                   key={p.ip}
+                  data-enter="fade"
                   className="flex items-center gap-3 border-t border-outline-variant px-4 py-2.5"
                 >
                   <span dir="ltr" className="flex-1 font-mono text-mini">
