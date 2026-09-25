@@ -255,8 +255,11 @@ export function LandingHero() {
           machinery: the scene is the subject there, not a backdrop, and it can
           only be drawn at a size worth looking at if the band carries room for
           it under the copy. Capped in vh as well as px so a short window does
-          not end up with a hero two screens tall. */}
-      <div className="relative z-20 mx-auto flex min-h-[620px] w-full max-w-[1160px] flex-col px-5 pb-[min(46vh,340px)] pt-14 sm:min-h-[720px] sm:px-8 sm:pb-[min(42vh,380px)] sm:pt-20 lg:min-h-[720px] lg:justify-center lg:px-10 lg:py-24">
+          not end up with a hero two screens tall. In `svh`, the height with
+          the browser's bars shown: in `vh` a phone's address bar sliding away
+          grew the strip mid-scroll and the scene re-fit itself under the
+          thumb. */}
+      <div className="relative z-20 mx-auto flex min-h-[620px] w-full max-w-[1160px] flex-col px-5 pb-[min(46svh,340px)] pt-14 sm:min-h-[720px] sm:px-8 sm:pb-[min(42svh,380px)] sm:pt-20 lg:min-h-[720px] lg:justify-center lg:px-10 lg:py-24">
         {/* The column is what the machines beside it have to work around, so
             it is only as wide as the reading takes: capped at 420 on a tablet,
             where the pair stands beside its rows, and from `lg` a share of the

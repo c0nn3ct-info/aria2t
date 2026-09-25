@@ -23,6 +23,10 @@ const renders = { count: 0 };
 const renderCost = { ms: 0 };
 const sizes: [number, number][] = [];
 const disposed = { count: 0 };
+/** What the renderer was built with and set to, so the phone budget can be read. */
+const made = { antialias: undefined as boolean | undefined, ratio: 0 };
+/** Whether the page is as narrow as a phone, for `matchMedia`. */
+const narrow = { value: false };
 let lastScene: Scene | undefined;
 let lastCamera: PerspectiveCamera | undefined;
 
@@ -31,7 +35,12 @@ vi.mock('three', async (importOriginal) => {
   class FakeRenderer {
     domElement = document.createElement('canvas');
     shadowMap = { enabled: false };
-    setPixelRatio() {}
+    constructor(opts: { antialias?: boolean } = {}) {
+      made.antialias = opts.antialias;
+    }
+    setPixelRatio(r: number) {
+      made.ratio = r;
+    }
     setClearColor() {}
     setSize(w: number, h: number) {
       sizes.push([w, h]);
@@ -107,6 +116,7 @@ beforeEach(() => {
   resizeCb = undefined;
   ioCb = undefined;
   reduced.value = false;
+  narrow.value = false;
 
   HTMLCanvasElement.prototype.getContext = (() =>
     fakeContext()) as unknown as typeof HTMLCanvasElement.prototype.getContext;
@@ -136,7 +146,11 @@ beforeEach(() => {
   });
   vi.stubGlobal('cancelAnimationFrame', () => {});
   vi.spyOn(window, 'matchMedia').mockImplementation(
-    (q: string) => ({ matches: q.includes('reduce') && reduced.value, media: q }) as MediaQueryList,
+    (q: string) =>
+      ({
+        matches: (q.includes('reduce') && reduced.value) || (q.includes('max-width') && narrow.value),
+        media: q,
+      }) as MediaQueryList,
   );
 });
 
@@ -537,6 +551,18 @@ describe('bootHeroScene', () => {
     const { handle } = await boot();
     expect(renders.count).toBeGreaterThan(0);
     handle.dispose();
+  });
+
+  it('draws a phone at 1.5 device pixels without multisampling, and a desktop at 2 with it', async () => {
+    vi.stubGlobal('devicePixelRatio', 3);
+    const wide = await boot();
+    expect(made).toEqual({ antialias: true, ratio: 2 });
+    wide.handle.dispose();
+
+    narrow.value = true;
+    const phone = await boot(390, 900);
+    expect(made).toEqual({ antialias: false, ratio: 1.5 });
+    phone.handle.dispose();
   });
 
   it('runs on a browser with no IntersectionObserver, and then never pauses', async () => {

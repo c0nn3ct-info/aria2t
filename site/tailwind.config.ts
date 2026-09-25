@@ -2,6 +2,9 @@ import type { Config } from 'tailwindcss';
 import animate from 'tailwindcss-animate';
 
 export default {
+  // `hover:` only where the pointer can hover: on a touch screen the tint a tap
+  // leaves behind stays on the control until the next tap lands elsewhere.
+  future: { hoverOnlyWhenSupported: true },
   darkMode: ['variant', ['.dark &', '[data-theme="dark"] &']],
   content: [
     './src/**/*.{ts,tsx,html}',
@@ -138,10 +141,13 @@ export default {
         // thirty-three hand-typed `text-[Npx]`, nine sizes; no tracking or
         // weight, and the 1.5 line height those spans inherited, so naming
         // them changes no rendering. The three under 12px are the figures
-        // inside the product mocks, kept at the product's own size.
-        'micro':           ['10px', { lineHeight: '1.5' }],
-        'status':          ['10.5px', { lineHeight: '1.5' }],
-        'mini':            ['11px', { lineHeight: '1.5' }],
+        // inside the product mocks, kept at the product's own size - from
+        // `sm` up. Below it `.mock-type` (globals.css) lifts them, and
+        // `label-small` with them, to 12px inside the mocks, where the
+        // product's size on a phone was a page of figures nobody could read.
+        'micro':           ['var(--fs-micro, 10px)', { lineHeight: '1.5' }],
+        'status':          ['var(--fs-status, 10.5px)', { lineHeight: '1.5' }],
+        'mini':            ['var(--fs-mini, 11px)', { lineHeight: '1.5' }],
         'meta':            ['13px', { lineHeight: '1.5' }],
         'caption':         ['14px', { lineHeight: '1.5' }],
         'title-dense':     ['15px', { lineHeight: '1.5' }],
@@ -157,7 +163,7 @@ export default {
         'title-small':     ['14px', { lineHeight: '20px', letterSpacing: '0.1px',  fontWeight: '500' }],
         'label-large':     ['14px', { lineHeight: '20px', letterSpacing: '0.1px',  fontWeight: '500' }],
         'label-medium':    ['12px', { lineHeight: '16px', letterSpacing: '0.5px',  fontWeight: '500' }],
-        'label-small':     ['11px', { lineHeight: '16px', letterSpacing: '0.5px',  fontWeight: '500' }],
+        'label-small':     ['var(--fs-label-small, 11px)', { lineHeight: '16px', letterSpacing: '0.5px',  fontWeight: '500' }],
         'body-large':      ['16px', { lineHeight: '24px', letterSpacing: '0.5px' }],
         'body-medium':     ['14px', { lineHeight: '20px', letterSpacing: '0.25px' }],
         'body-small':      ['12px', { lineHeight: '16px', letterSpacing: '0.4px' }],

@@ -89,7 +89,8 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
                   hrefLang={l.code}
                   onClick={() => onSelect(l.code)}
                   className={cn(
-                    'm3-state-layer flex items-center gap-2 px-3 py-2 text-sm',
+                    // 44px: the menu opens on a phone as often as anywhere.
+                    'm3-state-layer flex min-h-11 items-center gap-2 px-3 py-2 text-sm',
                     active ? 'text-on-surface font-medium' : 'text-on-surface-variant',
                   )}
                   aria-current={active ? 'true' : undefined}

@@ -3,7 +3,7 @@
 // browser frame, and the terminal list inside its window chrome. The switch is
 // the site's own `SurfaceSwitch`, so this band and the rest of the site cannot
 // drift apart by a change to one of them.
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import {
   Keyboard,
   MousePointerClick,
@@ -20,6 +20,7 @@ import { SurfaceSwitch, type Surface } from '@/components/surface-switch';
 import { TerminalMock } from '@/components/terminal-mock';
 import { LandingSection, SectionHeading } from './shell';
 import { t } from '@/i18n';
+import { cn } from '@/lib/utils';
 
 /**
  * The extension: its popup alone on a phone, and inside a browser frame once
@@ -33,9 +34,10 @@ import { t } from '@/i18n';
  *
  * Below `sm` the frame is the wrong container: wider than the viewport, it
  * would put the subject of the section off the right edge and open on the page
- * behind instead. The popup goes alone there, still at 380, and the strip
- * scrolls sideways the way the terminal's does - a popup narrowed to 280 is no
- * longer the thing being shown.
+ * behind instead. The popup goes alone there, laid out at its own 380 and
+ * scaled down to the column as one picture, so a 360px phone sees all of it. A
+ * popup reflowed to 280 would be a different popup; one scrolled sideways hid
+ * the half with the downloads in it.
  *
  * What shows of the page behind the popup is a 110px strip, so it is the
  * frame's own grey bars. A fuller page drawn there gets sliced by the popup's
@@ -44,10 +46,25 @@ import { t } from '@/i18n';
 function Extension() {
   return (
     <>
-      <div className="-mx-5 overflow-x-auto px-5 sm:hidden">
-        {/* 382: the 380 surface plus the pixel of site framing on each edge. */}
-        <div className="min-w-[382px]">
-          <PopupMock />
+      <div className="[container-type:inline-size] sm:hidden">
+        {/* `--s` is the column over 382 — the surface plus a pixel of framing
+            on each edge — as a bare number: `atan2` of two lengths is an
+            angle, and its tangent is their ratio. Never above 1, so a wide
+            phone shows the popup at its own size. The height follows the
+            scale, so nothing is left standing under it. */}
+        <div
+          data-fit
+          className="flex justify-center"
+          style={
+            {
+              '--s': 'min(1, tan(atan2(100cqw, 382px)))',
+              height: 'calc(602px * var(--s))',
+            } as CSSProperties
+          }
+        >
+          <div className="shrink-0 origin-top [transform:scale(var(--s))]">
+            <PopupMock />
+          </div>
         </div>
       </div>
       <div className="hidden sm:flex sm:justify-center">
@@ -64,17 +81,45 @@ function Extension() {
  *
  * It reads left to right from its first column, so a sideways scroll on a
  * phone still opens on the part that matters. Letting it reflow instead would
- * shrink its type to about 6px, because the list sizes itself off a container
- * query.
+ * shrink its type to about 5px, because the list sizes itself off a container
+ * query — and the real list stops giving up columns at 72, so a narrower
+ * terminal is not one the product draws.
+ *
+ * On a phone the strip is wide enough for the list's own 12px: `min(12px,
+ * 1.64cqw)` reaches it at 732px of list, which is 760 with the window's
+ * padding and border. At 620 it scrolled and was still 9.7px, which is the
+ * worst of both. A fade on the right edge says the screen goes on, and goes
+ * once there is nothing further to scroll to.
  */
 function Terminal() {
+  const [end, setEnd] = useState(false);
   return (
-    <div className="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:overflow-visible sm:px-0">
-      <div className="min-w-[620px] sm:min-w-0">
-        <TerminalMock>
-          <ListMock />
-        </TerminalMock>
+    <div className="relative -mx-5 sm:mx-0">
+      <div
+        data-terminal-strip
+        dir="ltr"
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          setEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
+        }}
+        className="overflow-x-auto px-5 sm:overflow-visible sm:px-0"
+      >
+        <div className="min-w-[760px] sm:min-w-0">
+          <TerminalMock>
+            <ListMock />
+          </TerminalMock>
+        </div>
       </div>
+      <div
+        aria-hidden
+        data-more
+        data-state={end ? 'end' : 'more'}
+        className={cn(
+          'pointer-events-none absolute inset-y-0 right-0 w-14 bg-gradient-to-l from-background to-transparent',
+          'transition-opacity duration-short ease-emph sm:hidden',
+          end ? 'opacity-0' : 'opacity-100',
+        )}
+      />
     </div>
   );
 }

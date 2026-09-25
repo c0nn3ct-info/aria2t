@@ -166,7 +166,9 @@ export function FilesSection() {
                 <span
                   className={cn(
                     buttonVariants({ variant: 'filled-tonal', size: 's' }),
-                    'pointer-events-none flex-1',
+                    // Its own width on a phone, so Download keeps the rest:
+                    // halved, "Descargar 1.4 GiB" truncated at 131px.
+                    'pointer-events-none shrink-0 min-[400px]:flex-1',
                   )}
                 >
                   {t('landing.files.later')}

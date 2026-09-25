@@ -544,6 +544,25 @@
   }
 }
 
+/* The landing's product mocks, on a phone: the figures that are 10-11px in the
+ * product are 12px here, and back to the product's own size from `sm`. The
+ * tokens read these through `var()` with the product size as the fallback, so
+ * nothing outside a `.mock-type` moves. */
+.mock-type {
+  --fs-micro: 12px;
+  --fs-status: 12px;
+  --fs-mini: 12px;
+  --fs-label-small: 12px;
+}
+@media (min-width: 640px) {
+  .mock-type {
+    --fs-micro: 10px;
+    --fs-status: 10.5px;
+    --fs-mini: 11px;
+    --fs-label-small: 11px;
+  }
+}
+
 @layer components {
   /* An FAQ answer opens on the chevron's own curve and duration, rather than
    * snapping while the chevron turns. `::details-content` and
@@ -584,9 +603,13 @@
     transition: opacity var(--dur-short) var(--ease-emph);
     border-radius: inherit;
   }
-  .m3-state-layer:hover::after,
-  .m3-hover-layer:hover::after {
-    opacity: 0.08;
+  /* Only where the pointer hovers: a touch screen keeps an element "hovered"
+   * after a tap until the next one lands elsewhere, and the tint stayed on. */
+  @media (hover: hover) {
+    .m3-state-layer:hover::after,
+    .m3-hover-layer:hover::after {
+      opacity: 0.08;
+    }
   }
   .m3-state-layer:focus-visible::after {
     opacity: 0.10;

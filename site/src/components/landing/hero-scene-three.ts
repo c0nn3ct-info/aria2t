@@ -411,8 +411,13 @@ export function bootHeroScene(
   /** `glowMat` bound to this stage's blend, so the seven glow sites below read
    * the same either way. */
   const stageGlow = (color: number, opacity: number) => glowMat(color, opacity, BLEND);
-  const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true });
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  // A phone draws the band taller than its screen at a density of three, on a
+  // battery. Below `sm` it gets 1.5 and no multisampling: the crates and the
+  // belt are hard-edged by design, so what antialiasing would soften is the
+  // look, and the budget goes to the frame rate instead.
+  const narrow = window.matchMedia('(max-width: 639px)').matches;
+  const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: !narrow });
+  renderer.setPixelRatio(Math.min(narrow ? 1.5 : 2, window.devicePixelRatio || 1));
   const scene = new Scene();
   scene.fog = new Fog(BG, 13, 26);
   const camera = new PerspectiveCamera(30, WIDE.aspect, 0.1, 160);

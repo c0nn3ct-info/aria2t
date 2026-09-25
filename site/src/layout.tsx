@@ -150,14 +150,17 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
       >
         <div
           className={cn(
-            'flex flex-wrap items-start gap-x-12 gap-y-6 border-t border-outline-variant pt-6',
+            // Two columns on a phone, the brand across both: a free wrap put
+            // one column under another at whatever width each happened to be.
+            'grid grid-cols-2 items-start gap-x-6 gap-y-6 border-t border-outline-variant pt-6',
+            'sm:flex sm:flex-wrap sm:gap-x-12',
             !bleed && 'mx-auto max-w-5xl',
           )}
         >
           {/* Brand block: aria2t.c0nn3ct.info is the product, c0nn3ct.info is
               who made it, so the pairing (echoed from the header) stands in
               for the old "by c0nn3ct.info" byline. */}
-          <div className="flex max-w-[280px] flex-col gap-3">
+          <div className="col-span-2 flex max-w-[280px] flex-col gap-3">
             <div className="inline-flex items-center gap-2 text-on-surface">
               <Aria2tLogo className="h-5 w-5 text-primary" />
               <span className="text-title-medium tracking-tight">Aria2t</span>
@@ -183,11 +186,11 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
             <div className="mb-2 text-label-small uppercase tracking-[0.12em] text-on-surface-variant">
               {t('footer.product')}
             </div>
-            <ul className="space-y-1.5">
+            <ul className="sm:space-y-1.5">
               {NAV_LINKS.filter((l) => l.section === 'product').map((l) => (
                 <li key={l.key}>
                   <a
-                    className="inline-flex min-h-[24px] items-center gap-2 py-1 underline-offset-4 hover:underline"
+                    className="inline-flex min-h-11 items-center gap-2 underline-offset-4 hover:underline sm:min-h-[24px] sm:py-1"
                     href={l.key === 'home' ? homeHref : localePath(l.path)}
                     aria-current={current === l.key ? 'page' : undefined}
                   >
@@ -202,11 +205,11 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
             <div className="mb-2 text-label-small uppercase tracking-[0.12em] text-on-surface-variant">
               {t('footer.resources')}
             </div>
-            <ul className="space-y-1.5">
+            <ul className="sm:space-y-1.5">
               {NAV_LINKS.filter((l) => l.section === 'resources').map((l) => (
                 <li key={l.key}>
                   <a
-                    className="inline-flex min-h-[24px] items-center gap-2 py-1 underline-offset-4 hover:underline"
+                    className="inline-flex min-h-11 items-center gap-2 underline-offset-4 hover:underline sm:min-h-[24px] sm:py-1"
                     href={localePath(l.path)}
                     aria-current={current === l.key ? 'page' : undefined}
                   >
@@ -221,10 +224,10 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
             <div className="mb-2 text-label-small uppercase tracking-[0.12em] text-on-surface-variant">
               {t('footer.contacts')}
             </div>
-            <ul className="space-y-1.5">
+            <ul className="sm:space-y-1.5">
               <li>
                 <a
-                  className="inline-flex min-h-[24px] items-center gap-2 py-1 underline-offset-4 hover:underline"
+                  className="inline-flex min-h-11 items-center gap-2 underline-offset-4 hover:underline sm:min-h-[24px] sm:py-1"
                   href={GITHUB_URL}
                   target="_blank"
                   rel="noreferrer noopener"
@@ -235,7 +238,7 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
               </li>
               <li>
                 <a
-                  className="inline-flex min-h-[24px] items-center gap-2 py-1 underline-offset-4 hover:underline"
+                  className="inline-flex min-h-11 items-center gap-2 underline-offset-4 hover:underline sm:min-h-[24px] sm:py-1"
                   href={CONTACT_MAILTO}
                 >
                   <Mail className="h-3.5 w-3.5" />
@@ -269,10 +272,11 @@ export function Layout({ current, bleed = false, children }: LayoutProps) {
                 </span>
               )}
               <a
-                // 24px tall, not the 16 the line box gives it: a target below
-                // 24x24 fails WCAG 2.5.8, and these six sit one beside the
-                // other with a separator between them.
-                className="inline-flex min-h-[24px] items-center underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                // 44px on a phone, where the footer is navigated by thumb;
+                // from `sm` 24px, not the 16 the line box gives it: a target
+                // below 24x24 fails WCAG 2.5.8, and these six sit one beside
+                // the other with a separator between them.
+                className="inline-flex min-h-11 items-center sm:min-h-[24px] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 href={withLocale(currentPath, l.code)}
                 hrefLang={l.code}
                 lang={l.code}

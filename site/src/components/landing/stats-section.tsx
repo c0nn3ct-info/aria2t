@@ -157,7 +157,7 @@ export function StatsSection() {
 
       {/* The wave takes the wide track; the three figures stack beside it, and
           the column ends level with the chart card on a wide screen. */}
-      <div ref={band} className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)]">
+      <div ref={band} className="mock-type grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)]">
         <div
           data-enter
           className="flex flex-col rounded-lg border border-outline-variant bg-surface-container-low px-6 pb-5 pt-6 sm:px-7"
@@ -221,8 +221,9 @@ export function StatsSection() {
           />
           {/* Two abreast, at both ends of the range: they are the shortest
               figures in the band and a full-width panel each would leave the
-              column taller than the chart. */}
-          <div className="grid grid-cols-2 gap-4">
+              column taller than the chart. Under 400px one each: two abreast
+              left "CONNECTIONS" 92px at 320, less than the word. */}
+          <div className="grid gap-4 min-[400px]:grid-cols-2">
             <Panel
               size="panel"
               label={t('landing.stats.tile_conns')}

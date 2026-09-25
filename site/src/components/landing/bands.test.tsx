@@ -118,6 +118,8 @@ describe('the shell', () => {
       </MockStage>,
     );
     expect(withAside.getByText('aside')).toBeInTheDocument();
+    // The card lifts the product's 10-11px figures to 12px on a phone.
+    expect(withAside.container.querySelector('.d')).toHaveClass('mock-type');
     const bare = render(<MockHeader title="Only" />);
     expect(bare.getByText('Only')).toBeInTheDocument();
   });
@@ -139,12 +141,52 @@ describe('the surfaces band', () => {
   });
 });
 
+describe('the surfaces band on a phone', () => {
+  it('fits the whole popup on the screen, scaled rather than scrolled', () => {
+    const { container } = render(<SurfacesSection />);
+    const fit = container.querySelector('[data-fit]') as HTMLElement;
+    expect(fit.style.getPropertyValue('--s')).toContain('100cqw');
+    expect(fit.parentElement?.className).toContain('[container-type:inline-size]');
+    expect(fit.parentElement).toHaveClass('sm:hidden');
+    expect(fit.parentElement?.querySelector('.overflow-x-auto')).toBeNull();
+  });
+
+  it('sets the terminal at a size that reads, and says there is more to the right', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<SurfacesSection />);
+    await user.click(screen.getByRole('button', { name: /terminal/i }));
+
+    const strip = container.querySelector('[data-terminal-strip]') as HTMLElement;
+    // 12px of type needs the list 732px wide: min(12px, 1.64cqw).
+    expect(strip.firstElementChild).toHaveClass('min-w-[760px]', 'sm:min-w-0');
+    // Opens on its first column whatever the page's direction.
+    expect(strip).toHaveAttribute('dir', 'ltr');
+
+    const fade = container.querySelector('[data-more]') as HTMLElement;
+    expect(fade).toHaveClass('sm:hidden');
+    expect(fade).toHaveAttribute('data-state', 'more');
+
+    // Scrolled to its end, the hint goes: there is nothing left to point at.
+    Object.defineProperty(strip, 'scrollWidth', { configurable: true, value: 800 });
+    Object.defineProperty(strip, 'clientWidth', { configurable: true, value: 320 });
+    strip.scrollLeft = 480;
+    fireEvent.scroll(strip);
+    expect(fade).toHaveAttribute('data-state', 'end');
+
+    strip.scrollLeft = 100;
+    fireEvent.scroll(strip);
+    expect(fade).toHaveAttribute('data-state', 'more');
+  });
+});
+
 describe('the queue band', () => {
   it('gives every row the route it arrived by, and the routes their legend', () => {
     const { container } = render(<QueueSection />);
     const rows = container.querySelectorAll('li');
     // three legend entries in the rail, five downloads in the queue
     expect(rows).toHaveLength(8);
+    // The card lifts the product's 10-11px figures to 12px on a phone.
+    expect(container.querySelector('.mock-type')).not.toBeNull();
 
     // the mark is an icon, so the route reaches a screen reader as the word -
     // and the rows are the queue's own first five, not a copy of them
