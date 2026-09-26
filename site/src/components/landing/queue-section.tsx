@@ -199,7 +199,7 @@ export function QueueSection() {
         {/* The queue: one object, one order, every row carrying its route. */}
         <div
           data-enter
-          className="mock-type min-w-0 overflow-clip rounded-md border border-outline-variant bg-background text-on-surface shadow-e4"
+          className="phone-type min-w-0 overflow-clip rounded-md border border-outline-variant bg-background text-on-surface shadow-e4"
         >
           <div className="flex items-center gap-2.5 border-b border-outline-variant px-4 py-3.5 sm:px-5">
             <span className="flex-1 text-title-small font-semibold">

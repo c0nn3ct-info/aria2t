@@ -15,6 +15,10 @@ describe('Layout', () => {
       </Layout>,
     );
     expect(screen.getByRole('banner')).toBeInTheDocument();
+    // Opaque, with no backdrop blur: over the hero's live WebGL canvas the
+    // blur cost the first scroll frame 55-90ms in Chrome.
+    expect(screen.getByRole('banner').className).not.toMatch(/backdrop-blur/);
+    expect(screen.getByRole('banner')).toHaveClass('bg-surface-container-low');
     expect(within(screen.getByRole('main')).getByText('page body')).toBeInTheDocument();
     expect(screen.getByRole('contentinfo')).toBeInTheDocument();
   });

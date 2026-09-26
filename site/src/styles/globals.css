@@ -544,18 +544,19 @@
   }
 }
 
-/* The landing's product mocks, on a phone: the figures that are 10-11px in the
- * product are 12px here, and back to the product's own size from `sm`. The
- * tokens read these through `var()` with the product size as the fallback, so
- * nothing outside a `.mock-type` moves. */
-.mock-type {
+/* Type under 12px, lifted to 12px on a phone: the product mocks' figures,
+ * which are 10-11px in the product, and the few labels the landing sets at
+ * those sizes. Back to the product's own size from `sm`. The tokens read these
+ * through `var()` with that size as the fallback, so nothing outside a
+ * `.phone-type` moves. */
+.phone-type {
   --fs-micro: 12px;
   --fs-status: 12px;
   --fs-mini: 12px;
   --fs-label-small: 12px;
 }
 @media (min-width: 640px) {
-  .mock-type {
+  .phone-type {
     --fs-micro: 10px;
     --fs-status: 10.5px;
     --fs-mini: 11px;
@@ -772,6 +773,10 @@
       animation: enter-fade var(--ease-emph-decel) backwards;
       animation-timeline: view();
       animation-range: cover 4% cover 32%;
+      /* A layer each from the start. Inside a card that is itself moving,
+       * Safari built one per row at the moment its fade began and dropped a
+       * 55-70ms frame doing it; a handful of rows can hold theirs. */
+      will-change: opacity;
     }
     [data-enter-stagger='fade'] > :nth-child(2) {
       animation-range: cover 8% cover 36%;

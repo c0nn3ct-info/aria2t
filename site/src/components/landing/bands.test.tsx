@@ -119,7 +119,7 @@ describe('the shell', () => {
     );
     expect(withAside.getByText('aside')).toBeInTheDocument();
     // The card lifts the product's 10-11px figures to 12px on a phone.
-    expect(withAside.container.querySelector('.d')).toHaveClass('mock-type');
+    expect(withAside.container.querySelector('.d')).toHaveClass('phone-type');
     const bare = render(<MockHeader title="Only" />);
     expect(bare.getByText('Only')).toBeInTheDocument();
   });
@@ -148,6 +148,9 @@ describe('the surfaces band on a phone', () => {
     expect(fit.style.getPropertyValue('--s')).toContain('100cqw');
     expect(fit.parentElement?.className).toContain('[container-type:inline-size]');
     expect(fit.parentElement).toHaveClass('sm:hidden');
+    // Its own layer, rastered once at the scale: Safari re-rastered the whole
+    // popup on every frame of the band's exit and dropped one of 60-70ms.
+    expect(fit.firstElementChild).toHaveClass('will-change-transform');
     expect(fit.parentElement?.querySelector('.overflow-x-auto')).toBeNull();
   });
 
@@ -186,7 +189,7 @@ describe('the queue band', () => {
     // three legend entries in the rail, five downloads in the queue
     expect(rows).toHaveLength(8);
     // The card lifts the product's 10-11px figures to 12px on a phone.
-    expect(container.querySelector('.mock-type')).not.toBeNull();
+    expect(container.querySelector('.phone-type')).not.toBeNull();
 
     // the mark is an icon, so the route reaches a screen reader as the word -
     // and the rows are the queue's own first five, not a copy of them

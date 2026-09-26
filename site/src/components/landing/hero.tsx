@@ -301,7 +301,7 @@ export function LandingHero() {
           <Button
             variant="outlined"
             size="s"
-            className="h-12 border-outline-variant bg-surface-container-low/80 px-5 text-on-surface-variant backdrop-blur-sm disabled:opacity-100"
+            className="phone-type h-12 border-outline-variant bg-surface-container-low/80 px-5 text-on-surface-variant backdrop-blur-sm disabled:opacity-100"
             disabled
             title={t('home.hero.cta_webstore_soon')}
           >
@@ -321,7 +321,7 @@ export function LandingHero() {
               1.4:1, so it gets a ground too. */}
           <Eyebrow
             tone="muted"
-            className="w-fit rounded-sm bg-background/95 px-1.5 py-0.5 text-micro backdrop-blur-sm"
+            className="phone-type w-fit rounded-sm bg-background/95 px-1.5 py-0.5 text-micro backdrop-blur-sm"
           >
             {t('home.works_with')}
           </Eyebrow>

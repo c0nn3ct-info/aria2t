@@ -32,7 +32,7 @@ export function FaqBand() {
           </p>
 
           <div data-enter className="mt-7 flex flex-col gap-3 border-t border-outline-variant pt-6">
-            <span className="text-label-small uppercase tracking-[0.14em] text-on-surface-variant">
+            <span className="phone-type text-label-small uppercase tracking-[0.14em] text-on-surface-variant">
               {t('landing.faq.no_answer')}
             </span>
             <a

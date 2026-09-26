@@ -62,7 +62,10 @@ function Extension() {
             } as CSSProperties
           }
         >
-          <div className="shrink-0 origin-top [transform:scale(var(--s))]">
+          {/* Its own layer, so it is rastered once at the scale. Painted with
+              the band, Safari rastered the whole popup again on every frame
+              of the band's exit and dropped a 60-70ms frame there. */}
+          <div className="shrink-0 origin-top will-change-transform [transform:scale(var(--s))]">
             <PopupMock />
           </div>
         </div>

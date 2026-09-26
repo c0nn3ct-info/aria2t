@@ -18,6 +18,17 @@ const PAGES = [
 
 afterEach(() => setLocale('en'));
 
+describe('the landing on a phone', () => {
+  it('sets the labels it draws under 12px at 12px there', () => {
+    render(<LandingPage />);
+    // Lifted by `.phone-type` below `sm`: the store button's "soon", the label
+    // over the sources, and the one over the ways to ask.
+    for (const text of [en['landing.hero.soon'], en['home.works_with'], en['landing.faq.no_answer']]) {
+      expect(screen.getByText(text).closest('.phone-type')).not.toBeNull();
+    }
+  });
+});
+
 describe.each(PAGES)('%s page', (name, Page) => {
   it('renders a heading inside the site layout', () => {
     render(<Page />);

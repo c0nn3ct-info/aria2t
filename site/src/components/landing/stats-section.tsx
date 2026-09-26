@@ -157,7 +157,7 @@ export function StatsSection() {
 
       {/* The wave takes the wide track; the three figures stack beside it, and
           the column ends level with the chart card on a wide screen. */}
-      <div ref={band} className="mock-type grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)]">
+      <div ref={band} className="phone-type grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)]">
         <div
           data-enter
           className="flex flex-col rounded-lg border border-outline-variant bg-surface-container-low px-6 pb-5 pt-6 sm:px-7"
